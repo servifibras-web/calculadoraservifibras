@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de Resina - Servifibras</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', Arial, sans-serif; background: #f5f5f5; padding: 16px; color: #222; }
+  .calc { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; max-width: 540px; margin: 0 auto; }
+  .calc-header { background: #111; padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+  .calc-header .icon { font-size: 24px; }
+  .calc-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: #fff; letter-spacing: .06em; line-height: 1; }
+  .calc-header p { font-size: 12px; color: #aaa; margin-top: 3px; }
+  .modo-tabs { display: flex; border-bottom: 1px solid #eee; }
+  .modo-tab { flex: 1; padding: 11px 4px; font-size: 11px; font-weight: 600; text-align: center; cursor: pointer; color: #aaa; border-bottom: 2px solid transparent; transition: all .15s; letter-spacing: .03em; text-transform: uppercase; }
+  .modo-tab.active { color: #111; border-bottom-color: #111; }
+  .modo-tab:hover:not(.active) { color: #555; }
+  .calc-body { padding: 18px 20px; }
+  .resina-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; display: block; }
+  .resina-select { width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 14px; font-family: 'Inter', Arial, sans-serif; color: #222; outline: none; cursor: pointer; margin-bottom: 6px; transition: border .15s; appearance: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 12px center; }
+  .resina-select:focus { border-color: #111; }
+  .resina-desc { background: #f5f5f5; border-radius: 6px; padding: 10px 12px; font-size: 12px; color: #555; line-height: 1.5; margin-bottom: 16px; min-height: 36px; }
+  .resina-desc strong { color: #111; }
+  .tipo-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tipo-btn { flex: 1; padding: 8px 4px; border: 1.5px solid #ddd; border-radius: 6px; background: #fff; font-family: 'Bebas Neue', sans-serif; font-size: 12px; letter-spacing: .04em; color: #666; cursor: pointer; text-align: center; transition: all .15s; }
+  .tipo-btn.active { border-color: #111; background: #111; color: #fff; }
+  .tipo-btn:hover:not(.active) { border-color: #555; color: #333; }
+  .tipo-btn.hidden { display: none; }
+  .campos-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .campo label { display: block; font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+  .campo input { width: 100%; padding: 9px 10px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 14px; font-family: 'Inter', Arial, sans-serif; color: #222; outline: none; transition: border .15s; }
+  .campo input:focus { border-color: #111; }
+  .campo.hidden { display: none; }
+  .campo-excedente { margin-bottom: 16px; }
+  .campo-excedente label { display: block; font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
+  .campo-excedente input { width: 100%; padding: 9px 10px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 14px; font-family: 'Inter', Arial, sans-serif; color: #222; outline: none; transition: border .15s; }
+  .campo-excedente input:focus { border-color: #111; }
+  .hint { font-size: 11px; color: #bbb; margin-top: 3px; }
+  .cantidad-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .cantidad-row input, .cantidad-row select { width: 100%; padding: 9px 10px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 14px; font-family: 'Inter', Arial, sans-serif; color: #222; outline: none; transition: border .15s; appearance: none; background: #fff; }
+  .cantidad-row input:focus, .cantidad-row select:focus { border-color: #111; }
+  .btn-calc { width: 100%; padding: 14px; background: #111; color: #fff; border: none; border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 15px; letter-spacing: .2em; cursor: pointer; transition: background .15s, transform .1s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .btn-calc:hover { background: #333; transform: translateY(-1px); }
+  .btn-calc:active { transform: translateY(0); }
+  .btn-calc .arrow { font-size: 18px; transition: transform .2s; }
+  .btn-calc:hover .arrow { transform: translateX(4px); }
+  .resultado { display: none; padding: 0 20px 20px; }
+  .resultado.visible { display: block; }
+  .res-divider { border: none; border-top: 1px solid #eee; margin-bottom: 16px; }
+  .res-principal { background: #111; color: #fff; border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; }
+  .res-principal .label { font-size: 11px; opacity: .6; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .res-principal .numero { font-family: 'Bebas Neue', sans-serif; font-size: 42px; letter-spacing: .03em; line-height: 1; }
+  .res-principal .unidad { font-size: 13px; opacity: .7; margin-top: 3px; }
+  .res-detalle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .res-item { background: #f5f5f5; border-radius: 6px; padding: 10px 12px; }
+  .res-item .label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #999; margin-bottom: 3px; }
+  .res-item .valor { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: .03em; color: #111; }
+  .res-item.hidden { display: none; }
+  .res-presentacion { background: #f0f7ff; border: 1px solid #b3d4f5; border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #1a4a7a; line-height: 1.5; margin-bottom: 10px; }
+  .res-presentacion strong { color: #0d2e52; }
+  .res-warning { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #7a5a00; line-height: 1.5; margin-bottom: 10px; }
+  .res-warning strong { color: #5a3d00; }
+  #btn-whatsapp { display: flex; align-items: center; justify-content: center; gap: 10px; background: #25D366; color: #fff; border-radius: 8px; padding: 13px 16px; text-decoration: none; font-size: 14px; font-weight: 600; margin-top: 4px; transition: background .15s; }
+  #btn-whatsapp:hover { background: #1da851; }
+  .historial { padding: 16px 20px; }
+  .historial-titulo { font-size: 11px; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .historial-titulo button { font-size: 11px; color: #bbb; background: none; border: none; cursor: pointer; text-decoration: underline; }
+  .historial-item { background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
+  .historial-item .h-resina { font-size: 12px; font-weight: 600; color: #111; margin-bottom: 2px; }
+  .historial-item .h-detalle { font-size: 11px; color: #888; }
+  .historial-item .h-resultado { font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: #111; margin-top: 4px; }
+  .historial-item .h-pres { font-size: 11px; color: #555; margin-top: 2px; }
+  .historial-empty { font-size: 12px; color: #ccc; text-align: center; padding: 20px 0; }
+  .calc-footer { background: #f9f9f9; border-top: 1px solid #eee; padding: 10px 20px; text-align: center; font-size: 11px; color: #bbb; }
+  .calc-footer strong { font-family: 'Bebas Neue', sans-serif; font-size: 13px; color: #999; letter-spacing: .06em; }
+</style>
+</head>
+<body>
+<div class="calc">
+
+  <div class="calc-header">
+    <div class="icon">🧮</div>
+    <div>
+      <h2>Calculadora de Resina</h2>
+      <p>Servifibras · +20 años en el mercado</p>
+    </div>
+  </div>
+
+  <div class="modo-tabs">
+    <div class="modo-tab active" id="tab-normal" onclick="setModo('normal')">🔢 Cuánto necesito</div>
+    <div class="modo-tab" id="tab-inverso" onclick="setModo('inverso')">📦 Qué puedo hacer</div>
+    <div class="modo-tab" id="tab-historial" onclick="setModo('historial')">🕓 Historial</div>
+  </div>
+
+  <!-- MODO NORMAL -->
+  <div id="modo-normal">
+    <div class="calc-body">
+      <label class="resina-label">¿Qué resina vas a usar?</label>
+      <select class="resina-select" id="resina-select" onchange="cambiarResina('normal')">
+        <option value="">— Seleccioná una resina —</option>
+        <option value="espesores">Resina Epoxi para Altos Espesores</option>
+        <option value="artesanos">Resina Epoxi Artesanos 2:1</option>
+        <option value="cristal">Resina Epoxi Cristal 1:1 con Filtro UV</option>
+        <option value="pisos">Resina Epoxi Pisos Alto Tránsito 2:1</option>
+        <option value="uv">Resina de Secado UV Monocomponente</option>
+      </select>
+      <div class="resina-desc" id="resina-desc">Seleccioná una resina para ver su descripción y calcular la cantidad necesaria.</div>
+      <div class="tipo-selector" id="tipo-selector">
+        <div class="tipo-btn active" onclick="setTipo('molde')" id="btn-molde">🔷 Molde</div>
+        <div class="tipo-btn" onclick="setTipo('mesa')" id="btn-mesa">🪵 Mesa</div>
+        <div class="tipo-btn" onclick="setTipo('capa')" id="btn-capa">🎨 Capa</div>
+        <div class="tipo-btn hidden" onclick="setTipo('piso')" id="btn-piso">🏠 Piso m²</div>
+      </div>
+      <div class="campos-grid">
+        <div class="campo" id="campo-largo"><label>Largo (cm)</label><input type="number" id="largo" placeholder="ej: 120" min="1" value=""></div>
+        <div class="campo" id="campo-ancho"><label>Ancho (cm)</label><input type="number" id="ancho" placeholder="ej: 60" min="1" value=""></div>
+        <div class="campo" id="campo-prof"><label id="label-prof">Altura (cm)</label><input type="number" id="prof" placeholder="ej: 10" min="0.1" step="0.1" value=""></div>
+        <div class="campo hidden" id="campo-m2"><label>Superficie (m²)</label><input type="number" id="m2" placeholder="ej: 20" min="0.1" step="0.1" value=""></div>
+        <div class="campo hidden" id="campo-capas"><label>N° de capas</label><input type="number" id="capas" placeholder="ej: 2" min="1" value=""></div>
+      </div>
+      <div class="campo-excedente">
+        <label>% de excedente</label>
+        <input type="number" id="excedente" value="2" min="0" max="30">
+        <div class="hint">Recomendamos 2% para compensar pérdidas mínimas</div>
+      </div>
+      <button class="btn-calc" onclick="calcular()"><span>CALCULAR CANTIDAD NECESARIA</span><span class="arrow">→</span></button>
+    </div>
+    <div class="resultado" id="resultado">
+      <hr class="res-divider">
+      <div style="padding:0 0 4px">
+        <div class="res-principal">
+          <div class="label">Total de mezcla necesaria</div>
+          <div class="numero" id="res-total">—</div>
+          <div class="unidad" id="res-unidad">—</div>
+        </div>
+        <div class="res-detalle">
+          <div class="res-item" id="item-a"><div class="label" id="label-a">Parte A</div><div class="valor" id="res-a">—</div></div>
+          <div class="res-item" id="item-b"><div class="label" id="label-b">Parte B</div><div class="valor" id="res-b">—</div></div>
+          <div class="res-item"><div class="label" id="label-vol">Volumen</div><div class="valor" id="res-vol">—</div></div>
+          <div class="res-item"><div class="label">Temperatura ideal</div><div class="valor" id="res-temp">—</div></div>
+        </div>
+        <div class="res-presentacion" id="res-presentacion"></div>
+        <div class="res-warning" id="res-warning" style="display:none"></div>
+        <a id="btn-whatsapp" href="#" target="_blank" rel="noopener" style="display:none">
+          <span style="font-size:18px">💬</span><span>Consultar por WhatsApp con este cálculo</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODO INVERSO -->
+  <div id="modo-inverso" style="display:none">
+    <div class="calc-body">
+      <label class="resina-label">¿Qué resina tenés?</label>
+      <select class="resina-select" id="resina-select-inv" onchange="cambiarResina('inverso')">
+        <option value="">— Seleccioná una resina —</option>
+        <option value="espesores">Resina Epoxi para Altos Espesores</option>
+        <option value="artesanos">Resina Epoxi Artesanos 2:1</option>
+        <option value="cristal">Resina Epoxi Cristal 1:1 con Filtro UV</option>
+        <option value="pisos">Resina Epoxi Pisos Alto Tránsito 2:1</option>
+        <option value="uv">Resina de Secado UV Monocomponente</option>
+      </select>
+      <div class="resina-desc" id="resina-desc-inv">Seleccioná la resina que tenés disponible.</div>
+      <label class="resina-label">¿Cuánto tenés disponible?</label>
+      <div class="cantidad-row">
+        <input type="number" id="inv-cantidad" placeholder="ej: 1.5" min="0.001" step="0.001">
+        <select id="inv-unidad">
+          <option value="L">Litros (L)</option>
+          <option value="ml">Mililitros (ml)</option>
+          <option value="kg">Kilogramos (kg)</option>
+        </select>
+      </div>
+      <label class="resina-label" style="margin-bottom:8px">¿Tipo de aplicación?</label>
+      <div class="tipo-selector">
+        <div class="tipo-btn active" onclick="setTipoInv('molde')" id="ibtn-molde">🔷 Molde</div>
+        <div class="tipo-btn" onclick="setTipoInv('mesa')" id="ibtn-mesa">🪵 Mesa</div>
+        <div class="tipo-btn" onclick="setTipoInv('capa')" id="ibtn-capa">🎨 Capa</div>
+        <div class="tipo-btn" onclick="setTipoInv('piso')" id="ibtn-piso">🏠 Piso</div>
+      </div>
+      <button class="btn-calc" onclick="calcularInverso()"><span>VER QUÉ PUEDO HACER</span><span class="arrow">→</span></button>
+    </div>
+    <div class="resultado" id="resultado-inv">
+      <hr class="res-divider">
+      <div style="padding:0 0 16px">
+        <div class="res-principal">
+          <div class="label">Con tu resina podés cubrir</div>
+          <div class="numero" id="inv-res-total">—</div>
+          <div class="unidad" id="inv-res-unidad">—</div>
+        </div>
+        <div class="res-detalle">
+          <div class="res-item"><div class="label">Volumen disponible</div><div class="valor" id="inv-vol">—</div></div>
+          <div class="res-item"><div class="label">Temperatura ideal</div><div class="valor" id="inv-temp">—</div></div>
+          <div class="res-item" id="inv-item-a"><div class="label">Parte A</div><div class="valor" id="inv-a">—</div></div>
+          <div class="res-item" id="inv-item-b"><div class="label">Parte B</div><div class="valor" id="inv-b">—</div></div>
+        </div>
+        <div class="res-presentacion" id="inv-sugerencia"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div id="modo-historial" style="display:none">
+    <div class="historial">
+      <div class="historial-titulo">
+        Últimos cálculos
+        <button onclick="limpiarHistorial()">Limpiar todo</button>
+      </div>
+      <div id="historial-lista"><div class="historial-empty">Todavía no hay cálculos guardados.</div></div>
+    </div>
+  </div>
+
+  <div class="calc-footer">
+    <strong>SERVIFIBRAS</strong> · Expertos en resinas y fibras · +20 años en el mercado
+  </div>
+
+</div>
+<script>
+const RESINAS = {
+  espesores: { nombre:'Resina Epoxi para Altos Espesores', desc:'<strong>Sistema bicomponente 2:1.</strong> Baja exotermia, curado lento. Ideal para mesas de río, bloques sólidos y encapsulados de gran volumen.', tipo:'volumen', proporcion:2.34, densidad:1.05, tempIdeal:'20–25 °C', tiposProyecto:['molde','mesa','capa'], presentaciones:[0.3,0.75,1.5,3,6,15], unidadVenta:'L', url:'https://www.tiendaservifibras.com/productos/resinaepoxiespesores/', advertencias:{ capaFina:'Esta resina no es apta para capas menores a 3 cm. Para revestimientos finos te recomendamos la <a href="https://www.tiendaservifibras.com/productos/resina-epoxi-cristal-artesanias/" target="_blank">Resina Epoxi Cristal Artesanos</a>.', volumenGrande:'No verter más de 3 litros en moldes cerrados sin control térmico. Consultanos antes de comenzar.' }},
+  artesanos: { nombre:'Resina Epoxi Artesanos 2:1', desc:'<strong>Sistema bicomponente 2:1.</strong> Baja viscosidad, excelente fluidez. Ideal para artesanías, bijouterie, encapsulados medianos y moldes de silicona.', tipo:'volumen', proporcion:2.34, densidad:1.02, tempIdeal:'22–26 °C', tiposProyecto:['molde','capa'], presentaciones:[0.3,1,1.5,4,6,15], unidadVenta:'L', url:'https://www.tiendaservifibras.com/productos/resina-epoxi-cristal-artesanias/', advertencias:{ capaFina:null, volumenGrande:'Para proyectos más grandes te recomendamos la <a href="https://www.tiendaservifibras.com/productos/resinaepoxiespesores/" target="_blank">Resina Epoxi para Altos Espesores</a>.' }},
+  cristal: { nombre:'Resina Epoxi Cristal 1:1 con Filtro UV', desc:'<strong>Sistema bicomponente 1:1.</strong> Alta transparencia, autonivelante, con filtro UV anti-amarillamiento. Ideal para encapsulados, arte en madera y bijouterie de detalle.', tipo:'volumen', proporcion:1.12, densidad:1.115, tempIdeal:'20–25 °C', tiposProyecto:['molde','capa'], presentaciones:[0.2,0.5,1,4], unidadVenta:'L', url:'https://www.tiendaservifibras.com/productos/resinaepoxifiltrouv/', advertencias:{ capaFina:null, volumenGrande:'A 25°C el vertido máximo recomendado es 1 kg. Para proyectos de mayor volumen te recomendamos la <a href="https://www.tiendaservifibras.com/productos/resinaepoxiespesores/" target="_blank">Resina para Altos Espesores</a>.' }},
+  pisos: { nombre:'Resina Epoxi Pisos Alto Tránsito 2:1', desc:'<strong>Sistema bicomponente 2:1.</strong> Alta resistencia mecánica y química. Para pisos industriales, garajes, talleres y zonas de alto tránsito.', tipo:'superficie', proporcion:2.31, densidad:1.08, tempIdeal:'20–30 °C', rendimientoMin:0.3, rendimientoMax:0.5, tiposProyecto:['piso'], presentaciones:[1.5,3], unidadVenta:'L', url:'https://www.tiendaservifibras.com/productos/resina-epoxi-alto-transito/', advertencias:{ transito:'Tránsito peatonal: desde 24h. Tránsito vehicular: desde 72h. Curado completo: 5–7 días.' }},
+  uv: { nombre:'Resina de Secado UV Monocomponente', desc:'<strong>Monocomponente — sin mezcla.</strong> Curado rápido bajo luz UV (2–5 min). Lista para usar. Ideal para joyería, bisutería, esmaltes y acabados brillantes.', tipo:'capa_uv', proporcion:null, densidad:1.08, tempIdeal:'18–25 °C', tiposProyecto:['capa'], presentaciones:[0.05,0.1,0.25,0.5,1], unidadVenta:'L', url:'https://www.tiendaservifibras.com/productos/resina-de-secado-uv-con-pico-vertedor/', advertencias:{ espesor:'No curar en capas superiores a 3 mm sin hacerlo en etapas sucesivas.', volumenGrande:'Para piezas más grandes te recomendamos la <a href="https://www.tiendaservifibras.com/productos/resinaepoxifiltrouv/" target="_blank">Resina Epoxi Cristal 1:1 con Filtro UV</a>.' }}
+};
+
+let resinaActual = null, tipoActual = 'molde', tipoInvActual = 'molde', historial = [];
+
+function setModo(modo) {
+  ['normal','inverso','historial'].forEach(m => {
+    document.getElementById('modo-'+m).style.display = m===modo?'block':'none';
+    document.getElementById('tab-'+m).classList.toggle('active', m===modo);
+  });
+  if (modo==='historial') renderHistorial();
+}
+
+function cambiarResina(modo) {
+  const key = document.getElementById(modo==='inverso'?'resina-select-inv':'resina-select').value;
+  document.getElementById('resultado').classList.remove('visible');
+  document.getElementById('resultado-inv').classList.remove('visible');
+  ['largo','ancho','prof','m2','capas','inv-cantidad'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  if (!key) { resinaActual=null; document.getElementById(modo==='inverso'?'resina-desc-inv':'resina-desc').innerHTML='Seleccioná una resina.'; return; }
+  resinaActual = RESINAS[key];
+  document.getElementById(modo==='inverso'?'resina-desc-inv':'resina-desc').innerHTML = resinaActual.desc;
+  if (modo==='normal') {
+    ['molde','mesa','capa','piso'].forEach(t=>document.getElementById('btn-'+t).classList.toggle('hidden',!resinaActual.tiposProyecto.includes(t)));
+    setTipo(resinaActual.tiposProyecto[0]);
+  }
+}
+
+function setTipo(tipo) {
+  tipoActual=tipo;
+  document.querySelectorAll('#modo-normal .tipo-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('btn-'+tipo); if(btn)btn.classList.add('active');
+  ['campo-m2','campo-capas'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  ['campo-largo','campo-ancho','campo-prof'].forEach(id=>document.getElementById(id).classList.remove('hidden'));
+  const lp=document.getElementById('label-prof'), ip=document.getElementById('prof');
+  if (tipo==='piso') { ['campo-largo','campo-ancho','campo-prof'].forEach(id=>document.getElementById(id).classList.add('hidden')); document.getElementById('campo-m2').classList.remove('hidden'); document.getElementById('campo-capas').classList.remove('hidden'); }
+  else if (tipo==='capa') { lp.textContent='Espesor (mm)'; ip.placeholder='ej: 3'; }
+  else if (tipo==='mesa') { lp.textContent='Prof. canal (cm)'; ip.placeholder='ej: 5'; }
+  else { lp.textContent='Altura (cm)'; ip.placeholder='ej: 10'; }
+  document.getElementById('resultado').classList.remove('visible');
+}
+
+function setTipoInv(tipo) {
+  tipoInvActual=tipo;
+  document.querySelectorAll('#modo-inverso .tipo-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('ibtn-'+tipo).classList.add('active');
+}
+
+function combinar(cantidad, presentaciones) {
+  const pres=[...presentaciones].sort((a,b)=>b-a);
+  let restante=cantidad; const combo=[];
+  for (const p of pres) { if(restante<=0.001)break; const c=Math.floor(restante/p); if(c>0){combo.push({cantidad:c,tamaño:p});restante-=c*p;} }
+  if (restante>0.001) combo.push({cantidad:1,tamaño:pres[pres.length-1]});
+  return combo;
+}
+
+function formatCombo(combo, esUV) {
+  const f=esUV?1000:1, u=esUV?'ml':'L';
+  return combo.map(c=>c.cantidad+' × '+(+(c.tamaño*f).toFixed(c.tamaño*f<1?0:1))+' '+u).join(' + ');
+}
+
+function calcular() {
+  if (!resinaActual){alert('Por favor seleccioná una resina primero.');return;}
+  const exc=(parseFloat(document.getElementById('excedente').value)||2)/100;
+  let totalKg=0, volLitros=0, volDisplay='', warn='';
+
+  if (tipoActual==='piso') {
+    const m2=parseFloat(document.getElementById('m2').value), capas=parseInt(document.getElementById('capas').value)||1;
+    if(!m2){alert('Por favor ingresá la superficie en m².');return;}
+    const kgMin=m2*capas*resinaActual.rendimientoMin*(1+exc), kgMax=m2*capas*resinaActual.rendimientoMax*(1+exc);
+    totalKg=kgMax; volDisplay=m2+' m² × '+capas+' capa'+(capas>1?'s':'');
+    document.getElementById('res-total').textContent=kgMin.toFixed(1)+'–'+kgMax.toFixed(1)+' kg';
+    document.getElementById('res-unidad').textContent='rango según rugosidad del sustrato';
+    warn=resinaActual.advertencias.transito||'';
+    const combo=combinar(kgMax/resinaActual.densidad,resinaActual.presentaciones);
+    document.getElementById('res-presentacion').innerHTML='✅ <strong>Recomendamos: '+formatCombo(combo,false)+'</strong> de <a href="'+resinaActual.url+'" target="_blank" style="color:#0d2e52;font-weight:600;">'+resinaActual.nombre+'</a> para cubrir el máximo estimado.';
+  } else {
+    const largo=parseFloat(document.getElementById('largo').value), ancho=parseFloat(document.getElementById('ancho').value);
+    let prof=parseFloat(document.getElementById('prof').value);
+    if(!largo||!ancho||!prof){alert('Por favor completá todas las medidas.');return;}
+    if(tipoActual==='capa') prof=prof/10;
+    volLitros=(largo*ancho*prof)/1000;
+    const esUV=resinaActual.tipo==='capa_uv';
+    totalKg=volLitros*resinaActual.densidad*(1+exc);
+    volDisplay=volLitros.toFixed(3)+' L';
+    if (esUV) { document.getElementById('res-total').textContent=Math.ceil(volLitros*1000*(1+exc))+' ml'; document.getElementById('res-unidad').textContent='resina UV lista para usar (sin mezcla)'; }
+    else { document.getElementById('res-total').textContent=totalKg.toFixed(3)+' kg'; document.getElementById('res-unidad').textContent='mezcla total A+B'; }
+    if(tipoActual==='capa'&&resinaActual.advertencias.espesor) warn='⚠️ <strong>Atención:</strong> '+resinaActual.advertencias.espesor;
+    else if(tipoActual==='capa'&&prof<0.3&&resinaActual.advertencias.capaFina) warn='⚠️ <strong>Atención:</strong> '+resinaActual.advertencias.capaFina;
+    else if(totalKg>6&&resinaActual.advertencias.volumenGrande) warn='⚠️ <strong>Proyecto grande:</strong> '+resinaActual.advertencias.volumenGrande;
+    const cantRef=esUV?volLitros*(1+exc):totalKg/resinaActual.densidad;
+    const combo=combinar(cantRef,resinaActual.presentaciones);
+    document.getElementById('res-presentacion').innerHTML='✅ <strong>Recomendamos: '+formatCombo(combo,esUV)+'</strong> de <a href="'+resinaActual.url+'" target="_blank" style="color:#0d2e52;font-weight:600;">'+resinaActual.nombre+'</a> — combinación exacta para tu proyecto.';
+  }
+
+  const itemA=document.getElementById('item-a'), itemB=document.getElementById('item-b');
+  if (resinaActual.proporcion) {
+    const kgA=totalKg*(resinaActual.proporcion/(resinaActual.proporcion+1)), kgB=totalKg*(1/(resinaActual.proporcion+1));
+    document.getElementById('res-a').textContent=kgA.toFixed(3)+' kg';
+    document.getElementById('res-b').textContent=kgB.toFixed(3)+' kg';
+    itemA.classList.remove('hidden'); itemB.classList.remove('hidden');
+  } else { itemA.classList.add('hidden'); itemB.classList.add('hidden'); }
+
+  document.getElementById('res-vol').textContent=volDisplay;
+  document.getElementById('label-vol').textContent=tipoActual==='piso'?'Superficie':'Volumen';
+  document.getElementById('res-temp').textContent=resinaActual.tempIdeal;
+  const wd=document.getElementById('res-warning');
+  if(warn){wd.innerHTML=warn;wd.style.display='block';}else{wd.style.display='none';}
+  document.getElementById('resultado').classList.add('visible');
+
+  // WhatsApp
+  const rT=document.getElementById('res-total').textContent;
+  const rA=document.getElementById('res-a').textContent, rB=document.getElementById('res-b').textContent;
+  const rP=document.getElementById('res-presentacion').innerText.replace(/^[✅📦]\s*/,'');
+  const med=tipoActual==='piso'?document.getElementById('m2').value+' m²':(document.getElementById('largo').value+' × '+document.getElementById('ancho').value+' × '+document.getElementById('prof').value+' cm');
+  let msg='¡Hola! Usé la calculadora de Servifibras:\n\n📦 *Resina:* '+resinaActual.nombre+'\n📐 *Medidas:* '+med+'\n⚗️ *Total:* '+rT+'\n';
+  if(resinaActual.proporcion)msg+='   • Parte A: '+rA+'\n   • Parte B: '+rB+'\n';
+  msg+='🛒 *'+rP+'\n\n¿Me pueden confirmar disponibilidad y precio?';
+  const btnWA=document.getElementById('btn-whatsapp');
+  btnWA.href='https://wa.me/5491135880083?text='+encodeURIComponent(msg);
+  btnWA.style.display='flex';
+
+  // Historial
+  guardarHistorial({ resina:resinaActual.nombre, tipo:tipoActual, medidas:med, total:rT, presentacion:rP.replace(/<[^>]+>/g,'').substring(0,80), ts:new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}) });
+}
+
+function calcularInverso() {
+  if(!resinaActual){alert('Por favor seleccioná una resina primero.');return;}
+  const cantInput=parseFloat(document.getElementById('inv-cantidad').value), unidadInput=document.getElementById('inv-unidad').value;
+  if(!cantInput){alert('Por favor ingresá la cantidad disponible.');return;}
+  let cantLitros=cantInput;
+  if(unidadInput==='ml') cantLitros=cantInput/1000;
+  if(unidadInput==='kg') cantLitros=cantInput/resinaActual.densidad;
+
+  document.getElementById('inv-vol').textContent=cantLitros.toFixed(3)+' L';
+  document.getElementById('inv-temp').textContent=resinaActual.tempIdeal;
+
+  const invA=document.getElementById('inv-item-a'), invB=document.getElementById('inv-item-b');
+  if(resinaActual.proporcion) {
+    const kgT=cantLitros*resinaActual.densidad;
+    document.getElementById('inv-a').textContent=(kgT*(resinaActual.proporcion/(resinaActual.proporcion+1))).toFixed(3)+' kg';
+    document.getElementById('inv-b').textContent=(kgT*(1/(resinaActual.proporcion+1))).toFixed(3)+' kg';
+    invA.classList.remove('hidden'); invB.classList.remove('hidden');
+  } else { invA.classList.add('hidden'); invB.classList.add('hidden'); }
+
+  const tipo=tipoInvActual;
+  let resultText='', unidadText='';
+  if(tipo==='piso') {
+    const m2Min=(cantLitros*resinaActual.densidad/resinaActual.rendimientoMax).toFixed(1);
+    const m2Max=(cantLitros*resinaActual.densidad/resinaActual.rendimientoMin).toFixed(1);
+    resultText=m2Min+'–'+m2Max; unidadText='m² de piso (según rugosidad del sustrato)';
+  } else if(tipo==='capa') {
+    resultText=(cantLitros*10000).toFixed(0); unidadText='cm² a 1 mm de espesor';
+  } else {
+    resultText=(cantLitros*1000).toFixed(0); unidadText='cm³ de volumen (largo × ancho × altura)';
+  }
+
+  document.getElementById('inv-res-total').textContent=resultText;
+  document.getElementById('inv-res-unidad').textContent=unidadText;
+  document.getElementById('inv-sugerencia').innerHTML='💡 ¿No te alcanza para tu proyecto? <a href="'+resinaActual.url+'" target="_blank" style="color:#0d2e52;font-weight:600;">Ver todas las presentaciones disponibles →</a>';
+  document.getElementById('resultado-inv').classList.add('visible');
+}
+
+function guardarHistorial(item) { historial.unshift(item); if(historial.length>5)historial.pop(); }
+
+function renderHistorial() {
+  const lista=document.getElementById('historial-lista');
+  if(!historial.length){lista.innerHTML='<div class="historial-empty">Todavía no hay cálculos guardados.</div>';return;}
+  lista.innerHTML=historial.map(h=>`
+    <div class="historial-item">
+      <div class="h-resina">${h.resina}</div>
+      <div class="h-detalle">${h.tipo} · ${h.medidas} · ${h.ts}</div>
+      <div class="h-resultado">${h.total}</div>
+      <div class="h-pres">${h.presentacion}</div>
+    </div>`).join('');
+}
+
+function limpiarHistorial() { historial=[]; renderHistorial(); }
+
+// Emitir altura al padre para auto-resize del iframe
+function emitirAltura() {
+  var h = document.body.scrollHeight;
+  window.parent.postMessage({ type: 'sf-calc-height', height: h }, '*');
+}
+
+// Observar cambios de tamaño del contenido
+var resizeObserver = new ResizeObserver(function() { emitirAltura(); });
+resizeObserver.observe(document.body);
+window.addEventListener('load', emitirAltura);
+</script>
+</body>
+</html>
