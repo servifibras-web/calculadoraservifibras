@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>El piano de Valentino</title>
+<title>Mundo Gioval</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#7c4dff">
-<meta name="apple-mobile-web-app-title" content="Piano">
+<meta name="apple-mobile-web-app-title" content="Gioval">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
 html,body{margin:0;height:100%;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;background:linear-gradient(160deg,#ffe9a8,#ffc2d4 55%,#b9d8ff);color:#2b2350;overflow:hidden}
@@ -58,6 +58,13 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .panel label{display:flex;gap:10px;align-items:center;margin-top:8px}
 .meter{height:12px;background:#eee;border-radius:6px;overflow:hidden;flex:1}
 .meter i{display:block;height:100%;width:0;background:#4cc86a}
+.islands{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;overflow:auto;padding:6px 2px 12px}
+.island{border:0;border-radius:30px;padding:22px 16px;font-size:clamp(22px,3vw,28px);font-weight:900;color:#2b2350;box-shadow:0 7px 0 rgba(0,0,0,.16);display:flex;flex-direction:column;align-items:center;gap:8px;background:linear-gradient(160deg,#fff,#e8f7ff)}
+.island .em{font-size:68px;line-height:1}
+.island small{font-size:17px;font-weight:700;opacity:.65}
+.island.off{filter:grayscale(.85);opacity:.6;box-shadow:0 4px 0 rgba(0,0,0,.1)}
+.island:not(.off):active{transform:translateY(3px)}
+.nameBox input{font-size:34px;padding:12px 16px;border-radius:18px;border:0;text-align:center;width:min(80vw,420px);user-select:text;-webkit-user-select:text;font-family:inherit;font-weight:800}
 .note-hint{font-size:15px;opacity:.7;margin-top:6px}
 </style>
 </head>
@@ -65,7 +72,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 <div id="app">
   <div class="top">
     <div class="mascot" id="mascot">🦊</div>
-    <div class="bubble" id="bubble">¡Hola Valentino! ¿Qué canción tocamos hoy?</div>
+    <div class="bubble" id="bubble">¡Hola! Bienvenido a Mundo Gioval 🦊</div>
     <button class="iconbtn" id="btnMic" title="Escuchar mi piano">🎤</button>
     <button class="iconbtn" id="btnVoice" title="Voz">🔊</button>
     <button class="iconbtn" id="btnGear" title="Para papá">⚙️</button>
@@ -79,7 +86,18 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
     <div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>
   </div>
 
-  <div class="screen active" id="home">
+  <div class="screen active" id="who">
+    <h2>¿Quién juega?</h2>
+    <div class="songs" id="profiles"></div>
+  </div>
+
+  <div class="screen" id="map">
+    <div class="bar"><h2 id="mapTitle" style="margin:0"></h2><button class="btn alt" id="btnWho">👤 Cambiar</button></div>
+    <div class="islands" id="islands"></div>
+  </div>
+
+  <div class="screen" id="home">
+    <div class="bar"><button class="btn alt" id="btnHomeBack">⬅ Mapa</button><h2 style="margin:0">🎹 Isla Música</h2><span style="width:90px"></span></div>
     <h2>Elegí una canción</h2>
     <div class="songs" id="songs"></div>
   </div>
@@ -100,6 +118,12 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
   </div>
 </div>
 
+<div class="big nameBox" id="nameBox">
+  <h1>¿Cómo te llamás?</h1>
+  <input id="nameIn" maxlength="14" placeholder="Tu nombre" autocomplete="off">
+  <button class="btn" id="nameOk">¡Listo!</button>
+</div>
+
 <div class="big" id="finish">
   <div class="stars" id="finStars">⭐⭐⭐</div>
   <h1 id="finTitle">¡Lo lograste!</h1>
@@ -110,7 +134,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 <script>
 "use strict";
 /* ============ DATOS ============ */
-const KID = "Valentino";
+let KID = "";
 const NAMES = {C:"Do",D:"Re",E:"Mi",F:"Fa",G:"Sol",A:"La",B:"Si"};
 const COLORS = {C:"#ff5a5f",D:"#ff9f1c",E:"#ffd23f",F:"#4cc86a",G:"#2ec4b6",A:"#4d96ff",B:"#9b5de5"};
 const BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
@@ -140,9 +164,10 @@ const $ = id=>document.getElementById(id);
 const sleep = ms=>new Promise(r=>setTimeout(r,ms));
 let S = {song:null, mode:"idle", chunks:[], ci:0, ni:0, run:0, missPhrase:0, missNote:0, learnIdx:0, lastWrong:0};
 let ctx=null, analyser=null, micStream=null, micOn=false, voiceOn=true, muteUntil=0;
-let store = {stars:{}};
-try{ store = JSON.parse(localStorage.getItem("pianoVal")||"{}"); store.stars = store.stars||{}; }catch(e){}
-function save(){ try{ localStorage.setItem("pianoVal", JSON.stringify(store)); }catch(e){} }
+let store = {profiles:[],stars:{}};
+try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{}}; }catch(e){}
+function save(){ try{ localStorage.setItem("gioval", JSON.stringify(store)); }catch(e){} }
+const starsOf=t=>store.stars[KID+"|"+t]||0;
 
 /* ============ VOZ ============ */
 let esVoice=null;
@@ -171,7 +196,7 @@ function speak(text){
     setTimeout(fin, est+1500);
   });
 }
-const PRAISE = ["¡Muy bien, "+KID+"!","¡Genial!","¡Qué bien tocás!","¡Eso es!","¡Sos un crack del piano!","¡Perfecto!"];
+const PRAISE = ()=>["¡Muy bien, "+KID+"!","¡Genial!","¡Qué bien tocás!","¡Eso es!","¡Sos un crack del piano!","¡Perfecto!"];
 const rnd = a=>a[Math.floor(Math.random()*a.length)];
 
 /* ============ AUDIO (sonido del piano de juguete) ============ */
@@ -219,7 +244,7 @@ function show(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.t
 function renderHome(){
   const box=$("songs"); box.innerHTML="";
   SONGS.forEach((s,i)=>{
-    const st=store.stars[s.title]||0;
+    const st=starsOf(s.title);
     const b=document.createElement("button"); b.className="song";
     b.innerHTML=`<div style="font-size:44px">${s.emoji}</div>${s.title}<small>${s.sub}</small><div class="st">${"⭐".repeat(st)}${"☆".repeat(3-st)}</div>`;
     b.onclick=()=>startSong(i); box.appendChild(b);
@@ -288,7 +313,7 @@ async function handleInput(midi){
       S.mode="between";
       if(!S.full){
         const st=stars3(S.missPhrase);
-        await speak(rnd(PRAISE)+" "+"⭐".repeat(st)); if(run!==S.run) return;
+        await speak(rnd(PRAISE())+" "+"⭐".repeat(st)); if(run!==S.run) return;
         if(S.learnIdx+1<S.song.chunks.length) await learnPhrase(S.learnIdx+1);
         else await startFull();
       } else {
@@ -307,7 +332,7 @@ async function handleInput(midi){
 }
 async function finishSong(run){
   S.mode="done"; const st=stars3(Math.floor(S.missPhrase/2)); // en la canción completa se tolera más
-  const prev=store.stars[S.song.title]||0; if(st>prev){ store.stars[S.song.title]=st; save(); }
+  const prev=starsOf(S.song.title); if(st>prev){ store.stars[KID+"|"+S.song.title]=st; save(); }
   $("finStars").textContent="⭐".repeat(st)+"☆".repeat(3-st);
   $("finTitle").textContent="¡Tocaste "+S.song.title+"!";
   $("finish").classList.add("show");
@@ -315,6 +340,40 @@ async function finishSong(run){
 }
 /* botones */
 $("btnBack").onclick=()=>{ S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); };
+$("btnHomeBack").onclick=()=>goMap();
+$("btnWho").onclick=()=>{ renderWho(); show("who"); setBubble("¿Quién juega?"); };
+const ISLANDS=[
+  {name:"Isla Música",emoji:"🎹",sub:"¡A tocar el piano!",on:true,go:()=>{ show("home"); renderHome(); speak("¡Isla Música! Elegí una canción."); }},
+  {name:"Isla Letras",emoji:"🔤",sub:"Pronto",on:false},
+  {name:"Isla Números",emoji:"🔢",sub:"Pronto",on:false},
+  {name:"Isla Animales",emoji:"🐘",sub:"Pronto",on:false},
+];
+function renderMap(){
+  $("mapTitle").textContent="Mundo Gioval · "+KID;
+  const box=$("islands"); box.innerHTML="";
+  ISLANDS.forEach(is=>{
+    const b=document.createElement("button"); b.className="island"+(is.on?"":" off");
+    b.innerHTML=`<div class="em">${is.on?is.emoji:"🔒"}</div>${is.name}<small>${is.sub}</small>`;
+    if(is.on) b.onclick=()=>{ ensureCtx(); is.go(); }
+    box.appendChild(b);
+  });
+}
+function goMap(){ S.run++; show("map"); renderMap(); setBubble("¡Hola "+KID+"! ¿A qué isla vamos?"); }
+function renderWho(){
+  const box=$("profiles"); box.innerHTML="";
+  store.profiles.forEach(n=>{
+    const b=document.createElement("button"); b.className="song"; b.innerHTML=`<div style="font-size:48px">🦊</div>${n}`;
+    b.onclick=()=>{ ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! ¿A qué isla vamos?"); }; box.appendChild(b);
+  });
+  const nb=document.createElement("button"); nb.className="song"; nb.innerHTML=`<div style="font-size:48px">➕</div>Nuevo jugador`;
+  nb.onclick=()=>{ $("nameBox").classList.add("show"); $("nameIn").value=""; setTimeout(()=>$("nameIn").focus(),50); }; box.appendChild(nb);
+}
+$("nameOk").onclick=()=>{
+  const n=$("nameIn").value.trim().slice(0,14); if(!n) return;
+  if(!store.profiles.includes(n)){ store.profiles.push(n); save(); }
+  $("nameBox").classList.remove("show"); ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Bienvenido a Mundo Gioval.");
+};
+$("nameIn").addEventListener("keydown",e=>{ if(e.key==="Enter") $("nameOk").click(); });
 $("btnHear").onclick=async()=>{ if(!S.song) return; const run=++S.run; const keep=S.mode; const ch=chunk(); const prevMode=S.mode;
   const was = S.full; await demo(ch, run); if(run===S.run){ S.mode="play"; renderDots(); } };
 $("btnSkip").onclick=()=>{ if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
@@ -391,7 +450,8 @@ function frame(){
 }
 
 /* ============ INICIO ============ */
-buildKeyboard(); renderHome();
+buildKeyboard(); renderWho(); show("who");
+if(!store.profiles.length) $("nameBox").classList.add("show");
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
 </body>
