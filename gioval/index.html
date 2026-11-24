@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Mundo Gioval</title>
+<title>Mundo Gioval - A jugar</title>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#7c4dff">
@@ -72,7 +72,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 <div id="app">
   <div class="top">
     <div class="mascot" id="mascot">🦊</div>
-    <div class="bubble" id="bubble">¡Hola! Bienvenido a Mundo Gioval 🦊</div>
+    <div class="bubble" id="bubble">¡Mundo Gioval, a jugar! 🦊</div>
     <button class="iconbtn" id="btnMic" title="Escuchar mi piano">🎤</button>
     <button class="iconbtn" id="btnVoice" title="Voz">🔊</button>
     <button class="iconbtn" id="btnGear" title="Para papá">⚙️</button>
@@ -87,6 +87,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
   </div>
 
   <div class="screen active" id="who">
+    <div style="text-align:center;font-size:clamp(30px,6vw,56px);font-weight:900;color:#7c4dff;text-shadow:0 3px 0 #fff">Mundo Gioval<br><span style="color:#ff5a5f;font-size:.6em">¡A jugar!</span></div>
     <h2>¿Quién juega?</h2>
     <div class="songs" id="profiles"></div>
   </div>
@@ -349,7 +350,7 @@ const ISLANDS=[
   {name:"Isla Animales",emoji:"🐘",sub:"Pronto",on:false},
 ];
 function renderMap(){
-  $("mapTitle").textContent="Mundo Gioval · "+KID;
+  $("mapTitle").textContent="Mundo Gioval · ¡A jugar, "+KID+"!";
   const box=$("islands"); box.innerHTML="";
   ISLANDS.forEach(is=>{
     const b=document.createElement("button"); b.className="island"+(is.on?"":" off");
@@ -363,7 +364,7 @@ function renderWho(){
   const box=$("profiles"); box.innerHTML="";
   store.profiles.forEach(n=>{
     const b=document.createElement("button"); b.className="song"; b.innerHTML=`<div style="font-size:48px">🦊</div>${n}`;
-    b.onclick=()=>{ ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! ¿A qué isla vamos?"); }; box.appendChild(b);
+    b.onclick=()=>{ ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Mundo Gioval, ¡a jugar! ¿A qué isla vamos?"); }; box.appendChild(b);
   });
   const nb=document.createElement("button"); nb.className="song"; nb.innerHTML=`<div style="font-size:48px">➕</div>Nuevo jugador`;
   nb.onclick=()=>{ $("nameBox").classList.add("show"); $("nameIn").value=""; setTimeout(()=>$("nameIn").focus(),50); }; box.appendChild(nb);
@@ -371,7 +372,7 @@ function renderWho(){
 $("nameOk").onclick=()=>{
   const n=$("nameIn").value.trim().slice(0,14); if(!n) return;
   if(!store.profiles.includes(n)){ store.profiles.push(n); save(); }
-  $("nameBox").classList.remove("show"); ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Bienvenido a Mundo Gioval.");
+  $("nameBox").classList.remove("show"); ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Mundo Gioval, ¡a jugar!");
 };
 $("nameIn").addEventListener("keydown",e=>{ if(e.key==="Enter") $("nameOk").click(); });
 $("btnHear").onclick=async()=>{ if(!S.song) return; const run=++S.run; const keep=S.mode; const ch=chunk(); const prevMode=S.mode;
