@@ -97,6 +97,18 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
   .key{padding-bottom:6px}
   .songs,.islands{gap:10px}
 }
+.prog{display:none;gap:6px;justify-content:center;flex-wrap:wrap;padding:2px 0 4px}
+.prog i{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.7);border:2px solid #fff;display:block}
+.prog i.ok{background:#4cc86a}.prog i.soft{background:#ffd23f}.prog i.now{background:#7c4dff;transform:scale(1.3)}
+.skill{background:#fff;border-radius:22px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 0 rgba(0,0,0,.12);font-weight:800;font-size:clamp(18px,2.6vw,24px)}
+.skill.lock{opacity:.5}
+.skill .em{font-size:34px;min-width:64px;text-align:center}
+.skill .bar2{height:12px;background:#eee;border-radius:8px;overflow:hidden;margin-top:6px}
+.skill .bar2 i{display:block;height:100%;background:linear-gradient(90deg,#ffd23f,#4cc86a)}
+.skill small{display:block;font-weight:600;opacity:.7;font-size:15px}
+.dot.q{background:#fff!important;color:#7c4dff}
+.dot.neutral{background:#fff!important}
+.psum{margin-top:8px;font-size:16px;line-height:1.5}
 .note-hint{font-size:15px;opacity:.7;margin-top:6px}
 </style>
 </head>
@@ -117,6 +129,8 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
     <label>Volumen <div class="meter"><i id="dbgLevel"></i></div></label>
     <label>Sensibilidad <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
     <label>Aceptar la nota en cualquier octava <input type="checkbox" id="anyOctave" checked></label>
+    <div class="psum" id="parentSum"></div>
+    <label>Ya sabe hasta: <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px">Marcar</button></label>
     <div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>
   </div>
 
@@ -131,10 +145,19 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
     <div class="islands" id="islands"></div>
   </div>
 
+  <div class="screen" id="music">
+    <div class="bar"><button class="btn alt" id="btnMusicBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0">🎹 Isla Música</h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
+    <div class="islands" id="musicMenu"></div>
+  </div>
+
   <div class="screen" id="home">
-    <div class="bar"><button class="btn alt" id="btnHomeBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0">🎹 Isla Música</h2><span style="width:90px"></span></div>
-    <h2>Elegí una canción</h2>
+    <div class="bar"><button class="btn alt" id="btnHomeBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🎵 Mis canciones</h2><span style="width:90px"></span></div>
     <div class="songs" id="songs"></div>
+  </div>
+
+  <div class="screen" id="logros">
+    <div class="bar"><button class="btn alt" id="btnLogrosBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🌟 Mis logros</h2><span style="width:90px"></span></div>
+    <div class="songs" id="skillList" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
   </div>
 
   <div class="screen" id="play">
@@ -146,6 +169,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
         <button class="btn" id="btnSkip">Seguir ➜</button>
       </div>
     </div>
+    <div class="prog" id="prog"></div>
     <div class="dots" id="dots"></div>
     <div class="stage">
       <div class="kb" id="kb"></div>
@@ -199,8 +223,8 @@ const $ = id=>document.getElementById(id);
 const sleep = ms=>new Promise(r=>setTimeout(r,ms));
 let S = {song:null, mode:"idle", chunks:[], ci:0, ni:0, run:0, missPhrase:0, missNote:0, learnIdx:0, lastWrong:0};
 let ctx=null, analyser=null, micStream=null, micOn=false, voiceOn=true, muteUntil=0;
-let store = {profiles:[],stars:{}};
-try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{}}; }catch(e){}
+let store = {profiles:[],stars:{},sk:{},days:{}};
+try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{},sk:s.sk||{},days:s.days||{}}; }catch(e){}
 function save(){ try{ localStorage.setItem("gioval", JSON.stringify(store)); }catch(e){} }
 const starsOf=t=>store.stars[KID+"|"+t]||0;
 
@@ -231,7 +255,7 @@ function speak(text){
     setTimeout(fin, est+1500);
   });
 }
-const PRAISE = ()=>["¡Muy bien, "+KID+"!","¡Genial!","¡Qué bien tocás!","¡Eso es!","¡Sos un crack del piano!","¡Perfecto!"];
+const PRAISE = ()=>["¡Muy bien, "+KID+"!","¡Qué bien que lo intentaste!","¡Lo practicaste y te salió!","¡Eso es! Escuchaste con atención.","¡Seguiste hasta lograrlo!","¡Esa melodía está quedando genial!"];
 const rnd = a=>a[Math.floor(Math.random()*a.length)];
 
 /* ============ AUDIO (sonido del piano de juguete) ============ */
@@ -289,25 +313,32 @@ function chunk(){ return S.chunks[S.ci]; }
 function renderDots(){
   const box=$("dots"); box.innerHTML="";
   const ch=chunk(); if(!ch) return;
+  const hide=(S.kind==="ear"||S.kind==="echo")&&!S.reveal;
   ch.forEach((n,i)=>{
     const L=PCLET[n.midi%12]; const d=document.createElement("div");
+    const pending=i>=S.ni;
     d.className="dot"+(i<S.ni?" done":"")+(i===S.ni&&S.mode==="play"?" cur":"");
-    d.style.background=COLORS[L]; d.innerHTML=`<span>${NAMES[L]}</span>`; box.appendChild(d);
+    if(pending&&hide){ d.className+=" q"; d.innerHTML="<span>?</span>"; }
+    else if(pending&&S.kind==="find"&&S.hint>=2&&!S.reveal){ d.className+=" neutral"; d.innerHTML=`<span>${NAMES[L]}</span>`; }
+    else { d.style.background=COLORS[L]; d.innerHTML=`<span>${NAMES[L]}</span>`; }
+    if(i<S.ni) d.style.background=COLORS[L];
+    box.appendChild(d);
   });
   document.querySelectorAll(".key").forEach(k=>k.classList.remove("target"));
-  if(S.mode==="play"){ const t=ch[S.ni]; if(t) markTarget(t.midi); }
+  const guide=(!S.kind)||S.reveal||(S.kind==="find"&&S.hint===0);
+  if(S.mode==="play"&&guide){ const t=ch[S.ni]; if(t) markTarget(t.midi); }
 }
 function markTarget(midi){
   const el=[...document.querySelectorAll(".key")].find(k=>+k.dataset.m===midi) || [...document.querySelectorAll(".key")].find(k=>(+k.dataset.m)%12===midi%12);
   if(el) el.classList.add("target");
 }
-async function demo(notes, run){
+async function demo(notes, run, showKeys=true){
   S.mode="demo";
   const beat=.5;
   for(const n of notes){
     if(run!==S.run) return false;
     muteUntil=performance.now()+n.beats*beat*1000+500;
-    flash(n.midi,"demo",n.beats*beat*1000-40); tone(n.midi,n.beats*beat+.1);
+    if(showKeys) flash(n.midi,"demo",n.beats*beat*1000-40); tone(n.midi,n.beats*beat+.1);
     await sleep(n.beats*beat*1000);
   }
   muteUntil=performance.now()+400;
@@ -315,8 +346,8 @@ async function demo(notes, run){
 }
 async function startSong(i){
   ensureCtx();
-  S.song=SONGS[i]; S.run++; S.learnIdx=0; $("songTitle").textContent=S.song.emoji+" "+S.song.title;
-  show("play"); buildKeyboard();
+  S.song=SONGS[i]; S.run++; S.learnIdx=0; S.session=null; S.onDone=null; S.kind=null; S.hint=0; S.reveal=false; $("songTitle").textContent=S.song.emoji+" "+S.song.title;
+  show("play"); buildKeyboard(); renderProg();
   await learnPhrase(0, "Vamos a tocar "+S.song.title+". Primero escuchá.");
 }
 async function learnPhrase(idx, intro){
@@ -346,6 +377,7 @@ async function handleInput(midi){
     S.missNote=0; flash(t.midi,"ok",300); S.ni++; renderDots();
     if(S.ni>=chunk().length){
       S.mode="between";
+      if(S.onDone){ const cb=S.onDone; cb({miss:S.missPhrase}); return; }
       if(!S.full){
         const st=stars3(S.missPhrase);
         await speak(rnd(PRAISE())+" "+"⭐".repeat(st)); if(run!==S.run) return;
@@ -360,12 +392,18 @@ async function handleInput(midi){
   } else {
     S.lastWrong=now; S.missPhrase++; S.missNote++; flash(midi,"near",450);
     const tn=NAMES[PCLET[t.midi%12]];
-    if(S.missNote===2){ setBubble("¡Casi! Buscá el "+tn); await speak("¡Casi! Probá con el "+tn+"."); }
+    if(S.kind==="ear"||S.kind==="echo"){
+      if(S.missNote===2){ S.mode="demo"; await speak("Escuchá otra vez."); if(await demo(chunk(),run,false)){ S.mode="play"; renderDots(); } }
+      else if(S.missNote>=4){ S.reveal=true; S.missNote=0; renderDots(); setBubble("Mirá, es el "+tn+" 👀"); }
+      else setBubble("¡Casi! Probá otra vez 😊");
+    }
+    else if(S.missNote===2){ S.reveal=true; renderDots(); setBubble("¡Casi! Buscá el "+tn); await speak("¡Casi! Probá con el "+tn+"."); }
     else if(S.missNote>=4){ S.missNote=0; S.mode="demo"; await speak("Mirá, te ayudo. Este es el "+tn+"."); tone(t.midi,.8); flash(t.midi,"demo",700); await sleep(900); if(run===S.run){ S.mode="play"; renderDots(); } }
     else setBubble("¡Casi! Probá otra vez 😊");
   }
 }
 async function finishSong(run){
+  S.finMode="song"; $("btnFinOk").textContent="¡Otra vez!"; $("btnFinHome").textContent="Elegir otra canción";
   S.mode="done"; const st=stars3(Math.floor(S.missPhrase/2)); // en la canción completa se tolera más
   const prev=starsOf(S.song.title); if(st>prev){ store.stars[KID+"|"+S.song.title]=st; save(); }
   $("finStars").textContent="⭐".repeat(st)+"☆".repeat(3-st);
@@ -374,11 +412,14 @@ async function finishSong(run){
   await speak("¡Bravo "+KID+"! ¡Tocaste toda la canción!");
 }
 /* botones */
-$("btnBack").onclick=()=>{ S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); };
-$("btnHomeBack").onclick=()=>goMap();
+$("btnBack").onclick=()=>{ const was=S.session; S.run++; S.mode="idle"; S.onDone=null; S.session=null; S.kind=null; try{speechSynthesis.cancel();}catch(e){} renderProg();
+  if(was){ goMusic(); } else { show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); } };
+$("btnHomeBack").onclick=()=>goMusic();
+$("btnLogrosBack").onclick=()=>goMusic();
+$("btnMusicBack").onclick=()=>goMap();
 $("btnWho").onclick=()=>{ renderWho(); show("who"); setBubble("¿Quién juega?"); };
 const ISLANDS=[
-  {name:"Isla Música",emoji:"🎹",sub:"¡A tocar el piano!",on:true,go:()=>{ show("home"); renderHome(); speak("¡Isla Música! Elegí una canción."); }},
+  {name:"Isla Música",emoji:"🎹",sub:"¡A tocar el piano!",on:true,go:()=>{ goMusic(); speak("¡Isla Música! Empezamos con la sesión de hoy, o elegí una canción."); }},
   {name:"Isla Letras",emoji:"🔤",sub:"Pronto",on:false},
   {name:"Isla Números",emoji:"🔢",sub:"Pronto",on:false},
   {name:"Isla Animales",emoji:"🐘",sub:"Pronto",on:false},
@@ -409,11 +450,16 @@ $("nameOk").onclick=()=>{
   $("nameBox").classList.remove("show"); ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Mundo Gioval, ¡a jugar!");
 };
 $("nameIn").addEventListener("keydown",e=>{ if(e.key==="Enter") $("nameOk").click(); });
-$("btnHear").onclick=async()=>{ if(!S.song) return; const run=++S.run; const keep=S.mode; const ch=chunk(); const prevMode=S.mode;
-  const was = S.full; await demo(ch, run); if(run===S.run){ S.mode="play"; renderDots(); } };
-$("btnSkip").onclick=()=>{ if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
-$("btnFinOk").onclick=()=>{ $("finish").classList.remove("show"); const i=SONGS.indexOf(S.song); S.full=false; startSong(i); };
-$("btnFinHome").onclick=()=>{ $("finish").classList.remove("show"); S.full=false; $("btnBack").onclick(); };
+$("btnHear").onclick=async()=>{ if(!S.song&&!S.session) return; const run=++S.run; const ch=chunk(); await demo(ch, run, !S.session); if(run===S.run){ S.mode="play"; renderDots(); } };
+$("btnSkip").onclick=()=>{
+  if(S.session){ const run=++S.run; S.session.i++; renderProg(); nextItem(run); return; }
+  if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
+$("btnFinOk").onclick=()=>{ $("finish").classList.remove("show");
+  if(S.finMode==="session"){ S.session=null; S.onDone=null; S.kind=null; renderProg(); show("home"); renderHome(); return; }
+  const i=SONGS.indexOf(S.song); S.full=false; startSong(i); };
+$("btnFinHome").onclick=()=>{ $("finish").classList.remove("show"); S.full=false;
+  if(S.finMode==="session"){ S.session=null; S.onDone=null; S.kind=null; renderProg(); goMusic(); return; }
+  $("btnBack").onclick(); };
 $("btnVoice").onclick=()=>{ voiceOn=!voiceOn; $("btnVoice").textContent=voiceOn?"🔊":"🔇"; if(!voiceOn){try{speechSynthesis.cancel();}catch(e){}} };
 $("btnGear").onclick=()=>$("panel").classList.toggle("show");
 $("sens").oninput=e=>{ $("sensVal").textContent=e.target.value; };
@@ -483,6 +529,173 @@ function frame(){
   }
   slow=slow*.85+rms*.15;
 }
+
+
+/* ============ MOTOR DE APRENDIZAJE ============
+   Ideas (con respaldo científico):
+   - Sesiones cortas y diarias + repaso espaciado (la práctica distribuida rinde más que la masiva)
+   - Recuperar de memoria (tocar sin que se la muestren) y mezclar habilidades (intercalado)
+   - Dificultad adaptativa: apuntar a ~85% de aciertos
+   - Pistas que se van retirando de a poco
+   - Oído primero (método Kodály): se aprende a escuchar antes de leer
+   - Elogio al esfuerzo y a la estrategia, nunca "sos inteligente"
+   Para sumar otra isla (letras, números…) solo hay que definir otra lista de habilidades. */
+const DAY=864e5, INTERVALS=[.2,1,3,7];
+const SK_ALL=[60,62,64,65,67,69,71,72];
+const SKILLS=[
+  {id:"n1",name:"Do, Re y Mi",icon:"🔴🟠🟡",type:"find",notes:[60,62,64],prior:[],req:[]},
+  {id:"e1",name:"Oído: ¿cuál suena?",icon:"👂",type:"ear",notes:[60,62,64],req:["n1"]},
+  {id:"n2",name:"Fa y Sol",icon:"🟢🔵",type:"find",notes:[65,67],prior:[60,62,64],req:["n1"]},
+  {id:"eco3",name:"Eco de 3 notas",icon:"🔁",type:"echo",len:3,notes:[60,62,64,65,67],req:["e1","n2"]},
+  {id:"n3",name:"La, Si y Do alto",icon:"🟣⭐",type:"find",notes:[69,71,72],prior:[60,62,64,65,67],req:["n2"]},
+  {id:"e2",name:"Oído con todas las notas",icon:"🎧",type:"ear",notes:SK_ALL,req:["e1","n3"]},
+  {id:"eco5",name:"Eco de 5 notas",icon:"🎶",type:"echo",len:5,notes:SK_ALL,req:["eco3","n3"]},
+];
+function SK(id){ const k=KID+"|"+id; return store.sk[k]||(store.sk[k]={score:.5,att:0,box:0,due:0,lvl:0,rec:[],mast:false}); }
+const mastered=id=>SK(id).mast;
+const unlockedList=()=>SKILLS.filter(s=>s.req.every(mastered));
+let lastTarget=null;
+function pickDistinct(arr){ let x,g=0; do{ x=rnd(arr); g++; }while(arr.length>1&&x===lastTarget&&g<10); lastTarget=x; return x; }
+function makeItem(s){
+  if(s.type==="find"){ const pool=(Math.random()<.35&&s.prior&&s.prior.length)?s.prior:s.notes; return {skill:s,notes:[pickDistinct(pool)]}; }
+  if(s.type==="ear"){ return {skill:s,notes:[pickDistinct(s.notes)]}; }
+  const seq=[]; let cur=rnd(s.notes); seq.push(cur);
+  while(seq.length<s.len){ const i=s.notes.indexOf(cur); const j=Math.max(0,Math.min(s.notes.length-1,i+rnd([-2,-1,1,2]))); cur=s.notes[j]; seq.push(cur); }
+  return {skill:s,notes:seq};
+}
+const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
+function planSession(){
+  const now=Date.now(), un=unlockedList();
+  const due=un.filter(s=>SK(s.id).mast&&SK(s.id).due<=now).slice(0,2);
+  const learn=un.find(s=>!SK(s.id).mast);
+  const learn2=un.find(s=>!SK(s.id).mast&&s!==learn);
+  let items=[];
+  due.forEach(s=>{ for(let i=0;i<3;i++) items.push(makeItem(s)); });
+  items=shuffle(items);
+  if(learn){
+    const L=[]; for(let i=0;i<7;i++) L.push(makeItem(learn));
+    if(learn2){ [2,5,8].forEach(pos=>L.splice(pos,0,makeItem(learn2))); }
+    items=items.concat(L);
+  } else if(!due.length){
+    let mix=[]; un.slice(-3).forEach(s=>{ for(let i=0;i<3;i++) mix.push(makeItem(s)); }); items=shuffle(mix);
+  }
+  return {items,due,learn};
+}
+function sessionPreview(){
+  const un=unlockedList(), learn=un.find(s=>!SK(s.id).mast);
+  const due=un.filter(s=>SK(s.id).mast&&SK(s.id).due<=Date.now());
+  if(learn) return (due.length?"Repaso + ":"")+"Nuevo: "+learn.name;
+  return due.length?"Repaso de lo aprendido":"¡Todo dominado! Repaso libre";
+}
+function renderProg(){
+  const box=$("prog"); box.innerHTML="";
+  if(!S.session){ box.style.display="none"; return; }
+  box.style.display="flex";
+  S.session.items.forEach((_,i)=>{ const d=document.createElement("i"); const r=S.session.log[i];
+    d.className=r===1?"ok":(r===2?"soft":(i===S.session.i?"now":"")); box.appendChild(d); });
+}
+async function startSession(){
+  ensureCtx(); S.run++; const run=S.run;
+  const plan=planSession();
+  S.song=null; S.full=false; S.finMode="session";
+  S.session={items:plan.items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{}};
+  $("songTitle").textContent="Sesión de hoy"; show("play"); buildKeyboard(); renderProg();
+  await speak("¡Vamos con la sesión de hoy, "+KID+"! Son jueguitos cortos.");
+  nextItem(run);
+}
+async function nextItem(run){
+  const ss=S.session; if(!ss||run!==S.run) return;
+  if(ss.i>=ss.items.length || (Date.now()-ss.t0>10*60e3 && ss.i>=4)) return endSession(run);
+  const it=ss.items[ss.i], sk=it.skill, st=SK(sk.id);
+  S.chunks=[it.notes.map(m=>({midi:m,beats:1}))]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.full=false;
+  S.reveal=false; S.kind=sk.type; S.hint=st.lvl; S.mode="demo";
+  S.onDone=res=>itemDone(run,it,res);
+  renderProg(); renderDots();
+  if(sk.type==="find"){
+    const nm=NAMES[PCLET[it.notes[0]%12]];
+    await speak(rnd(["Tocá el "+nm,"Buscá el "+nm,"¿Dónde está el "+nm+"?"]));
+  } else if(sk.type==="ear"){
+    await speak(ss.seen.ear?"Escuchá…":"Escuchá bien y tocá la nota que suena."); ss.seen.ear=true;
+    if(!(await demo(S.chunks[0],run,false))) return; setBubble("¿Cuál era? 🎧");
+  } else {
+    await speak(ss.seen.echo?"Escuchá…":"Escuchá y repetí igualito."); ss.seen.echo=true;
+    if(!(await demo(S.chunks[0],run,false))) return; setBubble("¡Ahora vos! 🎹");
+  }
+  if(run!==S.run) return; S.mode="play"; renderDots(); armMic();
+}
+async function itemDone(run,it,res){
+  if(run!==S.run) return;
+  const sk=it.skill, st=SK(sk.id), ss=S.session;
+  const first=res.miss===0, ok=first||(sk.type==="echo"&&res.miss<=1);
+  st.att++; st.score=st.score*.7+(ok?1:0)*.3; st.rec=st.rec.concat(ok?1:0).slice(-5);
+  // dificultad adaptativa: menos pistas tras 3 aciertos seguidos, más ayuda tras 2 fallos seguidos
+  const rc=st.rec;
+  if(rc.length>=3&&rc.slice(-3).every(x=>x)&&st.lvl<2){ st.lvl++; st.rec=[]; }
+  else if(rc.length>=2&&rc.slice(-2).every(x=>!x)&&st.lvl>0){ st.lvl--; st.rec=[]; }
+  let achievement=null;
+  if(!st.mast){ if(st.att>=6&&st.score>=.8){ st.mast=true; st.box=1; st.due=Date.now()+INTERVALS[1]*DAY; achievement=sk.name; ss.newly.push(sk.name); } }
+  else { st.box=ok?Math.min(3,st.box+1):Math.max(0,st.box-1); st.due=Date.now()+INTERVALS[st.box]*DAY; }
+  save();
+  ss.log[ss.i]=first?1:2; ss.i++; ss.streak=first?ss.streak+1:0;
+  if(!ok&&!it.retry){ ss.items.splice(Math.min(ss.i+2,ss.items.length),0,{...makeItem(sk),retry:true}); }
+  renderProg();
+  let msg=null;
+  if(achievement) msg="¡Nuevo logro! Dominaste "+achievement+". ⭐";
+  else if(ss.streak===3||ss.streak===6) msg="¡"+ss.streak+" seguidas sin errores! Estás concentrado.";
+  else if(!first&&ok) msg=rnd(["¡Lo lograste! Seguiste intentando.","¡Eso! Escuchaste mejor la segunda vez.","¡Insistir funciona!"]);
+  else if(!ok) msg="¡Esta era difícil! Volvemos a probarla en un ratito.";
+  if(msg){ await speak(msg); } else { setBubble(rnd(["¡Bien! ✨","¡Eso es!","¡Muy bien!","¡Sigamos! 🚀"])); await sleep(550); }
+  if(run!==S.run) return; nextItem(run);
+}
+async function endSession(run){
+  const ss=S.session; S.mode="done"; S.onDone=null;
+  const okc=ss.log.filter(x=>x===1).length, tot=Math.max(1,ss.log.length), ratio=okc/tot;
+  const stars=ratio>=.85?3:(ratio>=.6?2:1);
+  const day=new Date().toLocaleDateString("en-CA"); const ds=store.days[KID]||(store.days[KID]=[]); if(!ds.includes(day)){ ds.push(day); store.days[KID]=ds.slice(-90); } save();
+  S.finMode="session";
+  $("finStars").textContent="⭐".repeat(stars)+"☆".repeat(3-stars);
+  $("finTitle").textContent=ss.newly.length?"¡Nuevo logro: "+ss.newly[0]+"!":"¡Terminaste la sesión de hoy!";
+  $("btnFinOk").textContent="🎵 Tocar una canción"; $("btnFinHome").textContent="Terminar por hoy";
+  $("finish").classList.add("show");
+  const nxt=unlockedList().find(s=>!SK(s.id).mast);
+  await speak("¡Terminamos por hoy, "+KID+"! Practicaste mucho. "+(nxt?"Mañana seguimos con "+nxt.name+(/[?!.]$/.test(nxt.name)?"":"."):"Mañana repasamos lo que aprendiste."));
+}
+function goMusic(){
+  S.run++; show("music"); renderMusic(); setBubble("¡Isla Música! ¿Qué hacemos?");
+}
+function renderMusic(){
+  const ds=store.days[KID]||[]; $("streak").textContent=ds.length?("🔥 "+ds.length+(ds.length===1?" día":" días")):"";
+  const box=$("musicMenu"); box.innerHTML="";
+  const cards=[
+    {em:"▶️",t:"Sesión de hoy",s:sessionPreview(),go:()=>startSession()},
+    {em:"🎵",t:"Mis canciones",s:"Tocá tus favoritas",go:()=>{ show("home"); renderHome(); }},
+    {em:"🌟",t:"Mis logros",s:"Mirá todo lo que aprendiste",go:()=>{ show("logros"); renderLogros(); }},
+  ];
+  cards.forEach(c=>{ const b=document.createElement("button"); b.className="island"; b.innerHTML=`<div class="em">${c.em}</div>${c.t}<small>${c.s}</small>`; b.onclick=()=>{ ensureCtx(); c.go(); }; box.appendChild(b); });
+}
+function renderLogros(){
+  const box=$("skillList"); box.innerHTML="";
+  SKILLS.forEach(s=>{
+    const st=SK(s.id), open=s.req.every(mastered);
+    const pct=st.mast?100:Math.round(Math.min(1,st.att/6)*st.score*100);
+    const d=document.createElement("div"); d.className="skill"+(open?"":" lock");
+    d.innerHTML=`<div class="em">${open?s.icon:"🔒"}</div><div style="flex:1">${s.name}<small>${st.mast?"⭐ ¡Dominado!":(open?"Practicando…":"Se abre al dominar lo anterior")}</small><div class="bar2"><i style="width:${open?pct:0}%"></i></div></div>`;
+    box.appendChild(d);
+  });
+}
+function renderParent(){
+  const ds=store.days[KID]||[];
+  let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados.<br>`:"";
+  SKILLS.forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${s.name}: ${st.mast?"dominado":"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
+  $("parentSum").innerHTML=t||"";
+  const sel=$("skipSel"); sel.innerHTML=SKILLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+}
+function markKnown(id){
+  const mark=sid=>{ const s=SKILLS.find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
+  mark(id); save(); renderParent();
+}
+$("skipBtn").onclick=()=>{ if(!KID) return; markKnown($("skipSel").value); setBubble("¡Listo! Marqué eso como ya sabido."); };
+const _gear=$("btnGear").onclick; $("btnGear").onclick=()=>{ renderParent(); $("panel").classList.toggle("show"); };
 
 /* ============ INICIO ============ */
 buildKeyboard(); renderWho(); show("who");
