@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>El piano de Valentino</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#7c4dff">
+<meta name="apple-mobile-web-app-title" content="Piano">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;background:linear-gradient(160deg,#ffe9a8,#ffc2d4 55%,#b9d8ff);color:#2b2350;overflow:hidden}
+#app{height:100%;display:flex;flex-direction:column;padding:max(10px,env(safe-area-inset-top)) 14px max(10px,env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;gap:12px;min-height:0}
+.mascot{font-size:64px;line-height:1;animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px) rotate(-3deg)}}
+.bubble{flex:1;background:#fff;border-radius:22px;padding:14px 18px;font-size:clamp(20px,3.2vw,30px);font-weight:700;box-shadow:0 4px 0 rgba(0,0,0,.12);position:relative;min-height:70px;display:flex;align-items:center}
+.bubble:before{content:"";position:absolute;left:-12px;top:50%;margin-top:-10px;border:10px solid transparent;border-right-color:#fff;border-left:0}
+.iconbtn{border:0;background:#fff;border-radius:16px;font-size:26px;width:52px;height:52px;box-shadow:0 3px 0 rgba(0,0,0,.15)}
+.iconbtn.on{background:#4cc86a;color:#fff}
+.screen{flex:1;display:none;flex-direction:column;min-height:0;margin-top:12px}
+.screen.active{display:flex}
+h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
+.songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;overflow:auto;padding-bottom:10px}
+.song{background:#fff;border:0;border-radius:26px;padding:20px;text-align:left;font-size:clamp(22px,3vw,28px);font-weight:800;color:#2b2350;box-shadow:0 6px 0 rgba(0,0,0,.14);display:flex;flex-direction:column;gap:6px}
+.song:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.14)}
+.song small{font-size:18px;font-weight:600;opacity:.7}
+.song .st{font-size:26px;letter-spacing:2px}
+.bar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.btn{border:0;border-radius:20px;padding:12px 20px;font-size:clamp(18px,2.6vw,24px);font-weight:800;background:#7c4dff;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.2)}
+.btn.alt{background:#fff;color:#2b2350}
+.btn:active{transform:translateY(2px)}
+.dots{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;padding:6px;min-height:92px}
+.dot{width:clamp(48px,7vw,72px);height:clamp(48px,7vw,72px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:clamp(14px,2vw,20px);color:#2b2350;border:4px solid rgba(255,255,255,.9);opacity:.45;transition:transform .15s}
+.dot.cur{opacity:1;transform:scale(1.25);box-shadow:0 0 0 6px rgba(255,255,255,.8)}
+.dot.done{opacity:1}
+.dot.done:after{content:"✓";font-size:1.4em}
+.dot.done span{display:none}
+.stage{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:0}
+.kb{position:relative;display:flex;height:clamp(180px,40vh,340px);background:#2b2350;padding:8px 8px 10px;border-radius:24px 24px 18px 18px}
+.key{position:relative;flex:1;margin:0 2px;background:#fff;border-radius:0 0 14px 14px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:10px;font-weight:900;font-size:clamp(14px,2.2vw,22px);touch-action:manipulation;transition:background .08s}
+.key:before{content:"";position:absolute;left:0;right:0;top:0;height:16px;background:var(--c);border-radius:0 0 8px 8px;opacity:.9}
+.key.target{background:color-mix(in srgb,var(--c) 45%,#fff);animation:pulse .9s ease-in-out infinite}
+@keyframes pulse{50%{filter:brightness(1.12);transform:translateY(3px)}}
+.key.ok{background:#7be495!important}
+.key.near{background:#ffb3d1!important}
+.key.demo{background:var(--c)!important}
+.black{position:absolute;top:8px;width:6%;height:58%;background:#17122e;border-radius:0 0 10px 10px;pointer-events:none;z-index:2}
+.big{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(43,35,80,.82);z-index:20;color:#fff;text-align:center;gap:14px}
+.big.show{display:flex}
+.big .stars{font-size:clamp(60px,12vw,120px)}
+.big h1{margin:0;font-size:clamp(30px,6vw,56px)}
+.panel{display:none;background:#fff;border-radius:20px;padding:14px 18px;margin-top:10px;font-size:18px}
+.panel.show{display:block}
+.panel label{display:flex;gap:10px;align-items:center;margin-top:8px}
+.meter{height:12px;background:#eee;border-radius:6px;overflow:hidden;flex:1}
+.meter i{display:block;height:100%;width:0;background:#4cc86a}
+.note-hint{font-size:15px;opacity:.7;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="mascot" id="mascot">🦊</div>
+    <div class="bubble" id="bubble">¡Hola Valentino! ¿Qué canción tocamos hoy?</div>
+    <button class="iconbtn" id="btnMic" title="Escuchar mi piano">🎤</button>
+    <button class="iconbtn" id="btnVoice" title="Voz">🔊</button>
+    <button class="iconbtn" id="btnGear" title="Para papá">⚙️</button>
+  </div>
+  <div class="panel" id="panel">
+    <b>Para papá</b> — el 🎤 hace que la app escuche el piano. Tocar el teclado de la pantalla también funciona.
+    <label>Nota que escucho: <b id="dbgNote">–</b></label>
+    <label>Volumen <div class="meter"><i id="dbgLevel"></i></div></label>
+    <label>Sensibilidad <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
+    <label>Aceptar la nota en cualquier octava <input type="checkbox" id="anyOctave" checked></label>
+    <div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>
+  </div>
+
+  <div class="screen active" id="home">
+    <h2>Elegí una canción</h2>
+    <div class="songs" id="songs"></div>
+  </div>
+
+  <div class="screen" id="play">
+    <div class="bar">
+      <button class="btn alt" id="btnBack">⬅ Volver</button>
+      <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="songTitle"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn alt" id="btnHear">🔊 Escuchar</button>
+        <button class="btn" id="btnSkip">Seguir ➜</button>
+      </div>
+    </div>
+    <div class="dots" id="dots"></div>
+    <div class="stage">
+      <div class="kb" id="kb"></div>
+    </div>
+  </div>
+</div>
+
+<div class="big" id="finish">
+  <div class="stars" id="finStars">⭐⭐⭐</div>
+  <h1 id="finTitle">¡Lo lograste!</h1>
+  <button class="btn" id="btnFinOk">¡Otra vez!</button>
+  <button class="btn alt" id="btnFinHome">Elegir otra canción</button>
+</div>
+
+<script>
+"use strict";
+/* ============ DATOS ============ */
+const KID = "Valentino";
+const NAMES = {C:"Do",D:"Re",E:"Mi",F:"Fa",G:"Sol",A:"La",B:"Si"};
+const COLORS = {C:"#ff5a5f",D:"#ff9f1c",E:"#ffd23f",F:"#4cc86a",G:"#2ec4b6",A:"#4d96ff",B:"#9b5de5"};
+const BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const WHITE = [60,62,64,65,67,69,71,72,74,76]; // Do4 .. Mi5
+const PCLET = {0:"C",2:"D",4:"E",5:"F",7:"G",9:"A",11:"B"};
+function parseNote(tok){
+  const m = /^([A-G])(\d)(?::([\d.]+))?$/.exec(tok);
+  const midi = 12*(+m[2]+1)+BASE[m[1]];
+  return {midi, beats: m[3]?parseFloat(m[3]):1};
+}
+function parsePhrase(s){ return s.trim().split(/\s+/).map(parseNote); }
+// Agregá acá las canciones favoritas de Valentino (melodía de una mano, notas Do4–Mi5)
+const SONGS = [
+  {title:"Estrellita", sub:"Estrellita, ¿dónde estás?", emoji:"⭐",
+   phrases:["C4 C4 G4 G4 A4 A4 G4:2","F4 F4 E4 E4 D4 D4 C4:2","G4 G4 F4 F4 E4 E4 D4:2"],
+   order:[0,1,2,2,0,1]},
+  {title:"Himno a la Alegría", sub:"Beethoven", emoji:"🎶",
+   phrases:["E4 E4 F4 G4 G4 F4 E4 D4","C4 C4 D4 E4 E4:1.5 D4:.5 D4:2","C4 C4 D4 E4 D4:1.5 C4:.5 C4:2"],
+   order:[0,1,0,2]},
+  {title:"Cumpleaños feliz", sub:"¡A festejar!", emoji:"🎂",
+   phrases:["G4 G4 A4 G4 C5 B4:2","G4 G4 A4 G4 D5 C5:2"],
+   order:[0,1,0,1]},
+].map(s=>({...s, chunks:s.phrases.map(parsePhrase)}));
+
+/* ============ ESTADO ============ */
+const $ = id=>document.getElementById(id);
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+let S = {song:null, mode:"idle", chunks:[], ci:0, ni:0, run:0, missPhrase:0, missNote:0, learnIdx:0, lastWrong:0};
+let ctx=null, analyser=null, micStream=null, micOn=false, voiceOn=true, muteUntil=0;
+let store = {stars:{}};
+try{ store = JSON.parse(localStorage.getItem("pianoVal")||"{}"); store.stars = store.stars||{}; }catch(e){}
+function save(){ try{ localStorage.setItem("pianoVal", JSON.stringify(store)); }catch(e){} }
+
+/* ============ VOZ ============ */
+let esVoice=null;
+function pickVoice(){
+  const vs = (window.speechSynthesis && speechSynthesis.getVoices())||[];
+  const es = vs.filter(v=>/^es/i.test(v.lang));
+  esVoice = es.find(v=>/AR/i.test(v.lang)) || es.find(v=>/MX|US|419/i.test(v.lang)) || es[0] || null;
+}
+if(window.speechSynthesis){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function setBubble(t){ $("bubble").textContent = t; }
+function speak(text){
+  setBubble(text);
+  const est = 500 + text.length*85;
+  muteUntil = performance.now() + est + 400;
+  if(!voiceOn || !window.speechSynthesis) return sleep(Math.min(est,1400));
+  return new Promise(res=>{
+    let done=false; const fin=()=>{ if(!done){done=true; muteUntil=performance.now()+350; res();} };
+    try{
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = esVoice?esVoice.lang:"es-AR"; if(esVoice) u.voice=esVoice;
+      u.rate=.92; u.pitch=1.25;
+      u.onend=fin; u.onerror=fin;
+      speechSynthesis.speak(u);
+    }catch(e){ fin(); }
+    setTimeout(fin, est+1500);
+  });
+}
+const PRAISE = ["¡Muy bien, "+KID+"!","¡Genial!","¡Qué bien tocás!","¡Eso es!","¡Sos un crack del piano!","¡Perfecto!"];
+const rnd = a=>a[Math.floor(Math.random()*a.length)];
+
+/* ============ AUDIO (sonido del piano de juguete) ============ */
+function ensureCtx(){
+  if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC(); }
+  if(ctx.state==="suspended") ctx.resume();
+  return ctx;
+}
+function tone(midi, dur=.5, vol=.35){
+  const c=ensureCtx(); const f=440*Math.pow(2,(midi-69)/12); const t=c.currentTime;
+  const g=c.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.01);
+  g.gain.exponentialRampToValueAtTime(.001,t+Math.max(.25,dur)); g.connect(c.destination);
+  [[1,"triangle",1],[2,"sine",.3],[3,"sine",.1]].forEach(([m,type,a])=>{
+    const o=c.createOscillator(); o.type=type; o.frequency.value=f*m;
+    const gg=c.createGain(); gg.gain.value=a; o.connect(gg); gg.connect(g); o.start(t); o.stop(t+Math.max(.3,dur)+.05);
+  });
+}
+
+/* ============ TECLADO ============ */
+function buildKeyboard(){
+  const kb=$("kb"); kb.innerHTML="";
+  WHITE.forEach((m,i)=>{
+    const L=PCLET[m%12]; const k=document.createElement("div");
+    k.className="key"; k.dataset.m=m; k.style.setProperty("--c",COLORS[L]);
+    k.innerHTML=`<span>${NAMES[L]}</span>`;
+    k.addEventListener("pointerdown",e=>{ e.preventDefault(); pressKey(m); });
+    kb.appendChild(k);
+  });
+  // teclas negras decorativas
+  [0,1,3,4,5,7,8].forEach(i=>{
+    const b=document.createElement("div"); b.className="black";
+    const innerW=100-1.6; b.style.left=`calc(8px + (100% - 16px) * ${(i+1)/WHITE.length} - 3%)`;
+    kb.appendChild(b);
+  });
+}
+function keyEl(midi){ return document.querySelector(`.key[data-m="${midi}"]`) || document.querySelector(`.key[data-m="${midi%12+60}"]`); }
+function flash(midi, cls, ms=350){
+  const el = (function(){ const exact=document.querySelector(`.key[data-m="${midi}"]`); if(exact) return exact; return [...document.querySelectorAll(".key")].find(k=>(+k.dataset.m)%12===midi%12); })();
+  if(!el) return; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),ms);
+}
+function pressKey(midi){ ensureCtx(); tone(midi,.6); handleInput(midi,"touch"); }
+
+/* ============ JUEGO ============ */
+function show(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("active",s.id===id)); }
+function renderHome(){
+  const box=$("songs"); box.innerHTML="";
+  SONGS.forEach((s,i)=>{
+    const st=store.stars[s.title]||0;
+    const b=document.createElement("button"); b.className="song";
+    b.innerHTML=`<div style="font-size:44px">${s.emoji}</div>${s.title}<small>${s.sub}</small><div class="st">${"⭐".repeat(st)}${"☆".repeat(3-st)}</div>`;
+    b.onclick=()=>startSong(i); box.appendChild(b);
+  });
+}
+function chunk(){ return S.chunks[S.ci]; }
+function renderDots(){
+  const box=$("dots"); box.innerHTML="";
+  const ch=chunk(); if(!ch) return;
+  ch.forEach((n,i)=>{
+    const L=PCLET[n.midi%12]; const d=document.createElement("div");
+    d.className="dot"+(i<S.ni?" done":"")+(i===S.ni&&S.mode==="play"?" cur":"");
+    d.style.background=COLORS[L]; d.innerHTML=`<span>${NAMES[L]}</span>`; box.appendChild(d);
+  });
+  document.querySelectorAll(".key").forEach(k=>k.classList.remove("target"));
+  if(S.mode==="play"){ const t=ch[S.ni]; if(t) markTarget(t.midi); }
+}
+function markTarget(midi){
+  const el=[...document.querySelectorAll(".key")].find(k=>+k.dataset.m===midi) || [...document.querySelectorAll(".key")].find(k=>(+k.dataset.m)%12===midi%12);
+  if(el) el.classList.add("target");
+}
+async function demo(notes, run){
+  S.mode="demo";
+  const beat=.5;
+  for(const n of notes){
+    if(run!==S.run) return false;
+    muteUntil=performance.now()+n.beats*beat*1000+500;
+    flash(n.midi,"demo",n.beats*beat*1000-40); tone(n.midi,n.beats*beat+.1);
+    await sleep(n.beats*beat*1000);
+  }
+  muteUntil=performance.now()+400;
+  return run===S.run;
+}
+async function startSong(i){
+  ensureCtx();
+  S.song=SONGS[i]; S.run++; S.learnIdx=0; $("songTitle").textContent=S.song.emoji+" "+S.song.title;
+  show("play"); buildKeyboard();
+  await learnPhrase(0, "Vamos a tocar "+S.song.title+". Primero escuchá.");
+}
+async function learnPhrase(idx, intro){
+  const run=S.run; S.learnIdx=idx; S.mode="demo"; S.chunks=[S.song.chunks[idx]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; renderDots();
+  await speak(intro|| (idx===0?"Escuchá cómo suena.":"Ahora, la siguiente parte. Escuchá."));
+  if(run!==S.run) return;
+  if(!(await demo(S.chunks[0],run))) return;
+  await speak("¡Ahora te toca a vos!"); if(run!==S.run) return;
+  S.mode="play"; renderDots(); armMic();
+}
+async function startFull(){
+  const run=S.run; S.mode="demo";
+  S.chunks=S.song.order.map(i=>S.song.chunks[i]); S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.full=true;
+  renderDots();
+  await speak("¡Ya sabés todas las partes! Ahora tocá la canción completa. ¡Yo te espero!");
+  if(run!==S.run) return; S.mode="play"; renderDots();
+}
+function stars3(m){ return m===0?3:(m<=3?2:1); }
+async function handleInput(midi){
+  if(S.mode!=="play") return;
+  const now=performance.now(); if(now-S.lastWrong<300) return;
+  const t=chunk()[S.ni]; if(!t) return;
+  const anyOct=$("anyOctave").checked;
+  const ok = anyOct ? (midi%12===t.midi%12) : (midi===t.midi);
+  const run=S.run;
+  if(ok){
+    S.missNote=0; flash(t.midi,"ok",300); S.ni++; renderDots();
+    if(S.ni>=chunk().length){
+      S.mode="between";
+      if(!S.full){
+        const st=stars3(S.missPhrase);
+        await speak(rnd(PRAISE)+" "+"⭐".repeat(st)); if(run!==S.run) return;
+        if(S.learnIdx+1<S.song.chunks.length) await learnPhrase(S.learnIdx+1);
+        else await startFull();
+      } else {
+        S.ci++; S.ni=0;
+        if(S.ci>=S.chunks.length) return finishSong(run);
+        S.mode="play"; renderDots();
+      }
+    }
+  } else {
+    S.lastWrong=now; S.missPhrase++; S.missNote++; flash(midi,"near",450);
+    const tn=NAMES[PCLET[t.midi%12]];
+    if(S.missNote===2){ setBubble("¡Casi! Buscá el "+tn); await speak("¡Casi! Probá con el "+tn+"."); }
+    else if(S.missNote>=4){ S.missNote=0; S.mode="demo"; await speak("Mirá, te ayudo. Este es el "+tn+"."); tone(t.midi,.8); flash(t.midi,"demo",700); await sleep(900); if(run===S.run){ S.mode="play"; renderDots(); } }
+    else setBubble("¡Casi! Probá otra vez 😊");
+  }
+}
+async function finishSong(run){
+  S.mode="done"; const st=stars3(Math.floor(S.missPhrase/2)); // en la canción completa se tolera más
+  const prev=store.stars[S.song.title]||0; if(st>prev){ store.stars[S.song.title]=st; save(); }
+  $("finStars").textContent="⭐".repeat(st)+"☆".repeat(3-st);
+  $("finTitle").textContent="¡Tocaste "+S.song.title+"!";
+  $("finish").classList.add("show");
+  await speak("¡Bravo "+KID+"! ¡Tocaste toda la canción!");
+}
+/* botones */
+$("btnBack").onclick=()=>{ S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); };
+$("btnHear").onclick=async()=>{ if(!S.song) return; const run=++S.run; const keep=S.mode; const ch=chunk(); const prevMode=S.mode;
+  const was = S.full; await demo(ch, run); if(run===S.run){ S.mode="play"; renderDots(); } };
+$("btnSkip").onclick=()=>{ if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
+$("btnFinOk").onclick=()=>{ $("finish").classList.remove("show"); const i=SONGS.indexOf(S.song); S.full=false; startSong(i); };
+$("btnFinHome").onclick=()=>{ $("finish").classList.remove("show"); S.full=false; $("btnBack").onclick(); };
+$("btnVoice").onclick=()=>{ voiceOn=!voiceOn; $("btnVoice").textContent=voiceOn?"🔊":"🔇"; if(!voiceOn){try{speechSynthesis.cancel();}catch(e){}} };
+$("btnGear").onclick=()=>$("panel").classList.toggle("show");
+$("sens").oninput=e=>{ $("sensVal").textContent=e.target.value; };
+$("sensVal").textContent=$("sens").value;
+$("btnMic").onclick=async()=>{ ensureCtx(); if(micOn){ stopMic(); } else { await startMic(); } };
+function armMic(){ /* el micrófono sigue activo si ya se encendió */ }
+
+/* ============ MICRÓFONO + DETECCIÓN DE NOTA ============ */
+let timer=null, slow=0, pending=false, votes=[], pendStart=0, lastOnset=0;
+async function startMic(){
+  try{
+    ensureCtx();
+    micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    const src=ctx.createMediaStreamSource(micStream);
+    analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
+    src.connect(analyser);
+    micOn=true; $("btnMic").classList.add("on");
+    timer=setInterval(frame,30);
+    setBubble("¡Te escucho! Tocá tu piano 🎹");
+  }catch(e){
+    micOn=false; $("btnMic").classList.remove("on");
+    setBubble("No pude usar el micrófono. Podés tocar el teclado de la pantalla.");
+  }
+}
+function stopMic(){
+  micOn=false; $("btnMic").classList.remove("on"); clearInterval(timer);
+  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
+}
+// YIN: detecta la frecuencia fundamental de una nota suelta
+function yin(buf, sr){
+  const W=1024, maxTau=Math.floor(sr/170), minTau=Math.floor(sr/1200);
+  const start=buf.length-W-maxTau-2; if(start<0) return null;
+  const d=new Float32Array(maxTau+1);
+  for(let tau=1;tau<=maxTau;tau++){ let s=0; for(let i=0;i<W;i++){ const x=buf[start+i]-buf[start+i+tau]; s+=x*x; } d[tau]=s; }
+  const c=new Float32Array(maxTau+1); c[0]=1; let run=0;
+  for(let tau=1;tau<=maxTau;tau++){ run+=d[tau]; c[tau]=d[tau]*tau/(run||1); }
+  let tau=-1;
+  for(let t=minTau;t<maxTau;t++){ if(c[t]<.15){ while(t+1<maxTau&&c[t+1]<c[t]) t++; tau=t; break; } }
+  if(tau<0) return null;
+  const a=c[tau-1]||c[tau], b=c[tau], g=c[tau+1]||c[tau];
+  const den=2*(2*b-a-g); const shift=den?(a-g)/den:0;
+  return sr/(tau+shift);
+}
+function freqToMidi(f){ return Math.round(69+12*Math.log2(f/440)); }
+const FULLNAME=m=>NAMES[PCLET[((m%12)+12)%12]]||(["Do#","Re#","","Fa#","Sol#","La#"].join()&&midiName(m));
+function midiName(m){ const n=["Do","Do#","Re","Re#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"]; return n[((m%12)+12)%12]; }
+function frame(){
+  if(!analyser) return;
+  const buf=new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(buf);
+  let s=0; for(let i=buf.length-1024;i<buf.length;i++) s+=buf[i]*buf[i]; const rms=Math.sqrt(s/1024);
+  $("dbgLevel").style.width=Math.min(100,rms*600)+"%";
+  const now=performance.now();
+  if(now<muteUntil){ slow=rms; pending=false; return; }
+  const thr=(+$("sens").value)/1000; // 0.001 – 0.03
+  if(!pending && rms>thr && rms>slow*1.4 && now-lastOnset>140){ pending=true; votes=[]; pendStart=now; lastOnset=now; }
+  if(pending){
+    if(now-pendStart>70){ const f=yin(buf,ctx.sampleRate); if(f) votes.push(freqToMidi(f)); }
+    if(votes.length>=3 || now-pendStart>380){
+      pending=false;
+      if(votes.length>=2){
+        const cnt={}; votes.forEach(v=>cnt[v]=(cnt[v]||0)+1);
+        const best=+Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+        $("dbgNote").textContent=midiName(best)+" ("+best+")";
+        handleInput(best,"mic");
+      }
+    }
+  }
+  slow=slow*.85+rms*.15;
+}
+
+/* ============ INICIO ============ */
+buildKeyboard(); renderHome();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
