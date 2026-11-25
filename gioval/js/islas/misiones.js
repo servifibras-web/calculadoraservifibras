@@ -78,11 +78,18 @@ const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
 
 /* ---------------- temporizador (módulo Alarma) ---------------- */
 const mmss = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+function bajaTimer() { if (Mi && Mi.baja) { Mi.baja(); Mi.baja = null; } }
 function ponerTimer(seg) {
   try { Gioval.alarma.pedirPermiso().catch(() => {}); } catch (e) {}
+  bajaTimer(); const ini = Date.now();
+  /* se escucha SOLO mientras hay un temporizador nuestro corriendo: si no, se "robaría" el aviso de una alarma vencida con la app cerrada */
+  Mi.baja = Gioval.alarma.onFin(info => {
+    if (info.titulo !== U.timer.titulo || info.fin < ini || !Mi || !Mi.timer) return;
+    bajaTimer(); Mi.timer = false; pintarTimer(); hablar(U.timer.fin, U.timer.fin);
+  });
   Gioval.alarma.programar(seg, { titulo: U.timer.titulo, texto: U.timer.texto }); Mi.timer = true; pintarTimer();
 }
-function cancelarTimer() { if (Mi && Mi.timer) { Gioval.alarma.cancelar(); Mi.timer = false; } pintarTimer(); }
+function cancelarTimer() { if (Mi && Mi.timer) { Gioval.alarma.cancelar(); Mi.timer = false; } bajaTimer(); pintarTimer(); }
 function pintarTimer() {
   const el = $("misTimerEstado"); if (!el) return;
   const r = Mi && Mi.timer ? Gioval.alarma.restante() : 0;
@@ -519,10 +526,6 @@ function iniciar() {
   $("misListaBack").onclick = () => goMenuIsla();
   $("misBack").onclick = () => salir();
   $("misHear").onclick = () => { if (Mi && Mi.habla) hablar(Mi.habla, Mi.burb); };
-  Gioval.alarma.onFin(info => {
-    if (info.titulo !== U.timer.titulo || !Mi || !Mi.timer) return;
-    Mi.timer = false; pintarTimer(); hablar(U.timer.fin, U.timer.fin);
-  });
 }
 
 const ISLA = { id: "misiones", name: U.isla.nombre, emoji: "🧭", sub: U.isla.sub, skills: [], actividades: {}, plain: true, instrumento: null, entradas: [],
