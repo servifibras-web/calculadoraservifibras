@@ -1,8 +1,8 @@
 "use strict";
 /* ============ ISLA LETRAS: DATOS EDITABLES ============
    Todo el contenido de la isla vive acá (la lógica está en js/islas/letras.js y no lleva textos ni listas).
-   1) TEXTOS: todo lo que se LEE o se DICE en pantalla, agrupado (para traducir / revisar tono). Los {nombres} entre
-      llaves se reemplazan al usarse. Una lista de frases = se elige una al azar.
+   1) TEXTOS: todo lo que se LEE o se DICE en pantalla, en la tabla es-AR de Gioval.i18n (frases completas con huecos
+      {nombre}; una lista de frases = se elige una al azar). Van arriba de todo, antes del resto del contenido.
    2) HABILIDADES: la escalera por edades (id, nivel, edad típica, eje curricular, umbral de "rápido").
    3) CONTENIDO: palabras con dibujo, rimas, frases, comprensión, ortografía.
 
@@ -22,198 +22,254 @@
    por nombre, por forma y por palabras escritas con dibujo, no por "el sonido inicial".
    IDEA FUTURA (no implementada): leer en voz alta con micrófono y reconocimiento de voz. Esta entrega es solo toque. */
 
-const TEXTOS = {
-  isla: {
-    nombre: "Isla Letras", sub: "¡A jugar con las letras!",
-    bienvenida: "¡Isla Letras! Empezamos con la sesión de hoy, o elegí otra cosa.",
-    outro: "Ahora, ¡buscá letras en carteles, envases y libros!",
-    capTail: "Ahora, a mirar libros y carteles de verdad. ¡Mañana seguimos con las letras!",
-    notaInforme: "En Letras, \"saltada\" significa que se marcó como sabida sin practicarla (por dominio rápido, por las preguntas iniciales o por el juego de ubicación) y se vuelve a comprobar sin ayuda en el chequeo semanal; si no sale, vuelve a práctica. Los tiempos son de respuesta al primer intento, sin contar lo que tarda la voz."
-  },
-  letras: { A: "a", B: "be larga", C: "ce", D: "de", E: "e", F: "efe", G: "ge", H: "hache", I: "i", J: "jota", K: "ka", L: "ele", M: "eme", N: "ene", Ñ: "eñe", O: "o", P: "pe", Q: "cu", R: "erre", S: "ese", T: "te", U: "u", V: "ve corta", W: "doble ve", X: "equis", Y: "i griega", Z: "zeta" },
-  habilidades: {
-    let_v: "Las vocales", let_cs1: "Contar los pedacitos de las palabras", let_c1: "M, P, S, L y T", let_s1: "¿Con qué letra empieza?",
-    let_ri1: "Rimas con dibujos", let_c2: "N, D, C, B, R, F y G", let_p1: "De la letra al dibujo", let_sil: "Armar con sílabas",
-    let_f1: "¿Qué vocal falta?", let_s2: "Primer sonido: más letras", let_c3: "J, V, Z, H e Y", let_ms: "Mayúsculas y minúsculas",
-    let_arm: "Armar palabras con letras", let_sp: "Separar en sílabas", let_f2: "¿Qué letra falta?", let_c4: "Ñ, Q, K, X y W",
-    let_nom: "Escribir mi nombre", let_rs: "Leer sílabas", let_rp1: "Leer palabras cortas", let_abc1: "El abecedario: antes y después",
-    let_rf1: "Leer frases cortas", let_rp2: "Leer palabras largas", let_comp1: "Entender una frase", let_ora: "Ordenar oraciones",
-    let_dig: "Letras que van juntas: LL, RR, CH, QU, GU", let_tr: "Sílabas trabadas: BR, FL, TR…", let_may: "Mayúsculas y puntos",
-    let_ort: "Ortografía de todos los días", let_abc2: "Orden alfabético", let_comp2: "Entender un textito"
-  },
-  /* los 8 "tramos" de la escalera (cada habilidad pertenece a uno) */
-  tramos: [
-    "Vocales y contar pedacitos", "Primeras letras y sonidos", "Más letras y armar con sílabas", "Armar palabras y todas las letras",
-    "Leer sílabas y palabras", "Leer frases y entender", "Oraciones, trabadas y letras juntas", "Ortografía, abecedario y textos"
-  ],
-  menu: {
-    preguntas: { t: "Preguntas para adultos", s: "Dos minutos, una sola vez" },
-    ubicacion: { t: "Juego de ubicación", s: "Unos 5 minutos, sin apuro" },
-    resultado: { t: "Resultado de ubicación", s: "Para adultos: revisar y aceptar" },
-    informe: { t: "Informe para adultos", s: "Aciertos, tiempos y saltos" }
-  },
-  bienvenida: {
-    titulo: "¡Bienvenidos a la Isla Letras!",
-    texto: "Para que {nombre} empiece en el lugar justo, necesitamos que una persona adulta responda unas preguntas (dos minutos, una sola vez). Después se puede hacer un juego de ubicación para ajustar.",
-    adulto: "Soy una persona adulta", despues: "Más tarde"
-  },
-  intake: {
-    titulo: "Preguntas para adultos: Letras de {nombre}",
-    intro: "Respondé lo que veas en casa. No hay respuestas buenas ni malas: sirven para empezar en un lugar cómodo. Después se puede cambiar.",
-    pEdad: "¿Cuántos años tiene?", pLetras: "¿Cuántas letras reconoce?", pLee: "¿Qué lee?", pNombre: "¿Escribe su nombre?",
-    edad: [{ v: 4, t: "4 años" }, { v: 5, t: "5 años" }, { v: 6, t: "6 años" }, { v: 7, t: "7 años" }, { v: 8, t: "8 o más" }],
-    letras: [{ v: 0, t: "Ninguna todavía" }, { v: 1, t: "Algunas (las vocales o las de su nombre)" }, { v: 2, t: "Casi todas las mayúsculas" }, { v: 3, t: "Todas, mayúsculas y minúsculas" }],
-    lee: [{ v: "no", t: "Todavía no lee" }, { v: "silabas", t: "Lee sílabas sueltas (MA, PA, SO)" }, { v: "palabras", t: "Lee palabras cortas (MESA, GATO)" }, { v: "frases", t: "Lee frases cortas (EL GATO COME)" }, { v: "textos", t: "Lee textos cortos y entiende" }],
-    nombre: [{ v: "no", t: "Todavía no" }, { v: "copia", t: "Lo copia de un modelo" }, { v: "solo", t: "Lo escribe solo" }],
-    guardar: "Guardar", cancelar: "Cancelar", falta: "Faltan respuestas: tocá una opción en cada pregunta.",
-    sugerido: "Con esas respuestas, {nombre} empezaría en: «{habilidad}» (tramo {tramo} de 8: {nombreTramo}).",
-    sugeridoCero: "Con esas respuestas, {nombre} empezaría desde el principio: «{habilidad}».",
-    usar: "Usar este punto de partida", jugar: "Hacer el juego de ubicación (≈5 min)", masTarde: "Decidir más tarde",
-    aviso: "Lo que se marque como sabido se vuelve a comprobar sin ayuda en el chequeo semanal; si no sale, vuelve a práctica."
-  },
-  ubicacion: {
-    titulo: "Juego de ubicación",
-    intro: "¡Hola, {nombre}! Vamos a jugar con las letras. No es un examen y no hay apuro. Si no sabés alguna, tocá «No sé» y seguimos.",
-    nose: "No sé", nose2: "🤷 No sé",
-    gracias: ["¡Gracias! Seguimos.", "¡Anotado! Vamos a la próxima.", "¡Listo! Sigamos jugando.", "¡Bien! Probemos otra."],
-    fin: "¡Terminamos el juego, {nombre}! Probaste un montón de cosas. Ahora le toca a un adulto ver cómo te fue.",
-    titResumen: "Resultado del juego de ubicación", fila: "Tramo {n}: {nombre}",
-    ok: "✅ lo hace bien ({a}/{b})", dudoso: "🟡 a veces ({a}/{b})", no: "❌ todavía no ({a}/{b})", sinPreguntar: "— no se preguntó",
-    propuesta: "Propongo empezar en el tramo {tramo}: «{habilidad}». Se marcarán como ya sabidas {n} habilidades de los tramos anteriores.",
-    propuestaCero: "Propongo empezar desde el principio. No se marca nada como sabido.",
-    antes: "◀ Empezar antes", despues: "Empezar después ▶", aceptar: "Aceptar", descartar: "No cambiar nada",
-    resumenTiempo: "Respondió {n} preguntas en {min} min.", aceptada: "¡Listo! Ya está guardado el punto de partida.",
-    pendiente: "Resultado sin revisar"
-  },
-  informe: {
-    titulo: "INFORME DE LETRAS — {nombre}", fecha: "Fecha: {fecha}",
-    datos: "Respuestas de los adultos ({fecha}): {edad} · letras: {letras} · lectura: {lee} · nombre: {nombreEscribe}",
-    sinDatos: "Todavía no se respondieron las preguntas para adultos.",
-    inicio: "Punto de partida: tramo {tramo} («{habilidad}»), definido por {origen}.",
-    origenPreguntas: "las preguntas para adultos", origenUbicacion: "el juego de ubicación", origenAdulto: "el juego de ubicación, ajustado por un adulto",
-    ubic: "Juego de ubicación ({fecha}): {n} preguntas.", ubicTramo: "   Tramo {n}: {txt}",
-    habilidades: "HABILIDADES", copiar: "Copiar", whatsapp: "WhatsApp", cerrar: "Cerrar", cambiar: "Cambiar respuestas",
-    resumenSaltos: "SALTOS: {n} habilidad(es) saltada(s): {c} confirmada(s) sin ayuda, {r} volvieron a práctica, {p} pendientes de comprobar.",
-    hab: "• {name}: {estado} (edad típica: {edad} años · tramo {tramo})", dom: "dominada", prac: "en práctica", saltada: "saltada",
-    acc: "   Aciertos al primer intento: primeros {a} → últimos {b}", ret: "   Retención (acierto ≥1 día después de practicar): {r}",
-    chequeos: "CHEQUEOS SIN AYUDA (Letras)", sinChequeos: "   (todavía no hizo ninguno)", sinDatosHab: "   (todavía sin práctica)",
-    comoLeerlo: "Cómo leerlo: los aciertos son al PRIMER intento, sin contar ayudas. La retención mide si lo recuerda tras dormir y pasar días. El chequeo semanal se hace sin pistas. Las edades son orientativas y nunca limitan: cada chico avanza a su ritmo.",
-    etiquetas: { si: "sí", no: "no" }
-  },
-  dominio: {
-    porPreguntas: "según las preguntas para adultos del {fecha}",
-    porUbic: "juego de ubicación del {fecha} ({n} preguntas)"
-  },
-  actividades: {
-    lname: {
-      ok: ["¡Te fijaste bien en la letra!", "¡Escuchar y mirar funcionó!", "¡Eso es! Fijarse en cada letra ayuda."],
-      pedir: ["Tocá la letra {nombre}.", "¿Dónde está la {nombre}?", "Buscá la {nombre}."], pedirAyuda: "Tocá la letra {nombre}, la de {palabra}.",
-      tip: "Mirá bien cada letra. Saqué una opción.", reveal: "Mirá, es la {nombre}, la de {palabra}."
-    },
-    lsound: {
-      ok: ["¡Escuchaste el primer sonido!", "¡Decir la palabra despacito ayuda!", "¡Eso es! Prestaste atención al sonido."],
-      pedirAyuda: "Mirá: {palabra}. ¿Con qué letra empieza?", pedir: "Escuchá: {palabra}. ¿Con qué letra empieza?",
-      tip: "Decí la palabra despacito: {palabra}. Saqué una opción.", reveal: "Mirá, {palabra} empieza con la {nombre}."
-    },
-    lpic: {
-      ok: ["¡Relacionaste la letra con el dibujo!", "¡Pensaste en el sonido y salió!", "¡Eso es! Escuchar el principio ayuda."],
-      pedirAyuda: "Buscá lo que empieza con la {nombre}. ¿Es {a}, {b} o {c}?", pedirAyuda2: "Buscá lo que empieza con la {nombre}. ¿Es {a} o {b}?",
-      pedir: "¿Qué dibujo empieza con la {nombre}?",
-      tip: "Decí cada nombre despacito. Saqué una opción.", reveal: "Mirá, {palabra} empieza con la {nombre}."
-    },
-    lcount: {
-      ok: ["¡Contaste los pedacitos!", "¡Aplaudir las sílabas ayuda!", "¡Eso es! Escuchar cada pedacito funciona."],
-      pedirAyuda: "Aplaudimos: {silabas}. ¿Cuántos pedacitos tiene {palabra}?", pedir: "Decí despacito: {palabra}. ¿Cuántos pedacitos tiene?",
-      tip: "Aplaudí cada pedacito: {silabas}. Saqué una opción.", reveal: "{palabra} tiene {n}: {silabas}."
-    },
-    lrhyme: {
-      ok: ["¡Escuchaste cómo terminan!", "¡Fijarse en el final ayuda!", "¡Eso es! Encontraste la rima."],
-      pedirAyuda: "{palabra} rima con… ¡{rima}! Buscá el dibujo que termina igual que {palabra}.", pedir: "¿Cuál rima con {palabra}? Fijate cómo terminan.",
-      tip: "Fijate en el final de cada palabra. Saqué una opción.", reveal: "Mirá, {palabra} y {rima} terminan igual: {fin}."
-    },
-    lsyl: {
-      ok: ["¡Juntaste las sílabas!", "¡Armaste la palabra sílaba por sílaba!", "¡Eso es! Decirla en voz alta ayuda."],
-      pedir: "¿Qué es esto? Armala con sílabas.", pedirAyuda: "Armá la palabra {palabra} con sílabas.",
-      tip: "Decí la palabra despacito y escuchá cada pedacito.", reveal: "Ahora va {silaba}."
-    },
-    lbuild: {
-      ok: ["¡Armaste la palabra letra por letra!", "¡Ordenaste las letras con cuidado!", "¡Eso es! Ir de a una letra funciona."],
-      pedir: "¿Qué es esto? Armá la palabra con las letras.", pedirAyuda: "Armá la palabra {palabra}.",
-      tip: "Una letra por vez, de izquierda a derecha.", reveal: "Ahora va la {nombre}."
-    },
-    lmissing: {
-      ok: ["¡Miraste la palabra con cuidado!", "¡Leíste y completaste!", "¡Eso es! Fijarse en el dibujo ayuda."],
-      pedir: "Mirá el dibujo y completá la palabra. ¿Qué letra falta?", pedirAyuda: "Falta una letra en {palabra}. ¿Cuál es?",
-      tip: "Leé la palabra despacito. Saqué una opción.", reveal: "Mirá, falta la {nombre}: {palabra}."
-    },
-    lcase: {
-      ok: ["¡Encontraste la pareja!", "¡Miraste bien la forma!", "¡Eso es! Cada letra tiene sus dos versiones."],
-      pedirMin: "Tocá la letra chiquita que es pareja de esta.", pedirMay: "Tocá la letra grande que es pareja de esta.",
-      pedirAyudaMin: "Tocá la letra chiquita de la {nombre}.", pedirAyudaMay: "Tocá la letra grande de la {nombre}.",
-      tip: "Fijate bien en la forma. Saqué una opción.", reveal: "Mirá, esta es la pareja de la {nombre}."
-    },
-    lsplit: {
-      ok: ["¡Separaste los pedacitos!", "¡Aplaudir las sílabas ayuda!", "¡Eso es! Cortaste la palabra en su lugar."],
-      pedir: "¿Cómo se separa {palabra} en sílabas?", pedirAyuda: "Aplaudimos: {silabas}. ¿Cuál está bien separada?",
-      tip: "Aplaudí cada pedacito. Saqué una opción.", reveal: "Mirá, se separa así: {silabas}."
-    },
-    lnombre: {
-      ok: ["¡Escribiste tu nombre letra por letra!", "¡Ordenaste las letras de tu nombre!", "¡Eso es! Tu nombre es tuyo."],
-      pedir: "Armá tu nombre, {nombre}.", pedirAyuda: "Armá tu nombre, {nombre}: {deletreo}.",
-      tip: "Una letra por vez, de izquierda a derecha.", reveal: "Ahora va la {letra}."
-    },
-    lrsyl: {
-      ok: ["¡Leíste la sílaba!", "¡Fijarte en las dos letras funcionó!", "¡Eso es! Leer de a pedacitos ayuda."],
-      pedirAyuda: "Esta sílaba dice {silaba}. Buscá el dibujo que empieza con {silaba}.", pedir: "Leé la sílaba y tocá el dibujo que empieza con ella.",
-      pedirInv: "Mirá el dibujo y tocá con qué sílaba empieza.", pedirInvAyuda: "{palabra} empieza con {silaba}. Tocá esa sílaba.",
-      tip: "Leé las dos letras juntas, despacito. Saqué una opción.", reveal: "Mirá, {palabra} empieza con {silaba}."
-    },
-    lrword: {
-      ok: ["¡Leíste la palabra!", "¡Leer despacito funcionó!", "¡Eso es! Fijarse en todas las letras ayuda."],
-      pedirAyuda: "Esta palabra dice {palabra}. Tocá el dibujo.", pedir: "Leé la palabra y tocá el dibujo.",
-      tip: "Leé sílaba por sílaba. Saqué una opción.", reveal: "Mirá, dice {palabra}."
-    },
-    lrphrase: {
-      ok: ["¡Leíste la frase entera!", "¡Leer palabra por palabra funcionó!", "¡Eso es! Fijarse en cada palabra ayuda."],
-      pedirAyuda: "Dice: {frase}. Tocá el dibujo que cuenta eso.", pedir: "Leé la frase y tocá el dibujo que la cuenta.",
-      tip: "Leé cada palabra con calma. Saqué una opción.", reveal: "Mirá, dice: {frase}."
-    },
-    labc: {
-      ok: ["¡Pensaste en el abecedario!", "¡Recitar el abecedario ayuda!", "¡Eso es! Fijarte en el orden funcionó."],
-      despues: "¿Qué letra va después de la {nombre}?", antes: "¿Qué letra va antes de la {nombre}?",
-      tip: "Decí el abecedario despacito. Saqué una opción.", reveal: "Mirá, la {nombre2} va {donde} de la {nombre}.", dDespues: "después", dAntes: "antes"
-    },
-    lcomp: {
-      ok: ["¡Leíste y entendiste!", "¡Volver al texto ayuda!", "¡Eso es! Pensar en lo que dice funciona."],
-      pedirAyuda: "{texto} {pregunta}", pedir: "Leé con calma y respondé.",
-      tip: "Volvé a leer el textito despacio. Saqué una opción.", reveal: "Mirá, el texto dice: {texto}"
-    },
-    lorden: {
-      ok: ["¡Ordenaste la oración!", "¡Leer cada palabra ayudó!", "¡Eso es! Una oración tiene su orden."],
-      pedir: "Ordená las palabras para armar la oración.", pedirAyuda: "Armá la oración: {frase}.",
-      tip: "Pensá cuál palabra va primero. Saqué una pista.", reveal: "Ahora va «{palabra}»."
-    },
-    lcluster: {
-      ok: ["¡Elegiste las letras que van juntas!", "¡Leer la palabra entera ayudó!", "¡Eso es! Fijarse en el dibujo ayuda."],
-      pedir: "Mirá el dibujo. ¿Qué letras faltan?", pedirAyuda: "Falta un pedacito en {palabra}. ¿Cuál es?",
-      tip: "Leé la palabra completa con cada opción. Saqué una opción.", reveal: "Mirá, va {grupo}: {palabra}."
-    },
-    lbien: {
-      ok: ["¡Miraste bien cómo se escribe!", "¡Leíste con atención!", "¡Eso es! Fijarse en los detalles ayuda."],
-      pedir: "¿Cuál está bien escrita?", pedirDib: "Mirá el dibujo. ¿Cuál está bien escrita?", pedirAyuda: "Es {palabra}. ¿Cuál está bien escrita?",
-      tip: "Leé cada una despacito. Saqué una opción.", reveal: "Mirá, está bien escrita así: {correcta}. {regla}"
-    },
-    lalfa: {
-      ok: ["¡Ordenaste con el abecedario!", "¡Mirar la primera letra funcionó!", "¡Eso es! El abecedario tiene su orden."],
-      pedir: "Tocá las palabras en orden del abecedario, empezando por la que va primero.", pedirAyuda: "Fijate en la primera letra de cada palabra. ¿Cuál va primero en el abecedario?",
-      tip: "Mirá la primera letra de cada una. Saqué una pista.", reveal: "Ahora va «{palabra}»."
-    }
-  }
-};
+/* ---------- TEXTOS (tabla es-AR) ----------
+   Todo lo que se LEE o se DICE en pantalla, como FRASES COMPLETAS con huecos con nombre (nunca pedazos pegados: ver
+   gioval-dev/docs/AGREGAR_IDIOMA.md). Las claves van en minúsculas con guion bajo. Una lista de frases = variantes
+   (se elige una al azar). Otros idiomas suman su propia tabla con Gioval.i18n.agregar("<código>", {...}); lo que falte cae a es-AR.
+   Ojo: Letras enseña a leer en ESPAÑOL (las letras, sílabas y palabras de abajo son del español), así que esta isla no
+   tiene tabla en inglés: se agrega una isla de letras propia de cada idioma cuando haga falta. */
+Gioval.i18n.agregar("es-AR", {
+  /* ---- isla ---- */
+  "letras.isla.nombre": "Isla Letras",
+  "letras.isla.sub": "¡A jugar con las letras!",
+  "letras.isla.bienvenida": "¡Isla Letras! Empezamos con la sesión de hoy, o elegí otra cosa.",
+  "letras.isla.outro": "Ahora, ¡buscá letras en carteles, envases y libros!",
+  "letras.isla.cap_tail": "Ahora, a mirar libros y carteles de verdad. ¡Mañana seguimos con las letras!",
+  "letras.isla.nota_informe": "En Letras, \"saltada\" significa que se marcó como sabida sin practicarla (por dominio rápido, por las preguntas iniciales o por el juego de ubicación) y se vuelve a comprobar sin ayuda en el chequeo semanal; si no sale, vuelve a práctica. Los tiempos son de respuesta al primer intento, sin contar lo que tarda la voz.",
+
+  /* ---- nombres de las letras (cómo se dicen) ---- */
+  "letras.nombres_letras": {"A":"a", "B":"be larga", "C":"ce", "D":"de", "E":"e", "F":"efe", "G":"ge", "H":"hache", "I":"i", "J":"jota", "K":"ka", "L":"ele", "M":"eme", "N":"ene", "Ñ":"eñe", "O":"o", "P":"pe", "Q":"cu", "R":"erre", "S":"ese", "T":"te", "U":"u", "V":"ve corta", "W":"doble ve", "X":"equis", "Y":"i griega", "Z":"zeta"},
+
+  /* ---- nombres de las habilidades (el id NO se traduce: es la clave del progreso) ---- */
+  "letras.hab.let_v": "Las vocales",
+  "letras.hab.let_cs1": "Contar los pedacitos de las palabras",
+  "letras.hab.let_c1": "M, P, S, L y T",
+  "letras.hab.let_s1": "¿Con qué letra empieza?",
+  "letras.hab.let_ri1": "Rimas con dibujos",
+  "letras.hab.let_c2": "N, D, C, B, R, F y G",
+  "letras.hab.let_p1": "De la letra al dibujo",
+  "letras.hab.let_sil": "Armar con sílabas",
+  "letras.hab.let_f1": "¿Qué vocal falta?",
+  "letras.hab.let_s2": "Primer sonido: más letras",
+  "letras.hab.let_c3": "J, V, Z, H e Y",
+  "letras.hab.let_ms": "Mayúsculas y minúsculas",
+  "letras.hab.let_arm": "Armar palabras con letras",
+  "letras.hab.let_sp": "Separar en sílabas",
+  "letras.hab.let_f2": "¿Qué letra falta?",
+  "letras.hab.let_c4": "Ñ, Q, K, X y W",
+  "letras.hab.let_nom": "Escribir mi nombre",
+  "letras.hab.let_rs": "Leer sílabas",
+  "letras.hab.let_rp1": "Leer palabras cortas",
+  "letras.hab.let_abc1": "El abecedario: antes y después",
+  "letras.hab.let_rf1": "Leer frases cortas",
+  "letras.hab.let_rp2": "Leer palabras largas",
+  "letras.hab.let_comp1": "Entender una frase",
+  "letras.hab.let_ora": "Ordenar oraciones",
+  "letras.hab.let_dig": "Letras que van juntas: LL, RR, CH, QU, GU",
+  "letras.hab.let_tr": "Sílabas trabadas: BR, FL, TR…",
+  "letras.hab.let_may": "Mayúsculas y puntos",
+  "letras.hab.let_ort": "Ortografía de todos los días",
+  "letras.hab.let_abc2": "Orden alfabético",
+  "letras.hab.let_comp2": "Entender un textito",
+
+  /* ---- los 8 tramos de la escalera ---- */
+  "letras.tramos": ["Vocales y contar pedacitos", "Primeras letras y sonidos", "Más letras y armar con sílabas", "Armar palabras y todas las letras", "Leer sílabas y palabras", "Leer frases y entender", "Oraciones, trabadas y letras juntas", "Ortografía, abecedario y textos"],
+
+  /* ---- menu ---- */
+  "letras.menu.preguntas.t": "Preguntas para adultos",
+  "letras.menu.preguntas.s": "Dos minutos, una sola vez",
+  "letras.menu.ubicacion.t": "Juego de ubicación",
+  "letras.menu.ubicacion.s": "Unos 5 minutos, sin apuro",
+  "letras.menu.resultado.t": "Resultado de ubicación",
+  "letras.menu.resultado.s": "Para adultos: revisar y aceptar",
+  "letras.menu.informe.t": "Informe para adultos",
+  "letras.menu.informe.s": "Aciertos, tiempos y saltos",
+
+  /* ---- bienvenida ---- */
+  "letras.bienvenida.titulo": "¡Bienvenidos a la Isla Letras!",
+  "letras.bienvenida.texto": "Para que {nombre} empiece en el lugar justo, necesitamos que una persona adulta responda unas preguntas (dos minutos, una sola vez). Después se puede hacer un juego de ubicación para ajustar.",
+  "letras.bienvenida.adulto": "Soy una persona adulta",
+  "letras.bienvenida.despues": "Más tarde",
+
+  /* ---- intake ---- */
+  "letras.intake.titulo": "Preguntas para adultos: Letras de {nombre}",
+  "letras.intake.intro": "Respondé lo que veas en casa. No hay respuestas buenas ni malas: sirven para empezar en un lugar cómodo. Después se puede cambiar.",
+  "letras.intake.p_edad": "¿Cuántos años tiene?",
+  "letras.intake.p_letras": "¿Cuántas letras reconoce?",
+  "letras.intake.p_lee": "¿Qué lee?",
+  "letras.intake.p_nombre": "¿Escribe su nombre?",
+  "letras.intake.edad": [{"v":4,"t":"4 años"},{"v":5,"t":"5 años"},{"v":6,"t":"6 años"},{"v":7,"t":"7 años"},{"v":8,"t":"8 o más"}],
+  "letras.intake.letras": [{"v":0,"t":"Ninguna todavía"},{"v":1,"t":"Algunas (las vocales o las de su nombre)"},{"v":2,"t":"Casi todas las mayúsculas"},{"v":3,"t":"Todas, mayúsculas y minúsculas"}],
+  "letras.intake.lee": [{"v":"no", "t":"Todavía no lee"},{"v":"silabas", "t":"Lee sílabas sueltas (MA, PA, SO)"},{"v":"palabras", "t":"Lee palabras cortas (MESA, GATO)"},{"v":"frases", "t":"Lee frases cortas (EL GATO COME)"},{"v":"textos", "t":"Lee textos cortos y entiende"}],
+  "letras.intake.nombre": [{"v":"no", "t":"Todavía no"},{"v":"copia", "t":"Lo copia de un modelo"},{"v":"solo", "t":"Lo escribe solo"}],
+  "letras.intake.guardar": "Guardar",
+  "letras.intake.cancelar": "Cancelar",
+  "letras.intake.falta": "Faltan respuestas: tocá una opción en cada pregunta.",
+  "letras.intake.sugerido": "Con esas respuestas, {nombre} empezaría en: «{habilidad}» (tramo {tramo} de 8: {nombreTramo}).",
+  "letras.intake.sugerido_cero": "Con esas respuestas, {nombre} empezaría desde el principio: «{habilidad}».",
+  "letras.intake.usar": "Usar este punto de partida",
+  "letras.intake.jugar": "Hacer el juego de ubicación (≈5 min)",
+  "letras.intake.mas_tarde": "Decidir más tarde",
+  "letras.intake.aviso": "Lo que se marque como sabido se vuelve a comprobar sin ayuda en el chequeo semanal; si no sale, vuelve a práctica.",
+
+  /* ---- ubicacion ---- */
+  "letras.ubicacion.titulo": "Juego de ubicación",
+  "letras.ubicacion.intro": "¡Hola, {nombre}! Vamos a jugar con las letras. No es un examen y no hay apuro. Si no sabés alguna, tocá «No sé» y seguimos.",
+  "letras.ubicacion.nose": "No sé",
+  "letras.ubicacion.nose2": "🤷 No sé",
+  "letras.ubicacion.gracias": ["¡Gracias! Seguimos.", "¡Anotado! Vamos a la próxima.", "¡Listo! Sigamos jugando.", "¡Bien! Probemos otra."],
+  "letras.ubicacion.fin": "¡Terminamos el juego, {nombre}! Probaste un montón de cosas. Ahora le toca a un adulto ver cómo te fue.",
+  "letras.ubicacion.tit_resumen": "Resultado del juego de ubicación",
+  "letras.ubicacion.fila": "Tramo {n}: {nombre}",
+  "letras.ubicacion.ok": "✅ lo hace bien ({a}/{b})",
+  "letras.ubicacion.dudoso": "🟡 a veces ({a}/{b})",
+  "letras.ubicacion.no": "❌ todavía no ({a}/{b})",
+  "letras.ubicacion.sin_preguntar": "— no se preguntó",
+  "letras.ubicacion.propuesta": "Propongo empezar en el tramo {tramo}: «{habilidad}». Se marcarán como ya sabidas {n} habilidades de los tramos anteriores.",
+  "letras.ubicacion.propuesta_cero": "Propongo empezar desde el principio. No se marca nada como sabido.",
+  "letras.ubicacion.antes": "◀ Empezar antes",
+  "letras.ubicacion.despues": "Empezar después ▶",
+  "letras.ubicacion.aceptar": "Aceptar",
+  "letras.ubicacion.descartar": "No cambiar nada",
+  "letras.ubicacion.resumen_tiempo": "Respondió {n} preguntas en {min} min.",
+  "letras.ubicacion.aceptada": "¡Listo! Ya está guardado el punto de partida.",
+  "letras.ubicacion.pendiente": "Resultado sin revisar",
+
+  /* ---- informe ---- */
+  "letras.informe.titulo": "INFORME DE LETRAS — {nombre}",
+  "letras.informe.fecha": "Fecha: {fecha}",
+  "letras.informe.datos": "Respuestas de los adultos ({fecha}): {edad} · letras: {letras} · lectura: {lee} · nombre: {nombreEscribe}",
+  "letras.informe.sin_datos": "Todavía no se respondieron las preguntas para adultos.",
+  "letras.informe.inicio": "Punto de partida: tramo {tramo} («{habilidad}»), definido por {origen, select, ubicacion{el juego de ubicación} ajustado{el juego de ubicación, ajustado por un adulto} other{las preguntas para adultos}}.",
+  "letras.informe.ubic": "Juego de ubicación ({fecha}): {n} preguntas.",
+  "letras.informe.ubic_tramo": "   Tramo {n}: {nombre} — {estado}",
+  "letras.informe.habilidades": "HABILIDADES",
+  "letras.informe.copiar": "Copiar",
+  "letras.informe.whatsapp": "WhatsApp",
+  "letras.informe.cerrar": "Cerrar",
+  "letras.informe.cambiar": "Cambiar respuestas",
+  "letras.informe.resumen_saltos": "SALTOS: {n} habilidad(es) saltada(s): {c} confirmada(s) sin ayuda, {r} volvieron a práctica, {p} pendientes de comprobar.",
+  "letras.informe.hab": "• {name}: {estado, select, dom{dominada} saltada{saltada} other{en práctica}} (edad típica: {edad} años · tramo {tramo})",
+  "letras.informe.acc": "   Aciertos al primer intento: primeros {a} → últimos {b}",
+  "letras.informe.ret": "   Retención (acierto ≥1 día después de practicar): {r}",
+  "letras.informe.chequeos": "CHEQUEOS SIN AYUDA (Letras)",
+  "letras.informe.sin_chequeos": "   (todavía no hizo ninguno)",
+  "letras.informe.sin_datos_hab": "   (todavía sin práctica)",
+  "letras.informe.como_leerlo": "Cómo leerlo: los aciertos son al PRIMER intento, sin contar ayudas. La retención mide si lo recuerda tras dormir y pasar días. El chequeo semanal se hace sin pistas. Las edades son orientativas y nunca limitan: cada chico avanza a su ritmo.",
+
+  /* ---- actividades ---- */
+  "letras.actividades.lname.ok": ["¡Te fijaste bien en la letra!", "¡Escuchar y mirar funcionó!", "¡Eso es! Fijarse en cada letra ayuda."],
+  "letras.actividades.lname.pedir": ["Tocá la letra {nombre}.", "¿Dónde está la {nombre}?", "Buscá la {nombre}."],
+  "letras.actividades.lname.pedir_ayuda": "Tocá la letra {nombre}, la de {palabra}.",
+  "letras.actividades.lname.tip": "Mirá bien cada letra. Saqué una opción.",
+  "letras.actividades.lname.reveal": "Mirá, es la {nombre}, la de {palabra}.",
+  "letras.actividades.lsound.ok": ["¡Escuchaste el primer sonido!", "¡Decir la palabra despacito ayuda!", "¡Eso es! Prestaste atención al sonido."],
+  "letras.actividades.lsound.pedir_ayuda": "Mirá: {palabra}. ¿Con qué letra empieza?",
+  "letras.actividades.lsound.pedir": "Escuchá: {palabra}. ¿Con qué letra empieza?",
+  "letras.actividades.lsound.tip": "Decí la palabra despacito: {palabra}. Saqué una opción.",
+  "letras.actividades.lsound.reveal": "Mirá, {palabra} empieza con la {nombre}.",
+  "letras.actividades.lpic.ok": ["¡Relacionaste la letra con el dibujo!", "¡Pensaste en el sonido y salió!", "¡Eso es! Escuchar el principio ayuda."],
+  "letras.actividades.lpic.pedir_ayuda": "Buscá lo que empieza con la {nombre}. ¿Es {a}, {b} o {c}?",
+  "letras.actividades.lpic.pedir_ayuda2": "Buscá lo que empieza con la {nombre}. ¿Es {a} o {b}?",
+  "letras.actividades.lpic.pedir": "¿Qué dibujo empieza con la {nombre}?",
+  "letras.actividades.lpic.tip": "Decí cada nombre despacito. Saqué una opción.",
+  "letras.actividades.lpic.reveal": "Mirá, {palabra} empieza con la {nombre}.",
+  "letras.actividades.lcount.ok": ["¡Contaste los pedacitos!", "¡Aplaudir las sílabas ayuda!", "¡Eso es! Escuchar cada pedacito funciona."],
+  "letras.actividades.lcount.pedir_ayuda": "Aplaudimos: {silabas}. ¿Cuántos pedacitos tiene {palabra}?",
+  "letras.actividades.lcount.pedir": "Decí despacito: {palabra}. ¿Cuántos pedacitos tiene?",
+  "letras.actividades.lcount.tip": "Aplaudí cada pedacito: {silabas}. Saqué una opción.",
+  "letras.actividades.lcount.reveal": "{palabra} tiene {n}: {silabas}.",
+  "letras.actividades.lrhyme.ok": ["¡Escuchaste cómo terminan!", "¡Fijarse en el final ayuda!", "¡Eso es! Encontraste la rima."],
+  "letras.actividades.lrhyme.pedir_ayuda": "{palabra} rima con… ¡{rima}! Buscá el dibujo que termina igual que {palabra}.",
+  "letras.actividades.lrhyme.pedir": "¿Cuál rima con {palabra}? Fijate cómo terminan.",
+  "letras.actividades.lrhyme.tip": "Fijate en el final de cada palabra. Saqué una opción.",
+  "letras.actividades.lrhyme.reveal": "Mirá, {palabra} y {rima} terminan igual: {fin}.",
+  "letras.actividades.lsyl.ok": ["¡Juntaste las sílabas!", "¡Armaste la palabra sílaba por sílaba!", "¡Eso es! Decirla en voz alta ayuda."],
+  "letras.actividades.lsyl.pedir": "¿Qué es esto? Armala con sílabas.",
+  "letras.actividades.lsyl.pedir_ayuda": "Armá la palabra {palabra} con sílabas.",
+  "letras.actividades.lsyl.tip": "Decí la palabra despacito y escuchá cada pedacito.",
+  "letras.actividades.lsyl.reveal": "Ahora va {silaba}.",
+  "letras.actividades.lbuild.ok": ["¡Armaste la palabra letra por letra!", "¡Ordenaste las letras con cuidado!", "¡Eso es! Ir de a una letra funciona."],
+  "letras.actividades.lbuild.pedir": "¿Qué es esto? Armá la palabra con las letras.",
+  "letras.actividades.lbuild.pedir_ayuda": "Armá la palabra {palabra}.",
+  "letras.actividades.lbuild.tip": "Una letra por vez, de izquierda a derecha.",
+  "letras.actividades.lbuild.reveal": "Ahora va la {nombre}.",
+  "letras.actividades.lmissing.ok": ["¡Miraste la palabra con cuidado!", "¡Leíste y completaste!", "¡Eso es! Fijarse en el dibujo ayuda."],
+  "letras.actividades.lmissing.pedir": "Mirá el dibujo y completá la palabra. ¿Qué letra falta?",
+  "letras.actividades.lmissing.pedir_ayuda": "Falta una letra en {palabra}. ¿Cuál es?",
+  "letras.actividades.lmissing.tip": "Leé la palabra despacito. Saqué una opción.",
+  "letras.actividades.lmissing.reveal": "Mirá, falta la {nombre}: {palabra}.",
+  "letras.actividades.lcase.ok": ["¡Encontraste la pareja!", "¡Miraste bien la forma!", "¡Eso es! Cada letra tiene sus dos versiones."],
+  "letras.actividades.lcase.pedir_min": "Tocá la letra chiquita que es pareja de esta.",
+  "letras.actividades.lcase.pedir_may": "Tocá la letra grande que es pareja de esta.",
+  "letras.actividades.lcase.pedir_ayuda_min": "Tocá la letra chiquita de la {nombre}.",
+  "letras.actividades.lcase.pedir_ayuda_may": "Tocá la letra grande de la {nombre}.",
+  "letras.actividades.lcase.tip": "Fijate bien en la forma. Saqué una opción.",
+  "letras.actividades.lcase.reveal": "Mirá, esta es la pareja de la {nombre}.",
+  "letras.actividades.lsplit.ok": ["¡Separaste los pedacitos!", "¡Aplaudir las sílabas ayuda!", "¡Eso es! Cortaste la palabra en su lugar."],
+  "letras.actividades.lsplit.pedir": "¿Cómo se separa {palabra} en sílabas?",
+  "letras.actividades.lsplit.pedir_ayuda": "Aplaudimos: {silabas}. ¿Cuál está bien separada?",
+  "letras.actividades.lsplit.tip": "Aplaudí cada pedacito. Saqué una opción.",
+  "letras.actividades.lsplit.reveal": "Mirá, se separa así: {silabas}.",
+  "letras.actividades.lnombre.ok": ["¡Escribiste tu nombre letra por letra!", "¡Ordenaste las letras de tu nombre!", "¡Eso es! Tu nombre es tuyo."],
+  "letras.actividades.lnombre.pedir": "Armá tu nombre, {nombre}.",
+  "letras.actividades.lnombre.pedir_ayuda": "Armá tu nombre, {nombre}: {deletreo}.",
+  "letras.actividades.lnombre.tip": "Una letra por vez, de izquierda a derecha.",
+  "letras.actividades.lnombre.reveal": "Ahora va la {letra}.",
+  "letras.actividades.lrsyl.ok": ["¡Leíste la sílaba!", "¡Fijarte en las dos letras funcionó!", "¡Eso es! Leer de a pedacitos ayuda."],
+  "letras.actividades.lrsyl.pedir_ayuda": "Esta sílaba dice {silaba}. Buscá el dibujo que empieza con {silaba}.",
+  "letras.actividades.lrsyl.pedir": "Leé la sílaba y tocá el dibujo que empieza con ella.",
+  "letras.actividades.lrsyl.pedir_inv": "Mirá el dibujo y tocá con qué sílaba empieza.",
+  "letras.actividades.lrsyl.pedir_inv_ayuda": "{palabra} empieza con {silaba}. Tocá esa sílaba.",
+  "letras.actividades.lrsyl.tip": "Leé las dos letras juntas, despacito. Saqué una opción.",
+  "letras.actividades.lrsyl.reveal": "Mirá, {palabra} empieza con {silaba}.",
+  "letras.actividades.lrword.ok": ["¡Leíste la palabra!", "¡Leer despacito funcionó!", "¡Eso es! Fijarse en todas las letras ayuda."],
+  "letras.actividades.lrword.pedir_ayuda": "Esta palabra dice {palabra}. Tocá el dibujo.",
+  "letras.actividades.lrword.pedir": "Leé la palabra y tocá el dibujo.",
+  "letras.actividades.lrword.tip": "Leé sílaba por sílaba. Saqué una opción.",
+  "letras.actividades.lrword.reveal": "Mirá, dice {palabra}.",
+  "letras.actividades.lrphrase.ok": ["¡Leíste la frase entera!", "¡Leer palabra por palabra funcionó!", "¡Eso es! Fijarse en cada palabra ayuda."],
+  "letras.actividades.lrphrase.pedir_ayuda": "Dice: {frase}. Tocá el dibujo que cuenta eso.",
+  "letras.actividades.lrphrase.pedir": "Leé la frase y tocá el dibujo que la cuenta.",
+  "letras.actividades.lrphrase.tip": "Leé cada palabra con calma. Saqué una opción.",
+  "letras.actividades.lrphrase.reveal": "Mirá, dice: {frase}.",
+  "letras.actividades.labc.ok": ["¡Pensaste en el abecedario!", "¡Recitar el abecedario ayuda!", "¡Eso es! Fijarte en el orden funcionó."],
+  "letras.actividades.labc.despues": "¿Qué letra va después de la {nombre}?",
+  "letras.actividades.labc.antes": "¿Qué letra va antes de la {nombre}?",
+  "letras.actividades.labc.tip": "Decí el abecedario despacito. Saqué una opción.",
+  "letras.actividades.labc.reveal_despues": "Mirá, la {nombre2} va después de la {nombre}.",
+  "letras.actividades.labc.reveal_antes": "Mirá, la {nombre2} va antes de la {nombre}.",
+  "letras.actividades.lcomp.ok": ["¡Leíste y entendiste!", "¡Volver al texto ayuda!", "¡Eso es! Pensar en lo que dice funciona."],
+  "letras.actividades.lcomp.pedir_ayuda": "{texto} {pregunta}",
+  "letras.actividades.lcomp.pedir": "Leé con calma y respondé.",
+  "letras.actividades.lcomp.tip": "Volvé a leer el textito despacio. Saqué una opción.",
+  "letras.actividades.lcomp.reveal": "Mirá, el texto dice: {texto}",
+  "letras.actividades.lorden.ok": ["¡Ordenaste la oración!", "¡Leer cada palabra ayudó!", "¡Eso es! Una oración tiene su orden."],
+  "letras.actividades.lorden.pedir": "Ordená las palabras para armar la oración.",
+  "letras.actividades.lorden.pedir_ayuda": "Armá la oración: {frase}.",
+  "letras.actividades.lorden.tip": "Pensá cuál palabra va primero. Saqué una pista.",
+  "letras.actividades.lorden.reveal": "Ahora va «{palabra}».",
+  "letras.actividades.lcluster.ok": ["¡Elegiste las letras que van juntas!", "¡Leer la palabra entera ayudó!", "¡Eso es! Fijarse en el dibujo ayuda."],
+  "letras.actividades.lcluster.pedir": "Mirá el dibujo. ¿Qué letras faltan?",
+  "letras.actividades.lcluster.pedir_ayuda": "Falta un pedacito en {palabra}. ¿Cuál es?",
+  "letras.actividades.lcluster.tip": "Leé la palabra completa con cada opción. Saqué una opción.",
+  "letras.actividades.lcluster.reveal": "Mirá, va {grupo}: {palabra}.",
+  "letras.actividades.lbien.ok": ["¡Miraste bien cómo se escribe!", "¡Leíste con atención!", "¡Eso es! Fijarse en los detalles ayuda."],
+  "letras.actividades.lbien.pedir": "¿Cuál está bien escrita?",
+  "letras.actividades.lbien.pedir_dib": "Mirá el dibujo. ¿Cuál está bien escrita?",
+  "letras.actividades.lbien.pedir_ayuda": "Es {palabra}. ¿Cuál está bien escrita?",
+  "letras.actividades.lbien.tip": "Leé cada una despacito. Saqué una opción.",
+  "letras.actividades.lbien.reveal": "Mirá, está bien escrita así: {correcta}. {regla}",
+  "letras.actividades.lalfa.ok": ["¡Ordenaste con el abecedario!", "¡Mirar la primera letra funcionó!", "¡Eso es! El abecedario tiene su orden."],
+  "letras.actividades.lalfa.pedir": "Tocá las palabras en orden del abecedario, empezando por la que va primero.",
+  "letras.actividades.lalfa.pedir_ayuda": "Fijate en la primera letra de cada palabra. ¿Cuál va primero en el abecedario?",
+  "letras.actividades.lalfa.tip": "Mirá la primera letra de cada una. Saqué una pista.",
+  "letras.actividades.lalfa.reveal": "Ahora va «{palabra}»."
+});
 
 /* ---------- Escalera de habilidades ----------
    id          no renombrar nunca una vez publicado (es parte del progreso guardado).
-   nivel       tramo 0..7 de la escalera (ver TEXTOS.tramos). Las preguntas iniciales y el juego de ubicación
+   nivel       tramo 0..7 de la escalera (ver las claves letras.tramos). Las preguntas iniciales y el juego de ubicación
                marcan como sabidas las habilidades de tramos anteriores al punto de partida.
    edad        edad típica en que suele aparecer (4..7): solo informativa, nunca limita.
    eje         eje de los NAP de Lengua (a revisar): oral | lectura | escritura | reflexion
@@ -406,4 +462,4 @@ const FORMAS_PARECIDAS = ["bdpq", "nu", "mw", "il", "ceo"];
 /* ---------- Letras que se confunden de oído en el habla rioplatense: nunca juntas como opción de un ejercicio de sonido ---------- */
 const CONFUNDEN = { B: "V", V: "B", C: "KQSZ", K: "CQ", Q: "CK", S: "CZ", Z: "CS", G: "J", J: "G", H: "AEIOU", A: "H", E: "H", I: "H", O: "H", U: "H" };
 
-Gioval.datos.letras = { TEXTOS, ANCLAS, HABILIDADES, INICIO, PALABRAS, RIMAS, FRASES, COMP, ORACIONES, GRUPOS, ORTO, MAYUS, FORMAS_PARECIDAS, CONFUNDEN };
+Gioval.datos.letras = { ANCLAS, HABILIDADES, INICIO, PALABRAS, RIMAS, FRASES, COMP, ORACIONES, GRUPOS, ORTO, MAYUS, FORMAS_PARECIDAS, CONFUNDEN };

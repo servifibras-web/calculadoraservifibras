@@ -10,11 +10,24 @@
    - Informe para adultos con evidencia (aciertos, tiempo, retención) y qué se saltó y por qué.
    El salto por dominio rápido vive en js/core/dominio.js (genérico, sin nombrar la isla). */
 (function () {
-const D = Gioval.datos.letras, TX = D.TEXTOS, TA = TX.actividades;
-const ff = (s, v) => s.replace(/\{(\w+)\}/g, (m, n) => v && v[n] != null ? v[n] : m);
-const tx = (k, v) => { let s = k.split(".").reduce((o, p) => o == null ? o : o[p], TX); if (Array.isArray(s)) s = rnd(s); return typeof s === "string" ? ff(s, v) : k; };
+const D = Gioval.datos.letras, I18 = Gioval.i18n;
+/* Los textos viven en la tabla es-AR (js/datos/letras.js, claves "letras.*"). Acá se leen SIEMPRE al momento de usarlos
+   (así cambian con el idioma). tx(clave_completa, {huecos}) devuelve la frase armada (si es una lista de variantes, una al azar);
+   TX.grupo.clave y TA.<tipo>.<clave> son atajos de lectura. Las claves en el código van en camelCase y se convierten a snake_case. */
+const sn = s => String(s).replace(/([A-Z])/g, m => "_" + m.toLowerCase());
+const claveDe = k => k.split(".").map(sn).join(".");   /* siempre claves completas (prefijo letras) */
+const lista = r => Array.isArray(r) && r.every(x => typeof x === "string");
+const tx = (k, v) => { const c = claveDe(k), raw = I18.dato(c); return lista(raw) ? rnd(tl(c, v)) : t(c, v); };
+const hayGrupo = c => Object.keys(I18.tablas["es-AR"].textos).some(x => x.startsWith(c + "."));
+const grupoTx = pre => new Proxy({}, { get(_, p) {
+  if (typeof p !== "string") return undefined;
+  const c = pre + "." + sn(p), raw = I18.dato(c);
+  if (raw === undefined) return hayGrupo(c) ? grupoTx(c) : undefined;
+  return typeof raw === "string" ? t(c) : (lista(raw) ? tl(c) : raw);
+} });
+const TX = grupoTx("letras"), TA = TX.actividades;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const LN = l => TX.letras[l] || l.toLowerCase();
+const LN = l => (I18.dato("letras.nombres_letras") || {})[l] || l.toLowerCase();
 const ABC = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".split("");
 
 /* ---------- palabras: se deduce todo de js/datos/letras.js ---------- */
@@ -58,10 +71,10 @@ ACT.lname = {
     const w = byW[D.ANCLAS[it.t]], nom = LN(it.t); let ops = it.opts;
     if (aid === 0) ops = ops.filter(o => o.val !== it.far);
     if (aid >= 2) ops = ops.map(o => mk(o.val, it.cases[o.val] ? o.val : o.val.toLowerCase()));
-    const say = aid === 0 ? ff(TA.lname.pedirAyuda, { nombre: nom, palabra: w.lo }) : ff(rnd(TA.lname.pedir), { nombre: nom });
+    const say = aid === 0 ? tx("letras.actividades.lname.pedirAyuda", { nombre: nom, palabra: w.lo }) : tx("letras.actividades.lname.pedir", { nombre: nom });
     return Object.assign({ say, stage: aid === 0 ? pic(w.e) : "", opts: ops }, lay(ops));
   },
-  tip: it => TA.lname.tip, reveal: it => ff(TA.lname.reveal, { nombre: LN(it.t), palabra: byW[D.ANCLAS[it.t]].lo })
+  tip: it => TA.lname.tip, reveal: it => tx("letras.actividades.lname.reveal", { nombre: LN(it.t), palabra: byW[D.ANCLAS[it.t]].lo })
 };
 
 /* ---------- 2) lsound: ¿con qué letra empieza? (dibujo -> letra) ---------- */
@@ -77,9 +90,9 @@ ACT.lsound = {
     const w = it.wd; let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
     let stage = aid >= 2 ? pic("🎧") : pic(w.e);
     if (T.reveal) stage = pic(w.e) + slots(letrasDe(w.w).map((c, i) => ({ t: c, c: i === 0 ? "hl" : "" })));
-    return Object.assign({ say: ff(aid >= 2 ? TA.lsound.pedir : TA.lsound.pedirAyuda, { palabra: w.lo }), stage, opts: ops }, lay(ops));
+    return Object.assign({ say: tx(aid >= 2 ? "letras.actividades.lsound.pedir" : "letras.actividades.lsound.pedirAyuda", { palabra: w.lo }), stage, opts: ops }, lay(ops));
   },
-  tip: it => ff(TA.lsound.tip, { palabra: it.wd.lo }), reveal: it => ff(TA.lsound.reveal, { palabra: it.wd.lo, nombre: LN(it.wd.ini) })
+  tip: it => tx("letras.actividades.lsound.tip", { palabra: it.wd.lo }), reveal: it => tx("letras.actividades.lsound.reveal", { palabra: it.wd.lo, nombre: LN(it.wd.ini) })
 };
 
 /* ---------- 3) lpic: de la letra al dibujo (letra -> dibujo) ---------- */
@@ -94,11 +107,11 @@ ACT.lpic = {
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
     let say; const nom = LN(it.L);
-    if (aid === 0) { const n = ops.map(o => byW[o.val].lo); say = ff(n.length === 3 ? TA.lpic.pedirAyuda : TA.lpic.pedirAyuda2, { nombre: nom, a: n[0], b: n[1], c: n[2] }); }
-    else say = ff(TA.lpic.pedir, { nombre: nom });
+    if (aid === 0) { const n = ops.map(o => byW[o.val].lo); say = tx(n.length === 3 ? "letras.actividades.lpic.pedirAyuda" : "letras.actividades.lpic.pedirAyuda2", { nombre: nom, a: n[0], b: n[1], c: n[2] }); }
+    else say = tx("letras.actividades.lpic.pedir", { nombre: nom });
     return Object.assign({ say, stage: `<div class="lmodel">${it.L}</div>`, opts: ops }, lay(ops));
   },
-  tip: it => TA.lpic.tip, reveal: it => ff(TA.lpic.reveal, { palabra: it.wd.lo, nombre: LN(it.L) })
+  tip: it => TA.lpic.tip, reveal: it => tx("letras.actividades.lpic.reveal", { palabra: it.wd.lo, nombre: LN(it.L) })
 };
 
 /* ---------- 4) lcount: ¿cuántos pedacitos (sílabas) tiene? ---------- */
@@ -112,9 +125,9 @@ ACT.lcount = {
   view(it, aid) {
     const w = it.wd; let ops = it.opts; if (aid === 0 && ops.length > 2) ops = ops.filter(o => o.val !== it.far);
     const stage = pic(w.e) + (aid === 0 ? slots(w.sy.map(x => ({ t: x })), "pal") : "");
-    return Object.assign({ say: ff(aid === 0 ? TA.lcount.pedirAyuda : TA.lcount.pedir, { palabra: w.lo, silabas: sil(w) }), stage, opts: ops }, lay(ops));
+    return Object.assign({ say: tx(aid === 0 ? "letras.actividades.lcount.pedirAyuda" : "letras.actividades.lcount.pedir", { palabra: w.lo, silabas: sil(w) }), stage, opts: ops }, lay(ops));
   },
-  tip: it => ff(TA.lcount.tip, { silabas: sil(it.wd) }), reveal: it => ff(TA.lcount.reveal, { palabra: it.wd.lo, n: it.n === 1 ? "uno" : (it.n === 2 ? "dos" : (it.n === 3 ? "tres" : "cuatro")), silabas: sil(it.wd) })
+  tip: it => tx("letras.actividades.lcount.tip", { silabas: sil(it.wd) }), reveal: it => tx("letras.actividades.lcount.reveal", { palabra: it.wd.lo, n: I18.numeroEnPalabras(it.n), silabas: sil(it.wd) })
 };
 
 /* ---------- 5) lrhyme: ¿cuál rima? (se ve la palabra escrita: sirve aunque haya seseo) ---------- */
@@ -128,9 +141,9 @@ ACT.lrhyme = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
-    return Object.assign({ say: ff(aid === 0 ? TA.lrhyme.pedirAyuda : TA.lrhyme.pedir, { palabra: it.a.lo, rima: it.b.lo }), stage: pic(it.a.e) + `<div class="lpal">${it.a.w}</div>`, opts: ops }, lay(ops));
+    return Object.assign({ say: tx(aid === 0 ? "letras.actividades.lrhyme.pedirAyuda" : "letras.actividades.lrhyme.pedir", { palabra: it.a.lo, rima: it.b.lo }), stage: pic(it.a.e) + `<div class="lpal">${it.a.w}</div>`, opts: ops }, lay(ops));
   },
-  tip: it => TA.lrhyme.tip, reveal: it => ff(TA.lrhyme.reveal, { palabra: it.a.lo, rima: it.b.lo, fin: sufijo(it.a.lo, it.b.lo) })
+  tip: it => TA.lrhyme.tip, reveal: it => tx("letras.actividades.lrhyme.reveal", { palabra: it.a.lo, rima: it.b.lo, fin: sufijo(it.a.lo, it.b.lo) })
 };
 
 /* ---------- 6) lsyl: armar la palabra con sílabas ---------- */
@@ -145,9 +158,9 @@ ACT.lsyl = {
   view(it, aid, T) {
     const w = it.wd, sl = it.seq.map((c, i) => ({ t: i < T.pos ? c : (aid === 0 && i === T.pos ? c : ""), c: aid === 0 && i === T.pos ? "syl ghost" : "syl" }));
     const ops = it.tiles.filter(t => aid >= 2 || !t.extra);
-    return { say: aid >= 2 ? TA.lsyl.pedir : ff(TA.lsyl.pedirAyuda, { palabra: w.lo }), stage: pic(w.e) + slots(sl), opts: ops, oc: ops.length > 4 ? 3 : 2, ocl: ops.length > 4 ? 3 : 2 };
+    return { say: aid >= 2 ? TA.lsyl.pedir : tx("letras.actividades.lsyl.pedirAyuda", { palabra: w.lo }), stage: pic(w.e) + slots(sl), opts: ops, oc: ops.length > 4 ? 3 : 2, ocl: ops.length > 4 ? 3 : 2 };
   },
-  tip: it => TA.lsyl.tip, reveal: (it, T) => ff(TA.lsyl.reveal, { silaba: it.seq[T.pos].toLowerCase() })
+  tip: it => TA.lsyl.tip, reveal: (it, T) => tx("letras.actividades.lsyl.reveal", { silaba: it.seq[T.pos].toLowerCase() })
 };
 
 /* ---------- 7) lbuild: armar la palabra con letras ---------- */
@@ -162,9 +175,9 @@ ACT.lbuild = {
   view(it, aid, T) {
     const w = it.wd, sl = it.seq.map((c, i) => ({ t: i < T.pos ? c : (aid === 0 && i === T.pos ? c : ""), c: aid === 0 && i === T.pos ? "ghost" : "" }));
     const ops = it.tiles.filter(t => aid >= 2 || !t.extra);
-    return { say: aid >= 2 ? TA.lbuild.pedir : ff(TA.lbuild.pedirAyuda, { palabra: w.lo }), stage: pic(w.e) + slots(sl), opts: ops, oc: tileOc(ops.length), ocl: Math.min(3, tileOc(ops.length)) };
+    return { say: aid >= 2 ? TA.lbuild.pedir : tx("letras.actividades.lbuild.pedirAyuda", { palabra: w.lo }), stage: pic(w.e) + slots(sl), opts: ops, oc: tileOc(ops.length), ocl: Math.min(3, tileOc(ops.length)) };
   },
-  tip: it => TA.lbuild.tip, reveal: (it, T) => ff(TA.lbuild.reveal, { nombre: LN(it.seq[T.pos]) })
+  tip: it => TA.lbuild.tip, reveal: (it, T) => tx("letras.actividades.lbuild.reveal", { nombre: LN(it.seq[T.pos]) })
 };
 
 /* ---------- 8) lmissing: ¿qué letra falta? (modo "vocal" o "letra") ---------- */
@@ -186,9 +199,9 @@ ACT.lmissing = {
     const w = it.wd, done = T.pos >= 1 || T.reveal;
     const sl = letrasDe(w.w).map((c, i) => i === it.i ? (done ? { t: c, c: "blank" } : { t: "?", c: "blank" }) : { t: c });
     let ops = it.opts; if (aid === 0 && ops.length > 3) ops = ops.filter(o => o.val !== it.far);
-    return Object.assign({ say: aid === 0 ? ff(TA.lmissing.pedirAyuda, { palabra: w.lo }) : TA.lmissing.pedir, stage: pic(w.e) + slots(sl), opts: ops }, lay(ops));
+    return Object.assign({ say: aid === 0 ? tx("letras.actividades.lmissing.pedirAyuda", { palabra: w.lo }) : TA.lmissing.pedir, stage: pic(w.e) + slots(sl), opts: ops }, lay(ops));
   },
-  tip: it => TA.lmissing.tip, reveal: it => ff(TA.lmissing.reveal, { nombre: LN(it.seq[0]), palabra: it.wd.lo })
+  tip: it => TA.lmissing.tip, reveal: it => tx("letras.actividades.lmissing.reveal", { nombre: LN(it.seq[0]), palabra: it.wd.lo })
 };
 
 /* ---------- 9) lcase: mayúscula <-> minúscula (pareja de la letra) ---------- */
@@ -202,10 +215,10 @@ ACT.lcase = {
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
     const mod = it.aMin ? it.L : it.L.toLowerCase();
-    const say = aid === 0 ? ff(it.aMin ? TA.lcase.pedirAyudaMin : TA.lcase.pedirAyudaMay, { nombre: LN(it.L) }) : (it.aMin ? TA.lcase.pedirMin : TA.lcase.pedirMay);
+    const say = aid === 0 ? tx(it.aMin ? "letras.actividades.lcase.pedirAyudaMin" : "letras.actividades.lcase.pedirAyudaMay", { nombre: LN(it.L) }) : (it.aMin ? TA.lcase.pedirMin : TA.lcase.pedirMay);
     return Object.assign({ say, stage: `<div class="lmodel">${mod}</div>`, opts: ops }, lay(ops));
   },
-  tip: it => TA.lcase.tip, reveal: it => ff(TA.lcase.reveal, { nombre: LN(it.L) })
+  tip: it => TA.lcase.tip, reveal: it => tx("letras.actividades.lcase.reveal", { nombre: LN(it.L) })
 };
 
 /* ---------- 10) lsplit: ¿cómo se separa en sílabas? ---------- */
@@ -227,9 +240,9 @@ ACT.lsplit = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0 && ops.length > 2) ops = ops.filter(o => o.val !== it.far);
-    return { say: ff(aid === 0 ? TA.lsplit.pedirAyuda : TA.lsplit.pedir, { palabra: it.wd.lo, silabas: sil(it.wd) }), stage: pic(it.wd.e), opts: ops, oc: 1, ocl: ops.length, wide: true };
+    return { say: tx(aid === 0 ? "letras.actividades.lsplit.pedirAyuda" : "letras.actividades.lsplit.pedir", { palabra: it.wd.lo, silabas: sil(it.wd) }), stage: pic(it.wd.e), opts: ops, oc: 1, ocl: ops.length, wide: true };
   },
-  tip: it => TA.lsplit.tip, reveal: it => ff(TA.lsplit.reveal, { silabas: it.ok })
+  tip: it => TA.lsplit.tip, reveal: it => tx("letras.actividades.lsplit.reveal", { silabas: it.ok })
 };
 
 /* ---------- 11) lnombre: armar mi nombre ---------- */
@@ -245,9 +258,9 @@ ACT.lnombre = {
   view(it, aid, T) {
     const sl = it.seq.map((c, i) => ({ t: i < T.pos ? c : (aid === 0 && i === T.pos ? c : ""), c: aid === 0 && i === T.pos ? "ghost" : "" }));
     const ops = it.tiles.filter(t => aid >= 2 || !t.extra);
-    return { say: aid >= 2 ? ff(TA.lnombre.pedir, { nombre: esc(KID) }) : ff(TA.lnombre.pedirAyuda, { nombre: KID, deletreo: it.letters.map(LN).join(", ") }), stage: pic("🦊") + slots(sl), opts: ops, oc: tileOc(ops.length), ocl: Math.min(4, tileOc(ops.length)) };
+    return { say: aid >= 2 ? tx("letras.actividades.lnombre.pedir", { nombre: esc(KID) }) : tx("letras.actividades.lnombre.pedirAyuda", { nombre: KID, deletreo: it.letters.map(LN).join(", ") }), stage: pic("🦊") + slots(sl), opts: ops, oc: tileOc(ops.length), ocl: Math.min(4, tileOc(ops.length)) };
   },
-  tip: it => TA.lnombre.tip, reveal: (it, T) => ff(TA.lnombre.reveal, { letra: LN(it.seq[T.pos]) })
+  tip: it => TA.lnombre.tip, reveal: (it, T) => tx("letras.actividades.lnombre.reveal", { letra: LN(it.seq[T.pos]) })
 };
 
 /* ---------- 12) lrsyl: leer sílabas (sílaba -> dibujo, o dibujo -> sílaba) ---------- */
@@ -266,10 +279,10 @@ ACT.lrsyl = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
-    if (it.modo === "inv") return Object.assign({ say: aid === 0 ? ff(TA.lrsyl.pedirInvAyuda, { palabra: it.wd.lo, silaba: it.sy.toLowerCase() }) : TA.lrsyl.pedirInv, stage: pic(it.wd.e), opts: ops }, lay(ops));
-    return Object.assign({ say: aid === 0 ? ff(TA.lrsyl.pedirAyuda, { silaba: it.sy.toLowerCase() }) : TA.lrsyl.pedir, stage: `<div class="lmodel">${it.sy}</div>`, opts: ops }, lay(ops));
+    if (it.modo === "inv") return Object.assign({ say: aid === 0 ? tx("letras.actividades.lrsyl.pedirInvAyuda", { palabra: it.wd.lo, silaba: it.sy.toLowerCase() }) : TA.lrsyl.pedirInv, stage: pic(it.wd.e), opts: ops }, lay(ops));
+    return Object.assign({ say: aid === 0 ? tx("letras.actividades.lrsyl.pedirAyuda", { silaba: it.sy.toLowerCase() }) : TA.lrsyl.pedir, stage: `<div class="lmodel">${it.sy}</div>`, opts: ops }, lay(ops));
   },
-  tip: it => TA.lrsyl.tip, reveal: it => ff(TA.lrsyl.reveal, { palabra: it.wd.lo, silaba: it.sy.toLowerCase() })
+  tip: it => TA.lrsyl.tip, reveal: it => tx("letras.actividades.lrsyl.reveal", { palabra: it.wd.lo, silaba: it.sy.toLowerCase() })
 };
 
 /* ---------- 13) lrword: leer una palabra y elegir el dibujo ---------- */
@@ -283,9 +296,9 @@ ACT.lrword = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
-    return Object.assign({ say: aid === 0 ? ff(TA.lrword.pedirAyuda, { palabra: it.wd.lo }) : TA.lrword.pedir, stage: `<div class="lpal">${it.wd.w}</div>`, opts: ops }, lay(ops));
+    return Object.assign({ say: aid === 0 ? tx("letras.actividades.lrword.pedirAyuda", { palabra: it.wd.lo }) : TA.lrword.pedir, stage: `<div class="lpal">${it.wd.w}</div>`, opts: ops }, lay(ops));
   },
-  tip: it => TA.lrword.tip, reveal: it => ff(TA.lrword.reveal, { palabra: it.wd.lo })
+  tip: it => TA.lrword.tip, reveal: it => tx("letras.actividades.lrword.reveal", { palabra: it.wd.lo })
 };
 
 /* ---------- 14) lrphrase: leer una frase y elegir el dibujo ---------- */
@@ -297,9 +310,9 @@ ACT.lrphrase = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
-    return { say: aid === 0 ? ff(TA.lrphrase.pedirAyuda, { frase: it.fr.toLowerCase() }) : TA.lrphrase.pedir, stage: `<div class="lpal fr">${it.fr}</div>`, opts: ops, oc: 1, ocl: ops.length, wide: true };
+    return { say: aid === 0 ? tx("letras.actividades.lrphrase.pedirAyuda", { frase: it.fr.toLowerCase() }) : TA.lrphrase.pedir, stage: `<div class="lpal fr">${it.fr}</div>`, opts: ops, oc: 1, ocl: ops.length, wide: true };
   },
-  tip: it => TA.lrphrase.tip, reveal: it => ff(TA.lrphrase.reveal, { frase: it.fr.toLowerCase() })
+  tip: it => TA.lrphrase.tip, reveal: it => tx("letras.actividades.lrphrase.reveal", { frase: it.fr.toLowerCase() })
 };
 
 /* ---------- 15) labc: ¿qué letra va antes / después? ---------- */
@@ -312,12 +325,12 @@ ACT.labc = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0) ops = ops.filter(o => o.val !== it.far);
-    const q = ff(it.desp ? TA.labc.despues : TA.labc.antes, { nombre: LN(it.ref) });
+    const q = tx(it.desp ? "letras.actividades.labc.despues" : "letras.actividades.labc.antes", { nombre: LN(it.ref) });
     const vecinos = it.desp ? [ABC[it.i - 2], ABC[it.i - 1], it.ref, "?"] : ["?", it.ref, ABC[it.i + 1], ABC[it.i + 2]];
     const stage = aid === 0 ? slots(vecinos.filter(Boolean).map(c => ({ t: c, c: c === "?" ? "blank" : (c === it.ref ? "hl" : "") }))) : slots([it.desp ? { t: it.ref, c: "hl" } : { t: "?", c: "blank" }, it.desp ? { t: "?", c: "blank" } : { t: it.ref, c: "hl" }]);
     return Object.assign({ say: q, stage, opts: ops }, lay(ops));
   },
-  tip: it => TA.labc.tip, reveal: it => ff(TA.labc.reveal, { nombre: LN(it.ref), nombre2: LN(it.ans), donde: it.desp ? TA.labc.dDespues : TA.labc.dAntes })
+  tip: it => TA.labc.tip, reveal: it => tx(it.desp ? "letras.actividades.labc.revealDespues" : "letras.actividades.labc.revealAntes", { nombre: LN(it.ref), nombre2: LN(it.ans) })
 };
 
 /* ---------- 16) lcomp: entender un texto corto ---------- */
@@ -332,9 +345,9 @@ ACT.lcomp = {
     const largo = it.texto.length > 70;
     const texto = `<div class="letTexto${largo ? " lg" : ""}">${esc(it.texto)}</div><div class="letPreg">${esc(it.preg)}</div>`;
     const emoji = !ops.some(o => o.cls === "syl");
-    return { say: aid === 0 ? ff(TA.lcomp.pedirAyuda, { texto: it.texto, pregunta: it.preg }) : TA.lcomp.pedir, stage: texto, opts: ops, oc: emoji ? ops.length : 1, ocl: ops.length, wide: !emoji };
+    return { say: aid === 0 ? tx("letras.actividades.lcomp.pedirAyuda", { texto: it.texto, pregunta: it.preg }) : TA.lcomp.pedir, stage: texto, opts: ops, oc: emoji ? ops.length : 1, ocl: ops.length, wide: !emoji };
   },
-  tip: it => TA.lcomp.tip, reveal: it => ff(TA.lcomp.reveal, { texto: it.texto })
+  tip: it => TA.lcomp.tip, reveal: it => tx("letras.actividades.lcomp.reveal", { texto: it.texto })
 };
 
 /* ---------- 17) lorden: ordenar las palabras de una oración ---------- */
@@ -347,9 +360,9 @@ ACT.lorden = {
   },
   view(it, aid, T) {
     const sl = it.seq.map((c, i) => ({ t: i < T.pos ? c : (aid === 0 && i === T.pos ? c : ""), c: "syl" + (aid === 0 && i === T.pos ? " ghost" : "") }));
-    return { say: aid === 0 ? ff(TA.lorden.pedirAyuda, { frase: it.fr.toLowerCase() }) : TA.lorden.pedir, stage: pic(it.e) + slots(sl, "pal"), opts: it.tiles, oc: it.tiles.length > 4 ? 3 : 2, ocl: it.tiles.length > 4 ? 3 : it.tiles.length };
+    return { say: aid === 0 ? tx("letras.actividades.lorden.pedirAyuda", { frase: it.fr.toLowerCase() }) : TA.lorden.pedir, stage: pic(it.e) + slots(sl, "pal"), opts: it.tiles, oc: it.tiles.length > 4 ? 3 : 2, ocl: it.tiles.length > 4 ? 3 : it.tiles.length };
   },
-  tip: it => TA.lorden.tip, reveal: (it, T) => ff(TA.lorden.reveal, { palabra: it.seq[T.pos].toLowerCase() })
+  tip: it => TA.lorden.tip, reveal: (it, T) => tx("letras.actividades.lorden.reveal", { palabra: it.seq[T.pos].toLowerCase() })
 };
 
 /* ---------- 18) lcluster: letras que van juntas (trabadas y dígrafos) ---------- */
@@ -365,9 +378,9 @@ ACT.lcluster = {
     const done = T.pos >= 1 || T.reveal, L = letrasDe(it.w), sl = [];
     L.forEach((c, k) => { if (k === it.i) sl.push(done ? { t: it.g, c: "blank" } : { t: "?", c: "blank" }); else if (k < it.i || k >= it.i + it.g.length) sl.push({ t: c }); });
     let ops = it.opts; if (aid === 0 && ops.length > 2) ops = ops.filter(o => o.val !== it.far);
-    return Object.assign({ say: aid === 0 ? ff(TA.lcluster.pedirAyuda, { palabra: it.w.toLowerCase() }) : TA.lcluster.pedir, stage: pic(it.ws ? it.ws.e : "") + slots(sl), opts: ops }, lay(ops));
+    return Object.assign({ say: aid === 0 ? tx("letras.actividades.lcluster.pedirAyuda", { palabra: it.w.toLowerCase() }) : TA.lcluster.pedir, stage: pic(it.ws ? it.ws.e : "") + slots(sl), opts: ops }, lay(ops));
   },
-  tip: it => TA.lcluster.tip, reveal: it => ff(TA.lcluster.reveal, { grupo: it.g, palabra: it.w.toLowerCase() })
+  tip: it => TA.lcluster.tip, reveal: it => tx("letras.actividades.lcluster.reveal", { grupo: it.g, palabra: it.w.toLowerCase() })
 };
 
 /* ---------- 19) lbien: ¿cuál está bien escrita? (ortografía de uso común, mayúsculas y puntos) ---------- */
@@ -379,9 +392,9 @@ ACT.lbien = {
   },
   view(it, aid) {
     let ops = it.opts; if (aid === 0 && ops.length > 2) ops = ops.filter(o => o.val !== it.far);
-    return { say: aid === 0 && it.e ? ff(TA.lbien.pedirAyuda, { palabra: it.ok.toLowerCase() }) : (it.e ? TA.lbien.pedirDib : TA.lbien.pedir), stage: it.e ? pic(it.e) : "", opts: ops, oc: 1, ocl: ops.length, wide: true };
+    return { say: aid === 0 && it.e ? tx("letras.actividades.lbien.pedirAyuda", { palabra: it.ok.toLowerCase() }) : (it.e ? TA.lbien.pedirDib : TA.lbien.pedir), stage: it.e ? pic(it.e) : "", opts: ops, oc: 1, ocl: ops.length, wide: true };
   },
-  tip: it => TA.lbien.tip, reveal: it => ff(TA.lbien.reveal, { correcta: it.ok, regla: it.regla })
+  tip: it => TA.lbien.tip, reveal: it => tx("letras.actividades.lbien.reveal", { correcta: it.ok, regla: it.regla })
 };
 
 /* ---------- 20) lalfa: ordenar palabras según el abecedario ---------- */
@@ -396,12 +409,14 @@ ACT.lalfa = {
     const n = T.pos, stage = aid === 0 ? slots(it.orden.map((w, i) => ({ t: i < n ? w.ini : (i === n ? "?" : ""), c: i === n ? "blank" : "" }))) : "";
     return { say: aid === 0 ? TA.lalfa.pedirAyuda : TA.lalfa.pedir, stage: stage || `<div class="lpal">A → Z</div>`, opts: it.opts, oc: 3, ocl: 3 };
   },
-  tip: it => TA.lalfa.tip, reveal: (it, T) => ff(TA.lalfa.reveal, { palabra: it.seq[T.pos].toLowerCase() })
+  tip: it => TA.lalfa.tip, reveal: (it, T) => tx("letras.actividades.lalfa.reveal", { palabra: it.seq[T.pos].toLowerCase() })
 };
 Object.values(ACT).forEach(a => { a.tip = a.tip || (() => ""); });
+/* las frases de proceso se leen al usarse (cambian con el idioma) */
+Object.keys(ACT).forEach(k => Object.defineProperty(ACT[k], "okMsgs", { get: () => tl("letras.actividades." + k + ".ok"), enumerable: true, configurable: true }));
 
 /* ---------- Habilidades ---------- */
-const SKILLS = D.HABILIDADES.map(h => Object.assign({}, h, { name: TX.habilidades[h.id] }));
+const SKILLS = D.HABILIDADES.map(h => Object.defineProperty(Object.assign({}, h), "name", { get: () => t("letras.hab." + h.id), enumerable: true }));
 const bySkill = Object.fromEntries(SKILLS.map(s => [s.id, s]));
 const tramoDe = n => SKILLS.filter(s => s.nivel === n);
 const primeraDe = n => SKILLS.find(s => s.nivel === n) || SKILLS[SKILLS.length - 1];
@@ -425,15 +440,15 @@ function guardarIntake(k, obj) { store.intake = store.intake || {}; (store.intak
 const nivelDe = r => Math.max(D.INICIO.letras[r.letras] || 0, D.INICIO.lee[r.lee] || 0, D.INICIO.nombre[r.nombre] || 0);
 /* tramo desde donde arranca el JUEGO de ubicación: lo que dicen las respuestas; si no dicen nada, la edad */
 const arranqueUbic = r => { const n = nivelDe(r); return n > 0 ? n : (D.INICIO.edadParaUbicacion[r.edad] || 0); };
-const fechaCorta = t => new Date(t).toLocaleDateString("es-AR");
+const fechaCorta = ts => I18.fecha(new Date(ts));
 const etiqueta = (lista, v) => { const o = lista.find(x => String(x.v) === String(v)); return o ? o.t : String(v); };
 
 /* marca como sabidas (sin práctica) todas las habilidades de tramos < ini; las marcas anteriores de este tipo que ya no corresponden se anulan */
-function aplicarInicio(ini, por, why) {
+function aplicarInicio(ini, por, datos) {
   let n = 0;
   SKILLS.forEach(s => {
     const st = SK(s.id);
-    if (s.nivel < ini) { if (Gioval.dominio.marcarSaltada(s, por, why)) n++; }
+    if (s.nivel < ini) { if (Gioval.dominio.marcarSaltada(s, por, datos)) n++; }
     else if (st.mast && st.skip && st.skip.estado === "pendiente" && (st.skip.por === "ubicacion" || st.skip.por === "preguntas")) Gioval.dominio.revertir(s, "anulada");
   });
   save(); return n;
@@ -468,7 +483,7 @@ async function jugarUbicacion() {
   S.check = true; S.session = null; S.finMode = "session"; S.capShown = false; S.hint = 2; S.mode = "demo";
   $("btnActSkip").style.display = "none"; entrarToques(TX.ubicacion.titulo); renderProg();
   const E = { cur: Math.min(7, arranqueUbic(r)), r: {}, n: 0, t0: Date.now() };
-  await speak(tx("ubicacion.intro", { nombre: KID })); if (run !== S.run) return;
+  await speak(tx("letras.ubicacion.intro", { nombre: KID })); if (run !== S.run) return;
   while (true) {
     const R = E.r[E.cur] || (E.r[E.cur] = { a: 0, n: 0, estado: null, k: R_start(E.cur) });
     const prob = tramoDe(E.cur).filter(s => s.sonda), s = prob[(R.k + R.n) % prob.length];
@@ -478,7 +493,7 @@ async function jugarUbicacion() {
     E.n++; R.n++; if (res.miss === 0) R.a++;
     R.estado = evaluarTramo(R);
     const pasaTiempo = E.n >= UB.MAX_ITEMS || Date.now() - E.t0 > UB.MAX_MS;
-    setBubble(tx("ubicacion.gracias")); await sleep(450); if (run !== S.run) return;
+    setBubble(tx("letras.ubicacion.gracias")); await sleep(450); if (run !== S.run) return;
     if (!R.estado) { if (!pasaTiempo) continue; R.estado = R.a / R.n >= .66 ? "dudoso" : "no"; }
     const sig = pasaTiempo ? null : siguienteTramo(E);
     if (sig === null) break; E.cur = sig;
@@ -487,7 +502,7 @@ async function jugarUbicacion() {
   S.mode = "done"; S.tap = null; S.check = false; S.onDone = null; $("btnActSkip").style.display = "";
   const ini = resultadoUbic(E), pend = { fecha: Date.now(), n: E.n, seg: Math.round((Date.now() - E.t0) / 1000), r: E.r, iniPropuesto: ini };
   const i = intakeDe(KID) || {}; i.ubicacionPend = pend; guardarIntake(KID, i);
-  await speak(tx("ubicacion.fin", { nombre: KID }));
+  await speak(tx("letras.ubicacion.fin", { nombre: KID }));
   if (run !== S.run) return;
   resetFlow(); goMenuIsla();
   gate(() => vistaResumen());
@@ -502,19 +517,19 @@ function ocultarOv() { ov().classList.remove("show"); }
 const btn = (a, t, extra = "") => `<button class="btn${extra}" data-a="${a}">${t}</button>`;
 
 function vistaBienvenida() {
-  mostrarOv(`<h2>${esc(TX.bienvenida.titulo)}</h2><p>${esc(tx("bienvenida.texto", { nombre: KID }))}</p>
+  mostrarOv(`<h2>${esc(TX.bienvenida.titulo)}</h2><p>${esc(tx("letras.bienvenida.texto", { nombre: KID }))}</p>
     <div class="letRow">${btn("bienvenidaSi", esc(TX.bienvenida.adulto))}${btn("cerrar", esc(TX.bienvenida.despues), " alt")}</div>`);
 }
 function vistaIntake() {
   const I = TX.intake, prev = intakeDe(KID); LS.form = prev ? { edad: prev.edad, letras: prev.letras, lee: prev.lee, nombre: prev.nombre } : {};
   const grupo = (k, q, ops) => `<div class="letQ"><b>${esc(q)}</b><div class="letOpts" data-k="${k}">${ops.map(o => `<button class="letBtn${String(LS.form[k]) === String(o.v) ? " sel" : ""}" data-a="resp" data-k="${k}" data-v="${o.v}">${esc(o.t)}</button>`).join("")}</div></div>`;
-  mostrarOv(`<h2>${esc(tx("intake.titulo", { nombre: KID }))}</h2><p>${esc(I.intro)}</p>
+  mostrarOv(`<h2>${esc(tx("letras.intake.titulo", { nombre: KID }))}</h2><p>${esc(I.intro)}</p>
     ${grupo("edad", I.pEdad, I.edad)}${grupo("letras", I.pLetras, I.letras)}${grupo("lee", I.pLee, I.lee)}${grupo("nombre", I.pNombre, I.nombre)}
     <p class="letAviso" id="letFalta"></p><div class="letRow">${btn("guardarIntake", esc(I.guardar))}${btn("cerrar", esc(I.cancelar), " alt")}</div>`);
 }
 function vistaSugerido() {
   const r = intakeDe(KID), n = nivelDe(r), h = primeraDe(n), I = TX.intake;
-  const frase = n === 0 ? tx("intake.sugeridoCero", { nombre: KID, habilidad: h.name }) : tx("intake.sugerido", { nombre: KID, habilidad: h.name, tramo: n + 1, nombreTramo: TX.tramos[n] });
+  const frase = n === 0 ? tx("letras.intake.sugeridoCero", { nombre: KID, habilidad: h.name }) : tx("letras.intake.sugerido", { nombre: KID, habilidad: h.name, tramo: n + 1, nombreTramo: TX.tramos[n] });
   mostrarOv(`<h2>${esc(TX.menu.preguntas.t)}</h2><p>${esc(frase)}</p><p class="letAviso">${esc(I.aviso)}</p>
     <div class="letRow col">${btn("jugarUbic", esc(I.jugar))}${btn("usarPunto", esc(I.usar), " alt")}${btn("cerrar", esc(I.masTarde), " alt")}</div>`);
 }
@@ -522,32 +537,32 @@ function vistaResumen() {
   const r = intakeDe(KID), p = r && r.ubicacionPend; if (!p) return;
   if (LS.pendId !== p.fecha) { LS.pendId = p.fecha; LS.ini = p.iniPropuesto; }
   const U = TX.ubicacion, ini = LS.ini, h = primeraDe(ini), nSab = SKILLS.filter(s => s.nivel < ini).length;
-  const fila = t => { const x = p.r[t]; return `<li><b>${esc(tx("ubicacion.fila", { n: t + 1, nombre: TX.tramos[t] }))}</b><br>${esc(x ? tx("ubicacion." + x.estado, { a: x.a, b: x.n }) : U.sinPreguntar)}</li>`; };
-  mostrarOv(`<h2>${esc(U.titResumen)}</h2><p>${esc(tx("ubicacion.resumenTiempo", { n: p.n, min: Math.max(1, Math.round(p.seg / 60)) }))}</p>
+  const fila = t => { const x = p.r[t]; return `<li><b>${esc(tx("letras.ubicacion.fila", { n: t + 1, nombre: TX.tramos[t] }))}</b><br>${esc(x ? tx("letras.ubicacion." + x.estado, { a: x.a, b: x.n }) : U.sinPreguntar)}</li>`; };
+  mostrarOv(`<h2>${esc(U.titResumen)}</h2><p>${esc(tx("letras.ubicacion.resumenTiempo", { n: p.n, min: Math.max(1, Math.round(p.seg / 60)) }))}</p>
     <ul class="letLista">${range(0, 7).map(fila).join("")}</ul>
-    <p class="letProp">${esc(ini === 0 ? U.propuestaCero : tx("ubicacion.propuesta", { tramo: ini + 1, habilidad: h.name, n: nSab }))}</p>
+    <p class="letProp">${esc(ini === 0 ? U.propuestaCero : tx("letras.ubicacion.propuesta", { tramo: ini + 1, habilidad: h.name, n: nSab }))}</p>
     <div class="letRow">${ini > 0 ? btn("antes", esc(U.antes), " alt") : ""}${ini < 7 ? btn("despues", esc(U.despues), " alt") : ""}</div>
     <p class="letAviso">${esc(TX.intake.aviso)}</p>
     <div class="letRow">${btn("aceptarUbic", esc(U.aceptar))}${btn("descartarUbic", esc(U.descartar), " alt")}</div>`);
 }
 function informeTexto() {
   const I = TX.informe, L = [], r = intakeDe(KID), hoy = fechaCorta(Date.now()), log = store.log[KID] || [];
-  L.push(tx("informe.titulo", { nombre: String(KID).toUpperCase() }), tx("informe.fecha", { fecha: hoy }), "");
+  L.push(tx("letras.informe.titulo", { nombre: String(KID).toUpperCase() }), tx("letras.informe.fecha", { fecha: hoy }), "");
   if (r && r.edad) {
-    L.push(tx("informe.datos", { fecha: fechaCorta(r.fecha || Date.now()), edad: etiqueta(TX.intake.edad, r.edad), letras: etiqueta(TX.intake.letras, r.letras), lee: etiqueta(TX.intake.lee, r.lee), nombreEscribe: etiqueta(TX.intake.nombre, r.nombre) }));
-    if (r.inicio) L.push(tx("informe.inicio", { tramo: r.inicio.tramo + 1, habilidad: primeraDe(r.inicio.tramo).name, origen: I[r.inicio.origen === "ubicacion" ? "origenUbicacion" : (r.inicio.origen === "ajustado" ? "origenAdulto" : "origenPreguntas")] }));
-    if (r.ubicacion) { L.push(tx("informe.ubic", { fecha: fechaCorta(r.ubicacion.fecha), n: r.ubicacion.n })); range(0, 7).forEach(t => { const x = r.ubicacion.r[t]; if (x) L.push(tx("informe.ubicTramo", { n: t + 1, txt: TX.tramos[t] + " — " + tx("ubicacion." + x.estado, { a: x.a, b: x.n }) })); }); }
+    L.push(tx("letras.informe.datos", { fecha: fechaCorta(r.fecha || Date.now()), edad: etiqueta(TX.intake.edad, r.edad), letras: etiqueta(TX.intake.letras, r.letras), lee: etiqueta(TX.intake.lee, r.lee), nombreEscribe: etiqueta(TX.intake.nombre, r.nombre) }));
+    if (r.inicio) L.push(tx("letras.informe.inicio", { tramo: r.inicio.tramo + 1, habilidad: primeraDe(r.inicio.tramo).name, origen: r.inicio.origen }));
+    if (r.ubicacion) { L.push(tx("letras.informe.ubic", { fecha: fechaCorta(r.ubicacion.fecha), n: r.ubicacion.n })); range(0, 7).forEach(t => { const x = r.ubicacion.r[t]; if (x) L.push(tx("letras.informe.ubicTramo", { n: t + 1, nombre: TX.tramos[t], estado: tx("letras.ubicacion." + x.estado, { a: x.a, b: x.n }) })); }); }
   } else L.push(I.sinDatos);
   L.push("", I.habilidades);
   const pc = a => a.length ? Math.round(100 * a.filter(Boolean).length / a.length) + "% (n=" + a.length + ")" : "–";
   SKILLS.forEach(s => {
     const ev = log.filter(e => e.s === s.id && e.k !== "check"), st = SK(s.id); if (!ev.length && !st.mast && !st.skip) return;
-    L.push(tx("informe.hab", { name: s.name, estado: st.skip && st.skip.estado === "pendiente" && !ev.length ? I.saltada : (st.mast ? I.dom : I.prac), edad: s.edad, tramo: s.nivel + 1 }));
-    if (ev.length) { const first = ev.map(e => e.f); L.push(tx("informe.acc", { a: pc(first.slice(0, 5)), b: pc(first.slice(-5)) }), tx("informe.ret", { r: pc(ev.filter(e => e.g >= 1).map(e => e.o)) })); } else L.push(I.sinDatosHab);
+    L.push(tx("letras.informe.hab", { name: s.name, estado: st.skip && st.skip.estado === "pendiente" && !ev.length ? "saltada" : (st.mast ? "dom" : "prac"), edad: s.edad, tramo: s.nivel + 1 }));
+    if (ev.length) { const first = ev.map(e => e.f); L.push(tx("letras.informe.acc", { a: pc(first.slice(0, 5)), b: pc(first.slice(-5)) }), tx("letras.informe.ret", { r: pc(ev.filter(e => e.g >= 1).map(e => e.o)) })); } else L.push(I.sinDatosHab);
     Gioval.dominio.lineasInforme(s, st, ev).forEach(l => L.push(l));
   });
   const m = Gioval.dominio.resumenSaltos(LETRAS_PACK());
-  if (m.n) L.push("", tx("informe.resumenSaltos", { n: m.n, c: m.confirmadas, r: m.revertidas, p: m.pendientes }));
+  if (m.n) L.push("", tx("letras.informe.resumenSaltos", { n: m.n, c: m.confirmadas, r: m.revertidas, p: m.pendientes }));
   L.push("", I.chequeos); const ck = (store.checks[KID] || []).filter(c => c.p === "letras");
   if (!ck.length) L.push(I.sinChequeos); ck.slice(-12).forEach(c => L.push("   " + c.d + ": " + c.ok + "/" + c.n + " (" + Math.round(100 * c.ok / c.n) + "%)"));
   L.push("", I.comoLeerlo); return L.join("\n");
@@ -569,14 +584,14 @@ const ACC = {
   },
   jugarUbic() { jugarUbicacion(); },
   usarPunto() {
-    const r = intakeDe(KID), n = nivelDe(r), why = tx("dominio.porPreguntas", { fecha: fechaCorta(Date.now()) });
-    aplicarInicio(n, "preguntas", why); r.inicio = { tramo: n, origen: "preguntas", fecha: Date.now() }; guardarIntake(KID, r); ocultarOv(); renderMenuIsla();
+    const r = intakeDe(KID), n = nivelDe(r);
+    aplicarInicio(n, "preguntas", { ts: Date.now() }); r.inicio = { tramo: n, origen: "preguntas", fecha: Date.now() }; guardarIntake(KID, r); ocultarOv(); renderMenuIsla();
   },
   antes() { LS.ini = Math.max(0, LS.ini - 1); vistaResumen(); },
   despues() { LS.ini = Math.min(7, LS.ini + 1); vistaResumen(); },
   aceptarUbic() {
     const r = intakeDe(KID), p = r.ubicacionPend, ajustado = LS.ini !== p.iniPropuesto;
-    aplicarInicio(LS.ini, "ubicacion", tx("dominio.porUbic", { fecha: fechaCorta(p.fecha), n: p.n }));
+    aplicarInicio(LS.ini, "ubicacion", { ts: p.fecha, n: p.n });
     r.ubicacion = { fecha: p.fecha, n: p.n, seg: p.seg, r: p.r, iniPropuesto: p.iniPropuesto }; delete r.ubicacionPend;
     r.inicio = { tramo: LS.ini, origen: ajustado ? "ajustado" : "ubicacion", fecha: Date.now() }; guardarIntake(KID, r);
     ocultarOv(); renderMenuIsla(); setBubble(TX.ubicacion.aceptada);
@@ -609,10 +624,10 @@ function tarjetas(done) {
 }
 
 Gioval.islas.registrar({
-  id: "letras", name: TX.isla.nombre, emoji: "🔤", sub: TX.isla.sub, skills: SKILLS, tap: true, plain: true,
+  id: "letras", get name() { return TX.isla.nombre; }, emoji: "🔤", get sub() { return TX.isla.sub; }, skills: SKILLS, tap: true, plain: true,
   instrumento: null, entradas: ["toque"], actividades: Object.assign({}, ACT, ACTS_UBIC),
   dom: DOM, iniciar, tarjetas,
-  outro: TX.isla.outro, capTail: TX.isla.capTail, notaInforme: TX.isla.notaInforme
+  get outro() { return TX.isla.outro; }, get capTail() { return TX.isla.capTail; }, get notaInforme() { return TX.isla.notaInforme; }
 });
 /* para las pruebas y las herramientas de depuración */
 Gioval.letras = { WORDS, SKILLS, intakeDe, nivelDe, arranqueUbic, aplicarInicio, evaluarTramo, resultadoUbic, informeTexto, particiones };

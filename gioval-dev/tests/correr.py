@@ -597,12 +597,12 @@ def t_letras_contenido(C):
     r = pg.evaluate("""(()=>{ const out=[], L=Gioval.letras, D=Gioval.datos.letras, S0=L.SKILLS, by=Object.fromEntries(S0.map(s=>[s.id,s]));
       const tipos=new Set(S0.map(s=>s.type));
       S0.forEach(s=>{ s.req.forEach(r=>{ if(!by[r]) out.push(s.id+": req inexistente "+r); else if(by[r].nivel>s.nivel) out.push(s.id+": req de tramo mayor "+r); });
-        if(!D.TEXTOS.habilidades[s.id]) out.push(s.id+": sin nombre en TEXTOS"); if(!s.edad||!s.eje||s.nivel==null) out.push(s.id+": faltan edad/eje/nivel"); });
+        if(s.name.startsWith("letras.")) out.push(s.id+": sin nombre en la tabla es-AR"); if(!s.edad||!s.eje||s.nivel==null) out.push(s.id+": faltan edad/eje/nivel"); });
       for(let t=0;t<=7;t++){ const sondas=S0.filter(s=>s.nivel===t&&s.sonda); if(sondas.length<2) out.push("tramo "+t+" con menos de 2 sondas"); }
       const em={}; L.WORDS.forEach(w=>{ if(em[w.e]) out.push("dibujo repetido "+w.e+": "+em[w.e]+" y "+w.w); em[w.e]=w.w; if(w.sy.join('')!==w.w) out.push('sílabas '+w.w); });
       D.RIMAS.forEach(g=>g.forEach(x=>{ if(!L.WORDS.some(w=>w.w===x)) out.push('rima sin palabra '+x); }));
       Object.values(D.ANCLAS).forEach(x=>{ if(!L.WORDS.some(w=>w.w===x)) out.push('ancla sin palabra '+x); });
-      'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ'.split('').forEach(c=>{ if(!D.ANCLAS[c]) out.push('sin ancla '+c); if(!D.TEXTOS.letras[c]) out.push('sin nombre de letra '+c); });
+      'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ'.split('').forEach(c=>{ if(!D.ANCLAS[c]) out.push('sin ancla '+c); if(!Gioval.i18n.dato('letras.nombres_letras')[c]) out.push('sin nombre de letra '+c); });
       for(const s of S0){ const A=ACTIVITIES[s.type]; for(let i=0;i<60;i++){ try{ const it=A.make(s); for(const aid of [0,1,2]){ const T={pos:0,reveal:false,used:new Set(),dead:new Set()}; const v=A.view(it,aid,T);
           if(!v.say||typeof v.say!=='string') out.push(s.id+': sin voz'); const vals=(it.consume?it.opts:v.opts).map(o=>o.val);
           it.seq.forEach(x=>{ if(!vals.includes(x)) out.push(s.id+': la respuesta '+JSON.stringify(x)+' no está en las opciones (ayuda '+aid+')'); });
@@ -614,7 +614,7 @@ def t_letras_contenido(C):
       return {n:S0.length,tipos:[...tipos].length,palabras:L.WORDS.length,errores:[...new Set(out)].slice(0,25)}; })()""")
     igual(r["errores"], [], "problemas de contenido")
     verificar(r["n"] >= 25 and r["n"] <= 32, "habilidades: %d" % r["n"]); igual(r["tipos"], 20, "tipos de actividad")
-    txt = pg.evaluate("JSON.stringify(Gioval.datos.letras.TEXTOS)").lower()
+    txt = pg.evaluate("JSON.stringify(Object.entries(Gioval.i18n.tablas['es-AR'].textos).filter(([k])=>k.startsWith('letras.')))").lower()
     for malo in ("inteligente", "genio", "sos el mejor", "racha", "perdiste"):
         verificar(malo not in txt, "texto no permitido: " + malo)
     verificar(not err, str(err)); ctx.close(); return "%d habilidades, %d tipos, %d palabras con dibujo" % (r["n"], r["tipos"], r["palabras"])
@@ -776,7 +776,7 @@ def t_salto(C):
         if pg.evaluate("SK('let_v').mast"): break
     verificar(pg.evaluate("SK('let_v').mast"), "let_v no se dominó")
     sk = pg.evaluate("SK('let_c1')"); verificar(sk["mast"] and sk["skip"]["estado"] == "pendiente" and sk["skip"]["por"] == "rapido", "let_c1 no quedó saltada: %s" % sk)
-    verificar("domino rápido" in sk["skip"]["why"], sk["skip"]["why"]); igual(sk["skip"]["desde"], "let_v")
+    igual(sk["skip"]["datos"]["hab"], "let_v"); verificar(sk["skip"]["datos"]["n"] >= 6 and sk["skip"]["datos"]["ac"] >= 90, sk["skip"]["datos"]); igual(sk["skip"]["desde"], "let_v")
     rt = pg.evaluate("store.log.Vale.filter(e=>e.s==='let_v'&&e.k==='learn'&&e.r!=null).length"); verificar(rt >= 5, "el registro debe guardar el tiempo de respuesta (r): %d" % rt)
     verificar(pg.evaluate("!SK('let_v').skip"), "la que se domina por práctica no es 'saltada'")
     verificar(pg.evaluate("!SK('let_s1').skip"), "no debe encadenar saltos: una saltada no dispara otra")
@@ -894,10 +894,11 @@ def t_i18n_cadena(C):
 def t_i18n_completitud(C):
     ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
     T = tablas(pg); es, en = T["es-AR"], T["en"]
+    # Letras enseña a leer en español: sus textos (claves "letras.*") viven solo en es-AR y no tienen tabla en otros idiomas
     usadas = set()
     for f in list((APP / "js" / "core").rglob("*.js")) + list((APP / "js" / "islas").rglob("*.js")) + list((APP / "js" / "datos").rglob("*.js")):
         txt = f.read_text(encoding="utf-8")
-        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros)\.[a-z0-9_.]+)"', txt))
+        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros|letras|dominio)\.[a-z0-9_.]+)"', txt))
     for f in [APP / "index.html"] + list((APP / "js" / "islas").rglob("*.js")):
         usadas |= set(re.findall(r'data-i18n(?:-html|-title|-placeholder)?="([^"]+)"', f.read_text(encoding="utf-8")))
     dinam = [k for k in usadas if k.endswith(".") or k.endswith("_")]
@@ -905,9 +906,9 @@ def t_i18n_completitud(C):
     faltan = sorted(k for k in usadas if k not in es); verificar(not faltan, "claves usadas que no están en es-AR: %s" % faltan)
     # claves dinámicas: habilidades y canciones
     din = pg.evaluate("PACKS.flatMap(p=>p.skills.map(s=>s.name)).concat(SKILLS_DUMMY=0?[]:[])")
-    verificar(all(not n.startswith(("musica.", "numeros.")) for n in din), "habilidad sin traducir: %s" % din)
+    verificar(all(not n.startswith(("musica.", "numeros.", "letras.")) for n in din), "habilidad sin traducir: %s" % din)
     verificar(not pg.evaluate("[...Gioval.i18n.faltantes]"), "claves faltantes: %s" % pg.evaluate("[...Gioval.i18n.faltantes]"))
-    igual(sorted(en), sorted(es), "en tiene que tener EXACTAMENTE las claves de es-AR")
+    igual(sorted(en), sorted(k for k in es if not k.startswith("letras.")), "en tiene que tener EXACTAMENTE las claves de es-AR (menos las de Letras, que enseña español)")
     for c in ("es-419", "es-ES"):
         extra = sorted(set(T[c]) - set(es)); verificar(not extra, "%s tiene claves que es-AR no tiene: %s" % (c, extra))
     P = lambda c, k: sorted({x for v in (T[c][k] if isinstance(T[c][k], list) else [T[c][k]]) if isinstance(v, str) for x in pg.evaluate("s=>Gioval.i18n.parametros(s)", v)})
@@ -952,7 +953,7 @@ def t_ingles(C):
     verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change", "botón Cambiar")
     entrar(pg, "Vale")
     islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n').slice(1).join('|'))")
-    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
+    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Isla Letras|¡A jugar con las letras!", "Animals Island|Soon"], "mapa en inglés (Letras enseña español: su tarjeta sigue en español)")
     foto(pg, "pixel7_60_ingles_mapa"); CAPTURAS.append("pixel7_60_ingles_mapa.png")
     abrir_isla(pg, "Music"); tarjeta(pg, "Today"); pg.wait_for_timeout(400)
     labels = pg.evaluate("[...document.querySelectorAll('.key span')].map(s=>s.textContent).join('')")
