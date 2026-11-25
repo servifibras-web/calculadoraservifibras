@@ -297,6 +297,47 @@ def a_wav(x, ruta, sr=SR_AUDIO):
     return ruta
 
 
+# ---------------------------------------------------------------- audio sintético de notas de piano (para el micrófono de Música)
+def hz_de_midi(m, cents=0.0):
+    return 440.0 * 2 ** ((m - 69 + cents / 100.0) / 12)
+
+
+def nota_sintetica(midi, dur=1.6, amp=0.3, sr=SR_AUDIO, timbre="piano", cents=0.0, rng=None, suelta=None):
+    """Una nota de teclado simulada. timbre: 'piano' (parciales algo estirados, dos cuerdas casi iguales, golpe de martillo),
+    'fundamental_debil' (como lo oye el micrófono de un celular: el primer parcial muy bajo en las notas graves) y
+    'electrico' (dos osciladores desafinados ±3 cents y de distinto volumen, como un chorus suave). cents = cuánto está desafinado el piano (±).
+    suelta = segundos que la tecla queda apretada (después el apagador la corta en ~60 ms); None = suena todo `dur`."""
+    np = _np(); rng = rng or np.random.default_rng(midi); n = int(sr * dur); t = np.arange(n) / sr; f0 = hz_de_midi(midi, cents); x = np.zeros(n)
+    grave = 1.0 if midi >= 60 else 1.4
+    if timbre in ("piano", "fundamental_debil"):
+        for h in range(1, 11):
+            f = f0 * h * (1 + 0.0004 * h * h) ** 0.5
+            if f > sr / 2.2: break
+            a = amp / h ** 1.1; tau = 1.6 / (1 + 0.6 * (h - 1)) * grave
+            if timbre == "fundamental_debil" and h == 1 and f0 < 330: a *= 0.12
+            for c in (-1.0, 1.0):       # dos cuerdas casi iguales: batido lento
+                x += 0.5 * a * np.exp(-t / tau) * np.sin(2 * np.pi * f * 2 ** (c / 1200) * t + rng.uniform(0, 6.28))
+        x += amp * 0.25 * np.exp(-t / 0.012) * rng.normal(0, 1, n)      # golpe del martillo
+    elif timbre == "electrico":
+        for h in range(1, 7):
+            f = f0 * h
+            if f > sr / 2.2: break
+            for c, g in ((-3.0, 0.65), (3.0, 0.35)): x += g * (amp / h) * np.exp(-t / 1.4) * np.sin(2 * np.pi * f * 2 ** (c / 1200) * t + rng.uniform(0, 6.28))
+    else: raise ValueError(timbre)
+    env = np.minimum(1, t / 0.006)
+    if suelta is not None: env = env * np.where(t > suelta, np.exp(-(t - suelta) / 0.06), 1.0)
+    return x * env
+
+
+def senal_notas(notas, t0=1.0, paso=1.8, dur=1.6, amp=0.3, sr=SR_AUDIO, timbre="piano", cents=0.0, ruido=0.002, semilla=3, cola=1.5, tiempos=None, suelta=None):
+    """Audio mono float32 con una nota cada `paso` segundos (o en los instantes `tiempos`, en s). Devuelve (audio, [(midi, t_s)])."""
+    np = _np(); rng = np.random.default_rng(semilla); ts = tiempos or [t0 + i * paso for i in range(len(notas))]
+    n = int((ts[-1] + dur + cola) * sr); x = rng.normal(0, ruido, n)
+    for m, t in zip(notas, ts):
+        g = nota_sintetica(m, dur, amp, sr, timbre, cents, rng, suelta); i0 = int(t * sr); k = min(len(g), n - i0); x[i0:i0 + k] += g[:k]
+    return np.clip(x, -1, 1).astype(np.float32), list(zip(notas, ts))
+
+
 def a_b64(x):
     import base64
     np = _np(); return base64.b64encode((np.clip(x, -1, 1) * 32767).astype(np.int16).tobytes()).decode()

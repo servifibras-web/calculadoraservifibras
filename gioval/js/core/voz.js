@@ -104,10 +104,12 @@ function reproducir(url,text,est){
 function speak(text){
   setBubble(text);
   const est = 500 + text.length*85;
-  muteUntil = performance.now() + est + 400;
+  /* El micrófono se silencia SOLO si algo va a sonar de verdad. Sin voz (apagada, o aparato sin voces) no suena nada: antes se
+     silenciaba igual hasta est+400 ms (hasta ~1 s MÁS de lo que dura la espera) y se podía "tragar" la primera tecla del chico. */
   if(!voiceOn) return sleep(Math.min(est,1400));
   const grabado=archivoGrabado(text);
-  if(grabado) return reproducir(grabado,text,est);
+  if(grabado){ muteUntil = performance.now() + est + 400; return reproducir(grabado,text,est); }
   if(!window.speechSynthesis||V.nivel==="texto") return sleep(Math.min(est,1400));
+  muteUntil = performance.now() + est + 400;
   return hablarTTS(text,est);
 }
