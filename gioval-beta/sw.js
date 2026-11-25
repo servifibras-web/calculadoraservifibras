@@ -5,7 +5,7 @@ importScripts("js/version.js");
 const P=self.GIOVAL_ESPACIO?"gioval@"+self.GIOVAL_ESPACIO+"-":"gioval-";
 const C=P+self.GIOVAL_VERSION;
 const CA=P+"audio-";   /* audio de voz por idioma: una caché por idioma, fuera de la precarga (se guarda solo el del idioma elegido) */
-const F=["./","index.html","manifest.json","apple-touch-icon.png","icon-192.png","icon-512.png","icon-maskable.png","css/app.css",
+const F=["./","index.html","manifest.json","apple-touch-icon.png","icon-192.png","icon-512.png","icon-maskable.png","css/app.css","css/letras.css",
   "js/version.js",
   "js/core/util.js",
   "js/i18n/i18n.js",
@@ -27,12 +27,22 @@ const F=["./","index.html","manifest.json","apple-touch-icon.png","icon-192.png"
   "js/core/entrada/midi.js",
   "js/core/actividades.js",
   "js/core/motor.js",
+  "js/core/dominio.js",
   "js/core/ui.js",
   "js/core/adultos.js",
   "js/datos/proximas.js",
   "js/datos/tareas.js",
+  "js/datos/letras.js",
+  "js/datos/numeros.js",
+  "js/datos/misiones.js",
+  "js/datos/ritmo.js",
   "js/islas/musica.js",
-  "js/islas/numeros.js"];
+  "js/islas/numeros_ubicacion.js",
+  "js/islas/numeros.js",
+  "js/islas/letras.js",
+  "js/islas/ayudantes.js",
+  "js/islas/misiones.js",
+  "js/islas/ritmo.js"];
 /* instalar: precargar todo SIN activarse solo; la página avisa "hay una versión nueva" y al tocar Actualizar manda {tipo:"saltar"} */
 self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x.startsWith(P)&&x!==C&&!x.startsWith(CA)).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});

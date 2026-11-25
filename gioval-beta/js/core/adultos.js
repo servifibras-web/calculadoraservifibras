@@ -8,31 +8,38 @@ function reportText(){
   lines.push(t("informe.titulo",{nombre:KID.toLocaleUpperCase(loc)}), Gioval.i18n.fecha(new Date()),
     t("informe.dias",{dias:ds.length,min:mins}), "");
   const pc=a=>a.length?Math.round(100*a.filter(Boolean).length/a.length)+"% (n="+a.length+")":"–";
+  PACKS.forEach(p=>{ if(p.informeInicio){ const l=p.informeInicio(KID); if(l&&l.length) lines.push(...l,""); } });   /* punto de partida u otros datos propios de la isla */
   let lastPk=null;
   Gioval.islas.habilidades().forEach(s=>{
     const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
     const pk=PACKS.find(p=>p.skills.includes(s)); if(pk&&pk!==lastPk){ lines.push(pk.emoji+" "+pk.name.toLocaleUpperCase(loc)); lastPk=pk; }
     const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
-    lines.push(t("informe.hab",{nombre:s.name,estado:st.mast?"dominado":"practica"}));
+    lines.push(Gioval.dominio.pendiente(st)?t("informe.hab_saltada",{nombre:s.name}):t("informe.hab",{nombre:s.name,estado:st.mast?"dominado":"practica"}));
     lines.push(t("informe.primeros",{a:pc(first.slice(0,5)),b:pc(first.slice(-5))}));
     lines.push(t("informe.retencion",{r:pc(ret)}));
+    Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l));
   });
+  PACKS.forEach(p=>{ if(!p.informe) return; const l=p.informe(KID); if(l&&l.length) lines.push("", ...l); });   /* gancho opcional: cada isla puede sumar sus propias líneas */
+  const sal=Gioval.dominio.lineasSaltos(PACKS); if(sal.length) lines.push("",...sal);
   const ck=store.checks[KID]||[];
   lines.push("", t("informe.chequeos"));
   if(!ck.length) lines.push(t("informe.sin_chequeos"));
   ck.slice(-12).forEach(c=>{ const pk=PACKS.find(x=>x.id===c.p); lines.push(t("informe.chequeo_linea",{fecha:c.d,isla:pk?pk.name:"",ok:c.ok,n:c.n,pct:Math.round(100*c.ok/c.n)})); });
   lines.push("", t("informe.pie",{notas:Gioval.islas.notasInforme()}));
+  if(log.some(e=>typeof e.rt==="number")) lines.push(t("informe.pie_tiempo"));
   return lines.join("\n");
 }
 function renderParent(){
   const ds=store.days[KID]||[];
   const used=Math.round((store.time[KID+"|"+today()]||0)/60);
   let h=KID?t("adultos.resumen",{nombre:KID,dias:ds.length,usados:used,limite:store.limit[KID]||15})+"<br>":"";
-  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) h+=t("adultos.hab_linea",{emoji:(PACKS.find(p=>p.skills.includes(s))||{}).emoji||"",nombre:s.name,estado:st.mast?"dominado":"practica",pct:Math.round(st.score*100),n:st.att,nivel:st.lvl})+"<br>"; });
+  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) h+=t(Gioval.dominio.pendiente(st)?"adultos.hab_linea_saltada":"adultos.hab_linea",{emoji:(PACKS.find(p=>p.skills.includes(s))||{}).emoji||"",nombre:s.name,estado:st.mast?"dominado":"practica",pct:Math.round(st.score*100),n:st.att,nivel:st.lvl})+"<br>"; });
   $("parentSum").innerHTML=h||"";
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo(); renderIdioma();
+  Gioval.emit("panel"); /* las islas con ajustes propios en el panel (ver panelPie) se refrescan acá */
   $("skipSel").innerHTML=PACKS.flatMap(p=>p.skills.map(s=>`<option value="${s.id}">${p.emoji} ${s.name}</option>`)).join("");
+  Gioval.emit("panel"); /* gancho genérico: módulos opcionales redibujan su sección del panel */
 }
 function markKnown(id){
   const mark=sid=>{ const s=Gioval.islas.habilidades().find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
@@ -68,22 +75,22 @@ function renderRespaldo(){
   $("respaldoInfo").innerHTML=h;
 }
 let restauracionPendiente=null;
-$("btnExport").onclick=()=>{ Gioval.almacen.exportar(); renderRespaldo(); setBubble(t("respaldo.descargado")); };
+$("btnExport").onclick=async()=>{ await Gioval.almacen.exportar(); renderRespaldo(); setBubble(t("respaldo.descargado")); };
 $("btnRestore").onclick=()=>$("fileRestore").click();
 $("fileRestore").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
-  const r=await Gioval.almacen.leerRespaldo(f); restauracionPendiente=r.ok?r.datos:null;
+  const r=await Gioval.almacen.leerRespaldo(f); restauracionPendiente=r.ok?r:null;
   const box=$("restoreTxt");
   if(!r.ok){ box.textContent=r.error; $("restoreOk").style.display="none"; }
   else {
     const R=r.resumen; $("restoreOk").style.display="";
     box.innerHTML=t("respaldo.vista",{fecha:R.exportado?Gioval.i18n.fechaHora(R.exportado):t("respaldo.sin_fecha"),
-      perfiles:R.perfiles.length?R.perfiles.map(p=>t("respaldo.perfil_linea",{nombre:p,dias:R.dias[p],dominadas:R.dominadas[p]})).join("<br>"):t("respaldo.sin_perfiles")});
+      perfiles:R.perfiles.length?R.perfiles.map(p=>t("respaldo.perfil_linea",{nombre:p,dias:R.dias[p],dominadas:R.dominadas[p]})).join("<br>"):t("respaldo.sin_perfiles"),fotos:R.fotos!=null?t("respaldo.fotos",{n:R.fotos}):""});
   }
   $("restoreBox").classList.add("show");
 };
 $("restoreNo").onclick=()=>{ restauracionPendiente=null; $("restoreBox").classList.remove("show"); };
-$("restoreOk").onclick=async()=>{ if(!restauracionPendiente) return; await Gioval.almacen.restaurar(restauracionPendiente); location.reload(); };
+$("restoreOk").onclick=async()=>{ if(!restauracionPendiente) return; await Gioval.almacen.restaurar(restauracionPendiente.datos,restauracionPendiente.fotos); location.reload(); };
 
 /* ---- idioma (por aparato y por jugador) y prueba de voz ---- */
 function nombreIdioma(c){ const l=Gioval.i18n.idiomas().find(x=>x.codigo===c); return l?l.nombreNativo:c; }
