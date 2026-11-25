@@ -421,7 +421,7 @@ function menuPropio() {
 }
 
 /* ---------------- pantallas ---------------- */
-const di = k => 'data-i18n="misiones.ui.' + k + '"';  /* atributo para que i18n.aplicar() retraduzca el texto al cambiar de idioma */
+const di = k => ["data-i18n", JSON.stringify("misiones.ui." + k)].join("=");  /* atributo para que i18n.aplicar() retraduzca el texto al cambiar de idioma */
 const DOM = {
   pantallas: `
 <style>
