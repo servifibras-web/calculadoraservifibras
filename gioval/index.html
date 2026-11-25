@@ -68,7 +68,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .island small{font-size:17px;font-weight:700;opacity:.65}
 .island.off{filter:grayscale(.85);opacity:.6;box-shadow:0 4px 0 rgba(0,0,0,.1)}
 .island:not(.off):active{transform:translateY(3px)}
-.nameBox input{font-size:34px;padding:12px 16px;border-radius:18px;border:0;text-align:center;width:min(80vw,420px);user-select:text;-webkit-user-select:text;font-family:inherit;font-weight:800}
+.nameBox input,#gateIn{font-size:34px;padding:12px 16px;border-radius:18px;border:0;text-align:center;width:min(80vw,420px);user-select:text;-webkit-user-select:text;font-family:inherit;font-weight:800}
 @media (max-width:640px){
   .mascot{font-size:44px}
   .bubble{flex:1 1 0;font-size:19px;padding:10px 14px;min-height:56px;border-radius:18px}
@@ -108,6 +108,8 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .skill small{display:block;font-weight:600;opacity:.7;font-size:15px}
 .dot.q{background:#fff!important;color:#7c4dff}
 .dot.neutral{background:#fff!important}
+.panel{max-height:46vh;overflow:auto}
+.prog i.dn{background:#b9a6ff}
 .psum{margin-top:8px;font-size:16px;line-height:1.5}
 .note-hint{font-size:15px;opacity:.7;margin-top:6px}
 </style>
@@ -130,6 +132,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
     <label>Sensibilidad <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
     <label>Aceptar la nota en cualquier octava <input type="checkbox" id="anyOctave" checked></label>
     <div class="psum" id="parentSum"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px">📄 Informe</button></div>
     <label>Ya sabe hasta: <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px">Marcar</button></label>
     <div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>
   </div>
@@ -146,7 +149,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
   </div>
 
   <div class="screen" id="music">
-    <div class="bar"><button class="btn alt" id="btnMusicBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0">🎹 Isla Música</h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
+    <div class="bar"><button class="btn alt" id="btnMusicBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0" id="musicTitle">🎹 Isla Música</h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
     <div class="islands" id="musicMenu"></div>
   </div>
 
@@ -181,6 +184,24 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
   <h1>¿Cómo te llamás?</h1>
   <input id="nameIn" maxlength="14" placeholder="Tu nombre" autocomplete="off">
   <button class="btn" id="nameOk">¡Listo!</button>
+</div>
+
+<div class="big nameBox" id="gateBox">
+  <h1 id="gateQ">Pregunta para adultos</h1>
+  <input id="gateIn" type="number" inputmode="numeric" placeholder="Respuesta">
+  <div style="display:flex;gap:10px"><button class="btn" id="gateOk">Entrar</button><button class="btn alt" id="gateNo">Cancelar</button></div>
+</div>
+
+<div class="big" id="capBox">
+  <div class="stars">🌙</div>
+  <h1>¡Terminamos por hoy!</h1>
+  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0">Ya jugaste 15 minutos. Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</p>
+  <button class="btn" id="capOk">¡Chau, zorro! 👋</button>
+</div>
+
+<div class="big" id="reportBox">
+  <pre id="reportTxt" style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:62vh;overflow:auto;font-size:15px;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:0;font-family:inherit"></pre>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="repCopy">Copiar</button><button class="btn" id="repWa">WhatsApp</button><button class="btn alt" id="repClose">Cerrar</button></div>
 </div>
 
 <div class="big" id="finish">
@@ -223,8 +244,8 @@ const $ = id=>document.getElementById(id);
 const sleep = ms=>new Promise(r=>setTimeout(r,ms));
 let S = {song:null, mode:"idle", chunks:[], ci:0, ni:0, run:0, missPhrase:0, missNote:0, learnIdx:0, lastWrong:0};
 let ctx=null, analyser=null, micStream=null, micOn=false, voiceOn=true, muteUntil=0;
-let store = {profiles:[],stars:{},sk:{},days:{}};
-try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{},sk:s.sk||{},days:s.days||{}}; }catch(e){}
+let store = {profiles:[],stars:{},sk:{},days:{},time:{},log:{},checks:{},extra:{}};
+try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{},sk:s.sk||{},days:s.days||{},time:s.time||{},log:s.log||{},checks:s.checks||{},extra:s.extra||{}}; }catch(e){}
 function save(){ try{ localStorage.setItem("gioval", JSON.stringify(store)); }catch(e){} }
 const starsOf=t=>store.stars[KID+"|"+t]||0;
 
@@ -345,7 +366,8 @@ async function demo(notes, run, showKeys=true){
   return run===S.run;
 }
 async function startSong(i){
-  ensureCtx();
+  if(capLeft()<=0) return showCap();
+  ensureCtx(); S.check=false; S.capShown=false;
   S.song=SONGS[i]; S.run++; S.learnIdx=0; S.session=null; S.onDone=null; S.kind=null; S.hint=0; S.reveal=false; $("songTitle").textContent=S.song.emoji+" "+S.song.title;
   show("play"); buildKeyboard(); renderProg();
   await learnPhrase(0, "Vamos a tocar "+S.song.title+". Primero escuchá.");
@@ -374,7 +396,7 @@ async function handleInput(midi){
   const ok = anyOct ? (midi%12===t.midi%12) : (midi===t.midi);
   const run=S.run;
   if(ok){
-    S.missNote=0; flash(t.midi,"ok",300); S.ni++; renderDots();
+    S.missNote=0; if(!S.check) flash(t.midi,"ok",300); S.ni++; renderDots();
     if(S.ni>=chunk().length){
       S.mode="between";
       if(S.onDone){ const cb=S.onDone; cb({miss:S.missPhrase}); return; }
@@ -390,7 +412,9 @@ async function handleInput(midi){
       }
     }
   } else {
-    S.lastWrong=now; S.missPhrase++; S.missNote++; flash(midi,"near",450);
+    S.lastWrong=now; S.missPhrase++; S.missNote++;
+    if(S.check){ S.mode="between"; const cb=S.onDone; cb({miss:S.missPhrase}); return; }
+    flash(midi,"near",450);
     const tn=NAMES[PCLET[t.midi%12]];
     if(S.kind==="ear"||S.kind==="echo"){
       if(S.missNote===2){ S.mode="demo"; await speak("Escuchá otra vez."); if(await demo(chunk(),run,false)){ S.mode="play"; renderDots(); } }
@@ -412,7 +436,7 @@ async function finishSong(run){
   await speak("¡Bravo "+KID+"! ¡Tocaste toda la canción!");
 }
 /* botones */
-$("btnBack").onclick=()=>{ const was=S.session; S.run++; S.mode="idle"; S.onDone=null; S.session=null; S.kind=null; try{speechSynthesis.cancel();}catch(e){} renderProg();
+$("btnBack").onclick=()=>{ const was=S.session; S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow();
   if(was){ goMusic(); } else { show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); } };
 $("btnHomeBack").onclick=()=>goMusic();
 $("btnLogrosBack").onclick=()=>goMusic();
@@ -455,10 +479,10 @@ $("btnSkip").onclick=()=>{
   if(S.session){ const run=++S.run; S.session.i++; renderProg(); nextItem(run); return; }
   if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
 $("btnFinOk").onclick=()=>{ $("finish").classList.remove("show");
-  if(S.finMode==="session"){ S.session=null; S.onDone=null; S.kind=null; renderProg(); show("home"); renderHome(); return; }
+  if(S.finMode==="session"){ resetFlow(); if(capLeft()<=0){ goMusic(); return; } show("home"); renderHome(); return; }
   const i=SONGS.indexOf(S.song); S.full=false; startSong(i); };
 $("btnFinHome").onclick=()=>{ $("finish").classList.remove("show"); S.full=false;
-  if(S.finMode==="session"){ S.session=null; S.onDone=null; S.kind=null; renderProg(); goMusic(); return; }
+  if(S.finMode==="session"){ resetFlow(); goMusic(); return; }
   $("btnBack").onclick(); };
 $("btnVoice").onclick=()=>{ voiceOn=!voiceOn; $("btnVoice").textContent=voiceOn?"🔊":"🔇"; if(!voiceOn){try{speechSynthesis.cancel();}catch(e){}} };
 $("btnGear").onclick=()=>$("panel").classList.toggle("show");
@@ -532,17 +556,22 @@ function frame(){
 
 
 /* ============ MOTOR DE APRENDIZAJE ============
-   Ideas (con respaldo científico):
-   - Sesiones cortas y diarias + repaso espaciado (la práctica distribuida rinde más que la masiva)
-   - Recuperar de memoria (tocar sin que se la muestren) y mezclar habilidades (intercalado)
+   Ideas con respaldo en la ciencia del aprendizaje:
+   - Sesiones cortas + repaso espaciado (la práctica distribuida rinde más que la masiva)
+   - Recuperar de memoria (sin mostrar la respuesta) y mezclar habilidades (intercalado)
    - Dificultad adaptativa: apuntar a ~85% de aciertos
-   - Pistas que se van retirando de a poco
-   - Oído primero (método Kodály): se aprende a escuchar antes de leer
-   - Elogio al esfuerzo y a la estrategia, nunca "sos inteligente"
-   Para sumar otra isla (letras, números…) solo hay que definir otra lista de habilidades. */
-const DAY=864e5, INTERVALS=[.2,1,3,7];
+   - Pistas que se retiran de a poco
+   - Oído primero (método Kodály)
+   - Elogio al esfuerzo, no a "ser inteligente"
+   - Tope diario de tiempo y chequeo semanal SIN ayuda para comprobar lo que realmente quedó
+   CÓMO SUMAR OTRA ISLA (letras, números, inglés…):
+   1) Definir una lista de habilidades {id,name,icon,type,req:[ids previas],...}. Los id deben ser únicos entre islas.
+   2) Registrar sus tipos de actividad en ACTIVITIES (make = genera un ítem, present = lo muestra).
+   3) Agregar la isla a PACKS. El resto (sesión diaria, repaso espaciado, dificultad adaptativa,
+      chequeo semanal, logros, informe y tope de tiempo) funciona igual para todas. */
+const DAY=864e5, INTERVALS=[.2,1,3,7], CAP=15*60;
 const SK_ALL=[60,62,64,65,67,69,71,72];
-const SKILLS=[
+const SKILLS_MUSICA=[
   {id:"n1",name:"Do, Re y Mi",icon:"🔴🟠🟡",type:"find",notes:[60,62,64],prior:[],req:[]},
   {id:"e1",name:"Oído: ¿cuál suena?",icon:"👂",type:"ear",notes:[60,62,64],req:["n1"]},
   {id:"n2",name:"Fa y Sol",icon:"🟢🔵",type:"find",notes:[65,67],prior:[60,62,64],req:["n1"]},
@@ -551,19 +580,37 @@ const SKILLS=[
   {id:"e2",name:"Oído con todas las notas",icon:"🎧",type:"ear",notes:SK_ALL,req:["e1","n3"]},
   {id:"eco5",name:"Eco de 5 notas",icon:"🎶",type:"echo",len:5,notes:SK_ALL,req:["eco3","n3"]},
 ];
-function SK(id){ const k=KID+"|"+id; return store.sk[k]||(store.sk[k]={score:.5,att:0,box:0,due:0,lvl:0,rec:[],mast:false}); }
+const PACKS=[{id:"musica",name:"Isla Música",emoji:"🎹",sub:"¡A tocar el piano!",skills:SKILLS_MUSICA,hasSongs:true}];
+const ALL_SKILLS=PACKS.flatMap(p=>p.skills);
+let PACK=PACKS[0];
+const today=()=>new Date().toLocaleDateString("en-CA");
+const capLeft=()=>CAP+(store.extra[KID+"|"+today()]||0)-(store.time[KID+"|"+today()]||0);
+function SK(id){ const k=KID+"|"+id; return store.sk[k]||(store.sk[k]={score:.5,att:0,box:0,due:0,lvl:0,rec:[],mast:false,last:0}); }
 const mastered=id=>SK(id).mast;
-const unlockedList=()=>SKILLS.filter(s=>s.req.every(mastered));
+const unlockedList=()=>PACK.skills.filter(s=>s.req.every(mastered));
 let lastTarget=null;
 function pickDistinct(arr){ let x,g=0; do{ x=rnd(arr); g++; }while(arr.length>1&&x===lastTarget&&g<10); lastTarget=x; return x; }
-function makeItem(s){
-  if(s.type==="find"){ const pool=(Math.random()<.35&&s.prior&&s.prior.length)?s.prior:s.notes; return {skill:s,notes:[pickDistinct(pool)]}; }
-  if(s.type==="ear"){ return {skill:s,notes:[pickDistinct(s.notes)]}; }
-  const seq=[]; let cur=rnd(s.notes); seq.push(cur);
-  while(seq.length<s.len){ const i=s.notes.indexOf(cur); const j=Math.max(0,Math.min(s.notes.length-1,i+rnd([-2,-1,1,2]))); cur=s.notes[j]; seq.push(cur); }
-  return {skill:s,notes:seq};
-}
 const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
+/* tipos de actividad de la Isla Música (otras islas registran los suyos acá) */
+const ACTIVITIES={
+  find:{
+    make(s){ const pool=(Math.random()<.35&&s.prior&&s.prior.length)?s.prior:s.notes; return {skill:s,notes:[pickDistinct(pool)]}; },
+    async present(it,run,ss){ const nm=NAMES[PCLET[it.notes[0]%12]]; await speak(rnd(["Tocá el "+nm,"Buscá el "+nm,"¿Dónde está el "+nm+"?"])); return run===S.run; }
+  },
+  ear:{
+    make(s){ return {skill:s,notes:[pickDistinct(s.notes)]}; },
+    async present(it,run,ss){ await speak(ss.seen.ear?"Escuchá…":"Escuchá bien y tocá la nota que suena."); ss.seen.ear=true;
+      if(!(await demo(S.chunks[0],run,false))) return false; setBubble("¿Cuál era? 🎧"); return true; }
+  },
+  echo:{
+    make(s){ const seq=[]; let cur=rnd(s.notes); seq.push(cur);
+      while(seq.length<s.len){ const i=s.notes.indexOf(cur); const j=Math.max(0,Math.min(s.notes.length-1,i+rnd([-2,-1,1,2]))); cur=s.notes[j]; seq.push(cur); }
+      return {skill:s,notes:seq}; },
+    async present(it,run,ss){ await speak(ss.seen.echo?"Escuchá…":"Escuchá y repetí igualito."); ss.seen.echo=true;
+      if(!(await demo(S.chunks[0],run,false))) return false; setBubble("¡Ahora vos! 🎹"); return true; }
+  }
+};
+const makeItem=s=>ACTIVITIES[s.type].make(s);
 function planSession(){
   const now=Date.now(), un=unlockedList();
   const due=un.filter(s=>SK(s.id).mast&&SK(s.id).due<=now).slice(0,2);
@@ -587,48 +634,69 @@ function sessionPreview(){
   if(learn) return (due.length?"Repaso + ":"")+"Nuevo: "+learn.name;
   return due.length?"Repaso de lo aprendido":"¡Todo dominado! Repaso libre";
 }
+function checkInfo(){
+  const ms=PACK.skills.filter(s=>SK(s.id).mast);
+  if(!ms.length) return {ok:false,sub:"Se abre cuando domines algo"};
+  const ck=store.checks[KID]||[]; if(!ck.length) return {ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"};
+  const days=Math.floor((Date.now()-new Date(ck[ck.length-1].d+"T12:00:00").getTime())/DAY);
+  return days>=7?{ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"}:{ok:false,sub:"Disponible en "+(7-days)+" día(s)"};
+}
 function renderProg(){
   const box=$("prog"); box.innerHTML="";
   if(!S.session){ box.style.display="none"; return; }
   box.style.display="flex";
   S.session.items.forEach((_,i)=>{ const d=document.createElement("i"); const r=S.session.log[i];
-    d.className=r===1?"ok":(r===2?"soft":(i===S.session.i?"now":"")); box.appendChild(d); });
+    d.className=r===1?"ok":(r===2?"soft":(r===4?"dn":(i===S.session.i?"now":""))); box.appendChild(d); });
 }
+function resetFlow(){ S.onDone=null; S.kind=null; S.check=false; S.session=null; S.reveal=false; renderProg(); }
 async function startSession(){
+  if(capLeft()<=0) return showCap();
   ensureCtx(); S.run++; const run=S.run;
   const plan=planSession();
-  S.song=null; S.full=false; S.finMode="session";
+  S.song=null; S.full=false; S.finMode="session"; S.check=false; S.capShown=false;
   S.session={items:plan.items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{}};
   $("songTitle").textContent="Sesión de hoy"; show("play"); buildKeyboard(); renderProg();
   await speak("¡Vamos con la sesión de hoy, "+KID+"! Son jueguitos cortos.");
   nextItem(run);
 }
+async function startCheck(){
+  if(capLeft()<=0) return showCap();
+  ensureCtx(); S.run++; const run=S.run;
+  let items=[]; PACK.skills.filter(s=>SK(s.id).mast).forEach(s=>{ const n=s.type==="echo"?1:2; for(let i=0;i<n;i++) items.push(makeItem(s)); });
+  items=shuffle(items).slice(0,10);
+  S.song=null; S.full=false; S.finMode="session"; S.check=true; S.capShown=false;
+  S.session={items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{},checkRes:[]};
+  $("songTitle").textContent="Chequeo semanal"; show("play"); buildKeyboard(); renderProg();
+  await speak("Hoy es el chequeo. No te ayudo: ¡mostrá lo que sabés! Si no estás seguro, probá igual.");
+  nextItem(run);
+}
 async function nextItem(run){
   const ss=S.session; if(!ss||run!==S.run) return;
-  if(ss.i>=ss.items.length || (Date.now()-ss.t0>10*60e3 && ss.i>=4)) return endSession(run);
+  if(ss.i>=ss.items.length || capLeft()<=0 || (Date.now()-ss.t0>10*60e3 && ss.i>=4)) return endSession(run);
   const it=ss.items[ss.i], sk=it.skill, st=SK(sk.id);
   S.chunks=[it.notes.map(m=>({midi:m,beats:1}))]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.full=false;
-  S.reveal=false; S.kind=sk.type; S.hint=st.lvl; S.mode="demo";
+  S.reveal=false; S.kind=sk.type; S.hint=S.check?2:st.lvl; S.mode="demo";
   S.onDone=res=>itemDone(run,it,res);
   renderProg(); renderDots();
-  if(sk.type==="find"){
-    const nm=NAMES[PCLET[it.notes[0]%12]];
-    await speak(rnd(["Tocá el "+nm,"Buscá el "+nm,"¿Dónde está el "+nm+"?"]));
-  } else if(sk.type==="ear"){
-    await speak(ss.seen.ear?"Escuchá…":"Escuchá bien y tocá la nota que suena."); ss.seen.ear=true;
-    if(!(await demo(S.chunks[0],run,false))) return; setBubble("¿Cuál era? 🎧");
-  } else {
-    await speak(ss.seen.echo?"Escuchá…":"Escuchá y repetí igualito."); ss.seen.echo=true;
-    if(!(await demo(S.chunks[0],run,false))) return; setBubble("¡Ahora vos! 🎹");
-  }
+  if(!(await ACTIVITIES[sk.type].present(it,run,ss))) return;
   if(run!==S.run) return; S.mode="play"; renderDots(); armMic();
+}
+function logEvent(sk,ok,first,kind){
+  const st=SK(sk.id), now=Date.now(); const g=st.last?+((now-st.last)/DAY).toFixed(2):0; st.last=now;
+  const l=store.log[KID]||(store.log[KID]=[]); l.push({t:now,s:sk.id,o:ok?1:0,f:first?1:0,g,k:kind}); if(l.length>800) l.splice(0,l.length-800);
 }
 async function itemDone(run,it,res){
   if(run!==S.run) return;
   const sk=it.skill, st=SK(sk.id), ss=S.session;
-  const first=res.miss===0, ok=first||(sk.type==="echo"&&res.miss<=1);
+  const first=res.miss===0, ok=first||(sk.type==="echo"&&res.miss<=1&&!S.check);
+  if(S.check){
+    logEvent(sk,first,first,"check"); ss.checkRes.push({s:sk.id,o:first?1:0}); save();
+    ss.log[ss.i]=4; ss.i++; renderProg();
+    setBubble(rnd(["¡Anotado! ✍️","¡Seguimos!","¡Gracias! Vamos a la próxima."])); await sleep(600);
+    if(run!==S.run) return; return nextItem(run);
+  }
+  const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn");
   st.att++; st.score=st.score*.7+(ok?1:0)*.3; st.rec=st.rec.concat(ok?1:0).slice(-5);
-  // dificultad adaptativa: menos pistas tras 3 aciertos seguidos, más ayuda tras 2 fallos seguidos
   const rc=st.rec;
   if(rc.length>=3&&rc.slice(-3).every(x=>x)&&st.lvl<2){ st.lvl++; st.rec=[]; }
   else if(rc.length>=2&&rc.slice(-2).every(x=>!x)&&st.lvl>0){ st.lvl--; st.rec=[]; }
@@ -649,33 +717,55 @@ async function itemDone(run,it,res){
 }
 async function endSession(run){
   const ss=S.session; S.mode="done"; S.onDone=null;
-  const okc=ss.log.filter(x=>x===1).length, tot=Math.max(1,ss.log.length), ratio=okc/tot;
-  const stars=ratio>=.85?3:(ratio>=.6?2:1);
-  const day=new Date().toLocaleDateString("en-CA"); const ds=store.days[KID]||(store.days[KID]=[]); if(!ds.includes(day)){ ds.push(day); store.days[KID]=ds.slice(-90); } save();
+  const day=today(); const ds=store.days[KID]||(store.days[KID]=[]); if(!ds.includes(day)){ ds.push(day); store.days[KID]=ds.slice(-90); }
   S.finMode="session";
-  $("finStars").textContent="⭐".repeat(stars)+"☆".repeat(3-stars);
-  $("finTitle").textContent=ss.newly.length?"¡Nuevo logro: "+ss.newly[0]+"!":"¡Terminaste la sesión de hoy!";
   $("btnFinOk").textContent="🎵 Tocar una canción"; $("btnFinHome").textContent="Terminar por hoy";
-  $("finish").classList.add("show");
-  const nxt=unlockedList().find(s=>!SK(s.id).mast);
-  await speak("¡Terminamos por hoy, "+KID+"! Practicaste mucho. "+(nxt?"Mañana seguimos con "+nxt.name+(/[?!.]$/.test(nxt.name)?"":"."):"Mañana repasamos lo que aprendiste."));
+  let speech;
+  if(S.check){
+    const n=ss.checkRes.length, okc=ss.checkRes.filter(x=>x.o).length;
+    if(n){ const l=store.checks[KID]||(store.checks[KID]=[]); l.push({d:day,n,ok:okc}); store.checks[KID]=l.slice(-26); }
+    $("finStars").textContent="✅ "+okc+" de "+n; $("finTitle").textContent="¡Chequeo listo!";
+    speech="¡Terminamos el chequeo, "+KID+"! Lo anoté para papá. ¡Gracias por mostrar lo que sabés!";
+  } else {
+    const okc=ss.log.filter(x=>x===1).length, tot=Math.max(1,ss.log.length), ratio=okc/tot;
+    const stars=ratio>=.85?3:(ratio>=.6?2:1);
+    $("finStars").textContent="⭐".repeat(stars)+"☆".repeat(3-stars);
+    $("finTitle").textContent=ss.newly.length?"¡Nuevo logro: "+ss.newly[0]+"!":"¡Terminaste la sesión de hoy!";
+    const nxt=unlockedList().find(s=>!SK(s.id).mast);
+    speech="¡Terminamos por hoy, "+KID+"! Practicaste mucho. "+(nxt?"Mañana seguimos con "+nxt.name+(/[?!.]$/.test(nxt.name)?"":"."):"Mañana repasamos lo que aprendiste.")+" Ahora, ¡a tocar el piano de verdad!";
+  }
+  save(); $("finish").classList.add("show"); await speak(speech);
 }
-function goMusic(){
-  S.run++; show("music"); renderMusic(); setBubble("¡Isla Música! ¿Qué hacemos?");
+function showCap(){
+  S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
+  $("capBox").classList.add("show");
+  speak("¡Llegamos a los 15 minutos de hoy, "+KID+"! Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!");
 }
+$("capOk").onclick=()=>{ $("capBox").classList.remove("show"); S.capShown=false; resetFlow(); goMusic(); };
+/* contador de tiempo: solo cuenta mientras se juega (pantalla de actividad abierta) */
+setInterval(()=>{
+  if(!KID||document.hidden) return;
+  const act=document.querySelector(".screen.active"); if(!act||act.id!=="play") return;
+  const k=KID+"|"+today(); store.time[k]=(store.time[k]||0)+1; if(store.time[k]%10===0) save();
+  if(capLeft()<=0&&!S.capShown) showCap();
+},1000);
+function goMusic(){ S.run++; show("music"); renderMusic(); setBubble("¡"+PACK.name+"! ¿Qué hacemos?"); }
 function renderMusic(){
-  const ds=store.days[KID]||[]; $("streak").textContent=ds.length?("🔥 "+ds.length+(ds.length===1?" día":" días")):"";
+  $("musicTitle").textContent=PACK.emoji+" "+PACK.name;
+  const left=capLeft(); $("streak").textContent="⏱ "+(left>0?Math.ceil(left/60)+" min":"listo por hoy");
   const box=$("musicMenu"); box.innerHTML="";
+  const done=left<=0, ci=checkInfo();
   const cards=[
-    {em:"▶️",t:"Sesión de hoy",s:sessionPreview(),go:()=>startSession()},
-    {em:"🎵",t:"Mis canciones",s:"Tocá tus favoritas",go:()=>{ show("home"); renderHome(); }},
-    {em:"🌟",t:"Mis logros",s:"Mirá todo lo que aprendiste",go:()=>{ show("logros"); renderLogros(); }},
+    {em:"▶️",t:"Sesión de hoy",s:done?"Mañana seguimos 🌙":sessionPreview(),on:!done,go:()=>startSession()},
+    ...(PACK.hasSongs?[{em:"🎵",t:"Mis canciones",s:done?"Mañana seguimos 🌙":"Tocá tus favoritas",on:!done,go:()=>{ show("home"); renderHome(); }}]:[]),
+    {em:"🌟",t:"Mis logros",s:"Mirá todo lo que aprendiste",on:true,go:()=>{ show("logros"); renderLogros(); }},
+    {em:"🧪",t:"Chequeo semanal",s:done&&ci.ok?"Mañana seguimos 🌙":ci.sub,on:ci.ok&&!done,go:()=>startCheck()},
   ];
-  cards.forEach(c=>{ const b=document.createElement("button"); b.className="island"; b.innerHTML=`<div class="em">${c.em}</div>${c.t}<small>${c.s}</small>`; b.onclick=()=>{ ensureCtx(); c.go(); }; box.appendChild(b); });
+  cards.forEach(c=>{ const b=document.createElement("button"); b.className="island"+(c.on?"":" off"); b.innerHTML=`<div class="em">${c.on?c.em:(c.em==="🌟"?c.em:"🔒")}</div>${c.t}<small>${c.s}</small>`; if(c.on) b.onclick=()=>{ ensureCtx(); c.go(); }; box.appendChild(b); });
 }
 function renderLogros(){
   const box=$("skillList"); box.innerHTML="";
-  SKILLS.forEach(s=>{
+  PACK.skills.forEach(s=>{
     const st=SK(s.id), open=s.req.every(mastered);
     const pct=st.mast?100:Math.round(Math.min(1,st.att/6)*st.score*100);
     const d=document.createElement("div"); d.className="skill"+(open?"":" lock");
@@ -683,19 +773,60 @@ function renderLogros(){
     box.appendChild(d);
   });
 }
+/* ---- Informe verificable (para papá y la profesora) ---- */
+function reportText(){
+  const lines=[], ds=store.days[KID]||[], log=store.log[KID]||[];
+  const mins=Math.round(Object.entries(store.time).filter(([k])=>k.startsWith(KID+"|")).reduce((a,[,v])=>a+v,0)/60);
+  lines.push("INFORME DE "+KID.toUpperCase()+" — Mundo Gioval", new Date().toLocaleDateString("es-AR"),
+    "Días practicados: "+ds.length+" · Minutos en la app: "+mins, "");
+  const pc=a=>a.length?Math.round(100*a.filter(Boolean).length/a.length)+"% (n="+a.length+")":"–";
+  ALL_SKILLS.forEach(s=>{
+    const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
+    const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
+    lines.push("• "+s.name+": "+(st.mast?"dominado":"en práctica"));
+    lines.push("   Aciertos al primer intento: primeros "+pc(first.slice(0,5))+" → últimos "+pc(first.slice(-5)));
+    lines.push("   Retención (acierto ≥1 día después de practicar): "+pc(ret));
+  });
+  const ck=store.checks[KID]||[];
+  lines.push("", "CHEQUEOS SIN AYUDA (1 por semana)");
+  if(!ck.length) lines.push("   (todavía no hizo ninguno)");
+  ck.slice(-8).forEach(c=>lines.push("   "+c.d+": "+c.ok+"/"+c.n+" ("+Math.round(100*c.ok/c.n)+"%)"));
+  lines.push("", "Cómo leerlo: la retención mide si recuerda tras dormir y pasar días; el chequeo semanal se hace sin pistas ni ayuda. Lo más importante es que lo aprendido se vea también en su piano de verdad.");
+  return lines.join("\n");
+}
 function renderParent(){
   const ds=store.days[KID]||[];
-  let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados.<br>`:"";
-  SKILLS.forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${s.name}: ${st.mast?"dominado":"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
+  const used=Math.round((store.time[KID+"|"+today()]||0)/60);
+  let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados · hoy ${used} de 15 min.<br>`:"";
+  ALL_SKILLS.forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${s.name}: ${st.mast?"dominado":"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
   $("parentSum").innerHTML=t||"";
-  const sel=$("skipSel"); sel.innerHTML=SKILLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+  $("skipSel").innerHTML=ALL_SKILLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
 }
 function markKnown(id){
-  const mark=sid=>{ const s=SKILLS.find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
+  const mark=sid=>{ const s=ALL_SKILLS.find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
   mark(id); save(); renderParent();
 }
 $("skipBtn").onclick=()=>{ if(!KID) return; markKnown($("skipSel").value); setBubble("¡Listo! Marqué eso como ya sabido."); };
-const _gear=$("btnGear").onclick; $("btnGear").onclick=()=>{ renderParent(); $("panel").classList.toggle("show"); };
+/* candado para adultos */
+function gate(cb){
+  const a=3+Math.floor(Math.random()*6), b=3+Math.floor(Math.random()*6);
+  S.gateAns=a*b; S.gateCb=cb; $("gateQ").textContent="Pregunta para adultos: ¿cuánto es "+a+" × "+b+"?";
+  $("gateIn").value=""; $("gateBox").classList.add("show"); setTimeout(()=>$("gateIn").focus(),50);
+}
+$("gateOk").onclick=()=>{ if(+$("gateIn").value===S.gateAns){ $("gateBox").classList.remove("show"); const cb=S.gateCb; S.gateCb=null; if(cb) cb(); } else { $("gateIn").value=""; $("gateQ").textContent="Probá de nuevo 🙂 (solo para adultos)"; } };
+$("gateNo").onclick=()=>$("gateBox").classList.remove("show");
+$("gateIn").addEventListener("keydown",e=>{ if(e.key==="Enter") $("gateOk").click(); });
+$("btnGear").onclick=()=>{
+  if($("panel").classList.contains("show")){ $("panel").classList.remove("show"); return; }
+  gate(()=>{ renderParent(); $("panel").classList.add("show"); });
+};
+$("btnExtra").onclick=()=>{ if(!KID) return; const k=KID+"|"+today(); store.extra[k]=(store.extra[k]||0)+900; save(); renderParent(); setBubble("¡Sumé 15 minutos más para hoy!"); if($("music").classList.contains("active")) renderMusic(); };
+$("btnReport").onclick=()=>{ if(!KID) return; $("reportTxt").textContent=reportText(); $("reportBox").classList.add("show"); };
+$("repClose").onclick=()=>$("reportBox").classList.remove("show");
+$("repCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(reportText()); $("repCopy").textContent="¡Copiado!"; setTimeout(()=>$("repCopy").textContent="Copiar",1500); }catch(e){ $("repCopy").textContent="Seleccioná y copiá"; } };
+$("repWa").onclick=()=>{ window.open("https://wa.me/?text="+encodeURIComponent(reportText()),"_blank"); };
+/* las islas del mapa salen de PACKS */
+ISLANDS.splice(0,1,...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMusic(); speak("¡"+p.name+"! Empezamos con la sesión de hoy, o elegí otra cosa."); }})));
 
 /* ============ INICIO ============ */
 buildKeyboard(); renderWho(); show("who");
