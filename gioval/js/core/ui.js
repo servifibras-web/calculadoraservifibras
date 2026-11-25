@@ -51,6 +51,7 @@ function renderMenuIsla(){
   const cards=[
     {em:"▶️",t:"Sesión de hoy",s:done?"Mañana seguimos 🌙":sessionPreview(),on:!done,go:()=>startSession()},
     ...(PACK.tarjetas?PACK.tarjetas(done):[]),
+    ...(Gioval.tarjetasMenu||[]).flatMap(f=>f(done)||[]), /* gancho genérico: módulos opcionales suman tarjetas a todos los menús */
     {em:"🌟",t:"Mis logros",s:"Mirá todo lo que aprendiste",on:true,go:()=>{ show("logros"); renderLogros(); }},
     {em:"🧪",t:"Chequeo semanal",s:done&&ci.ok?"Mañana seguimos 🌙":ci.sub,on:ci.ok&&!done,go:()=>startCheck()},
   ];

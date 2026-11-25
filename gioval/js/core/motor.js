@@ -183,7 +183,9 @@ async function endSession(run){
 function showCap(){
   S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
   $("capBox").classList.add("show");
-  $("capMin").textContent=(store.limit[KID]||15); const tail=PACK.capTail||"¡Mañana seguimos!"; $("capTail").textContent=tail;
+  /* gancho genérico: un módulo opcional (p. ej. Ayudantes) puede sumar una frase (d.extra) y botones a #capAcc */
+  const d={kid:KID,pack:PACK,extra:""}; Gioval.emit("tope",d);
+  $("capMin").textContent=(store.limit[KID]||15); const tail=(PACK.capTail||"¡Mañana seguimos!")+(d.extra?" "+d.extra:""); $("capTail").textContent=tail;
   speak("¡Llegamos a los "+(store.limit[KID]||15)+" minutos de hoy, "+KID+"! "+tail);
 }
 $("capOk").onclick=()=>{ $("capBox").classList.remove("show"); S.capShown=false; resetFlow(); goMenuIsla(); };

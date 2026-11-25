@@ -32,6 +32,7 @@ function renderParent(){
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo();
   $("skipSel").innerHTML=PACKS.flatMap(p=>p.skills.map(s=>`<option value="${s.id}">${p.emoji} ${s.name}</option>`)).join("");
+  Gioval.emit("panel"); /* gancho genérico: módulos opcionales redibujan su sección del panel */
 }
 function markKnown(id){
   const mark=sid=>{ const s=Gioval.islas.habilidades().find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
