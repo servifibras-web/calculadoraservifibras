@@ -7,9 +7,10 @@
      - localStorage clave "gioval": espejo en JSON (respaldo de emergencia y compatibilidad con versiones viejas).
    Al arrancar se usa la copia más reciente (meta.guardado). Las migraciones están numeradas: v0 = formato
    antiguo de localStorage (sin campo version). NUNCA se borra nada si una migración falla: se guarda copia
-   previa y se sigue con los datos originales. */
-const ALMACEN_VERSION = 1;
-const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+   previa y se sigue con los datos originales.
+   v1 → v2 (Fase 1): agrega `intake` ({ [niño]: preguntas iniciales + punto de partida }). */
+const ALMACEN_VERSION = 2;
+const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
 
 Gioval.almacen = (function () {
   const DB = "gioval-db", DB_V = 1, LS = "gioval", LS_PRE = "gioval_pre_migracion";
@@ -29,7 +30,12 @@ Gioval.almacen = (function () {
         Object.keys(s.checks).forEach(k => { if (Array.isArray(s.checks[k])) s.checks[k].forEach(c => { if (c && !c.p) c.p = "musica"; }); });
         return s;
       } },
-    /* v2 (Fase 1, ejemplo): { a: 2, nombre:"…", fn(s){ s.intake = obj(s.intake); return s; } } */
+    { a: 2, nombre: "v1 → v2: intake (preguntas iniciales al adulto y punto de partida por niño)",
+      fn(s) {
+        /* intake[niño] = { v, edad, resp, ubicacion?, inicio? }; lo escriben las islas que lo usan */
+        s.intake = obj(s.intake);
+        return s;
+      } },
   ];
   A.migraciones = MIGRACIONES;
   function migrar(s) {
@@ -80,7 +86,7 @@ Gioval.almacen = (function () {
         try { localStorage.getItem(LS_PRE) || localStorage.setItem(LS_PRE, origenTxt); } catch (e) {}
         await idbPut("respaldo", { id: "pre-migracion-v" + versionAntes + "-" + Date.now(), motivo: "antes de migrar de v" + versionAntes, ts: Date.now(), json: origenTxt });
         try { elegido = migrar(JSON.parse(origenTxt)); hechoMigracion = true; }
-        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {} }, JSON.parse(origenTxt)); }
+        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {} }, JSON.parse(origenTxt)); }
       } else { elegido = migrar(elegido); }
       const base = JSON.parse(JSON.stringify(store)); /* defaults */
       reemplazar(Object.assign(base, elegido));
@@ -141,7 +147,7 @@ Gioval.almacen = (function () {
   };
   A.restaurar = async function (datos) {
     await idbPut("respaldo", { id: "pre-restauracion-" + Date.now(), motivo: "antes de restaurar un respaldo", ts: Date.now(), json: JSON.stringify(store) });
-    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
     reemplazar(Object.assign(base, datos)); store.meta = Object.assign(base.meta, obj(store.meta));
     store.meta.guardado = Date.now(); await A.guardarYa(); return true;
   };
