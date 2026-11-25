@@ -42,7 +42,14 @@ contenido pedagógico. No hay paso de compilación.
   3.º muestra la respuesta (`reveal`). En el chequeo semanal no hay ayuda y termina el ítem al primer error.
 - Voz: todo lo que se dice sale por `speak()` en es-AR. Escribir frases completas, con signos de apertura (¿ ¡).
 
-### Si la isla no es por toque
+### Isla sin sesiones (como Misiones)
+
+Si la isla no tiene habilidades ni sesión diaria, declara `skills:[]` y, en vez de las tarjetas de siempre, `menuPropio()`
+(devuelve `[{em,t,s,on,go}]`), `etiquetaTiempo` (texto en lugar de "⏱ 15 min") y `hablaMenu` (lo que dice la mascota al
+entrar desde el mapa). Sus pantallas **no** llevan la clase `juego`: así su tiempo no cuenta como pantalla. Para sumar
+ajustes al panel de adultos usa `dom.panelPie` y `Gioval.on("panel", refrescar)`. Ver `docs/MISIONES.md`.
+
+## Si la isla no es por toque
 
 Puede traer su propia pantalla y juego (como Música): declarar `dom`, `iniciar`, `entrar`, y en cada actividad
 una función `jugar(run, it, ss)` que devuelve una promesa con el resultado. Mirar `js/islas/musica.js`.
