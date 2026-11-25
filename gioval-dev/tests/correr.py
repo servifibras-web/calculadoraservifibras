@@ -77,7 +77,7 @@ def t_arranque(C):
         ctx = C.banco.contexto(v); err = []
         pg = abrir(ctx, C.url + "/index.html", errores=err)
         verificar(pg.evaluate("document.getElementById('nameBox').classList.contains('show')"), "no pide el nombre (%s)" % v)
-        igual(pg.evaluate("store.version"), 3, "store.version"); igual(pg.evaluate("store.intake"), {}, "store.intake")
+        igual(pg.evaluate("store.version"), 4, "store.version"); igual(pg.evaluate("store.intake"), {}, "store.intake")
         verificar(not err, "errores en %s: %s" % (v, err))
         foto(pg, v + "_00_nombre"); CAPTURAS.append(v + "_00_nombre.png"); ctx.close()
 
@@ -214,7 +214,7 @@ def t_migracion(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 3, "version"); igual(nuevo["intake"], {}, "intake nuevo")
+    igual(nuevo["version"], 4, "version"); igual(nuevo["intake"], {}, "intake nuevo")
     for k in ("profiles", "stars", "sk", "days", "time", "log", "extra", "limit"):
         igual(nuevo[k], viejo[k], "campo " + k)
     esperado = json.loads(json.dumps(viejo["checks"])); esperado["Valentino"][0]["p"] = "musica"
@@ -225,7 +225,7 @@ def t_migracion(C):
     igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
     entrar(pg, "Valentino"); abrir_isla(pg, "Música"); txt = pg.evaluate("document.getElementById('menuIslaItems').innerText")
     verificar("Sesión de hoy" in txt); verificar(not err, str(err)); ctx.close()
-    return "versión 0 → 3, %d claves de progreso intactas" % len(viejo["sk"])
+    return "versión 0 → 4, %d claves de progreso intactas" % len(viejo["sk"])
 
 @prueba("migración: si falla, no se pierde nada")
 def t_migracion_falla(C):
@@ -620,7 +620,7 @@ def t_letras_migracion(C):
     v1 = {"version": 1, "profiles": ["Vale"], "stars": {}, "sk": {"Vale|n1": {"score": .9, "att": 7, "box": 1, "due": 5, "lvl": 1, "rec": [1], "mast": True, "last": 4}}, "days": {"Vale": ["2026-11-01"]},
           "time": {}, "log": {}, "checks": {}, "extra": {}, "limit": {"Vale": 20}, "meta": {"ultimoRespaldo": 0, "guardado": 5, "desde": 5}}
     ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=v1, errores=err)
-    igual(pg.evaluate("store.version"), 3); igual(pg.evaluate("store.intake"), {}); igual(pg.evaluate("store.idioma"), {}); igual(pg.evaluate("store.sk"), v1["sk"], "progreso")
+    igual(pg.evaluate("store.version"), 4); igual(pg.evaluate("store.intake"), {}); igual(pg.evaluate("store.idioma"), {}); igual(pg.evaluate("store.sk"), v1["sk"], "progreso")
     igual(pg.evaluate("store.profiles"), ["Vale"]); igual(pg.evaluate("store.limit"), {"Vale": 20})
     verificar(not err, str(err)); ctx.close()
 
@@ -1421,7 +1421,7 @@ def t_idioma_ui(C):
 def t_mig_v2(C):
     v1 = json.loads(FIXTURE); v1 = {"version": 1, "meta": {"ultimoRespaldo": 5, "guardado": 9, "desde": 7}, **v1}
     ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=v1, errores=C.err)
-    n = pg.evaluate("JSON.parse(JSON.stringify(store))"); igual(n["version"], 3); igual(n["idioma"], {}, "idioma"); igual(n["intake"], {}, "intake"); igual(n["sk"], v1["sk"], "sk"); igual(n["meta"]["ultimoRespaldo"], 5, "meta conservada")
+    n = pg.evaluate("JSON.parse(JSON.stringify(store))"); igual(n["version"], 4); igual(n["idioma"], {}, "idioma"); igual(n["intake"], {}, "intake"); igual(n["sk"], v1["sk"], "sk"); igual(n["meta"]["ultimoRespaldo"], 5, "meta conservada")
     rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(any("pre-migracion-v1" in r["id"] for r in rs), "copia previa v1: %s" % [r["id"] for r in rs])
     ctx.close()
 
@@ -1664,16 +1664,16 @@ def t_migracion_v3(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE_V2, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 3, "version"); igual(nuevo["intake"], {}, "intake"); igual(nuevo["idioma"], {"Valentino": "en"}, "idioma conservado")
+    igual(nuevo["version"], 4, "version"); igual(nuevo["intake"], {}, "intake"); igual(nuevo["idioma"], {"Valentino": "en"}, "idioma conservado")
     for k in ("profiles", "stars", "sk", "days", "time", "log", "checks", "extra", "limit"): igual(nuevo[k], viejo[k], "campo " + k)
     igual(pg.evaluate("localStorage.getItem('gioval_pre_migracion')"), FIXTURE_V2, "copia previa exacta")
     rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v2" in rs[0]["id"], str(rs)[:200]); verificar(json.loads(rs[0]["json"]) == viejo, "copia previa en IndexedDB")
     igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
-    igual([m["a"] for m in pg.evaluate("Gioval.almacen.migraciones.map(m=>({a:m.a}))")], [1, 2, 3], "migraciones numeradas")
+    igual([m["a"] for m in pg.evaluate("Gioval.almacen.migraciones.map(m=>({a:m.a}))")], [1, 2, 3, 4], "migraciones numeradas")
     # escribe un intake, recarga: se conserva y no se vuelve a migrar ni a hacer otra copia
     pg.evaluate("store.intake.Valentino={v:1,edad:6,resp:{cuenta:20}}; Gioval.almacen.guardarYa()"); pg.wait_for_timeout(300)
     pg.reload(); esperar_listo(pg)
-    igual(pg.evaluate("store.intake.Valentino.edad"), 6, "intake tras recargar"); igual(pg.evaluate("store.version"), 3)
+    igual(pg.evaluate("store.intake.Valentino.edad"), 6, "intake tras recargar"); igual(pg.evaluate("store.version"), 4)
     igual(len(pg.evaluate("Gioval.almacen.respaldos()")), 1, "no debe haber copias nuevas")
     verificar(not err, str(err)); ctx.close(); return "v2 → v3, %d claves de progreso intactas" % len(viejo["sk"])
 
@@ -1683,7 +1683,7 @@ def t_migracion_v1_a_v3(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE_V1, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 3); igual(nuevo["intake"], {}); igual(nuevo["idioma"], {})
+    igual(nuevo["version"], 4); igual(nuevo["intake"], {}); igual(nuevo["idioma"], {})
     for k in ("profiles", "stars", "sk", "days", "time", "log", "checks", "extra", "limit"): igual(nuevo[k], viejo[k], "campo " + k)
     rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v1" in rs[0]["id"], str(rs)[:200])
     verificar(not err, str(err)); ctx.close()
@@ -2717,6 +2717,379 @@ def t_ay_capturas(C):
         pg.click("[data-a='terminar']"); pg.wait_for_timeout(120); CAPTURAS.append(foto(pg, v + "_75_ayudantes_fin"))
         abrir_panel(pg); pg.click("#ayPanel summary"); pg.evaluate("document.getElementById('ayPanel').scrollIntoView()"); CAPTURAS.append(foto(pg, v + "_76_ayudantes_panel"))
         ctx.close()
+
+# ================================================================== De a dos (jugar por turnos con un hermano o hermana)
+FAR = 4_000_000_000_000
+
+def dd_sk(mast, att, **k):
+    d = {"score": .9 if mast else .4, "att": att, "box": 1 if mast else 0, "due": FAR if mast else 0, "lvl": 1 if mast else 0, "rec": [1, 1, 1] if mast else [], "mast": mast, "last": 0}
+    d.update(k); return d
+
+def dd_store(practicando=True, limite=60, **extra):
+    """Giovanni (el mayor) ya domina 4 habilidades de Números; Valentino empieza (o practica la primera si practicando=True). Orden de perfiles: Giovanni, Valentino."""
+    sk = {"Giovanni|" + i: dd_sk(True, 8) for i in ("num_c10", "num_r10", "num_may", "num_add5")}
+    if practicando: sk["Valentino|num_c10"] = dd_sk(False, 3, score=.4)
+    st = {"profiles": ["Giovanni", "Valentino"], "limit": {"Giovanni": limite, "Valentino": limite}, "sk": sk}
+    st.update(extra); return st
+
+def dd_pagina(C, vista="360x700", st=None, idioma=None, semilla=61, **kw):
+    ctx = C.banco.contexto(vista)
+    ini = ("localStorage.setItem('gioval_idioma','%s');" % idioma) if idioma else None
+    pg = abrir(ctx, C.url + "/index.html", store=st if st is not None else dd_store(), errores=C.err, semilla=semilla, extra_init=ini, **kw); instalar_speak(pg)
+    return ctx, pg
+
+def dd_id(pg): return pg.evaluate("document.querySelector('.screen.active').id")
+def dd_tit(pg): return pg.evaluate("document.getElementById('ddTit').innerText")
+def dd_texto(pg): return pg.evaluate("document.querySelector('.screen.active').innerText")
+def dd_empezar(pg, isla=None):
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(120)
+    if isla: pg.click("[data-isla=%s]" % isla)
+    pg.click("#ddIr"); pg.wait_for_timeout(120)
+def dd_vamos(pg, sin_explicar=False):
+    """Toca el botón grande de la entrega de turno (si antes aparece la celebración del dibujo, la pasa). sin_explicar=True: si se propone explicarle al otro, contesta 'Ahora no'."""
+    if dd_id(pg) == "ddPaso" and dd_tit(pg).startswith("¡Armaron"): pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150)
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(200)
+    if sin_explicar and dd_id(pg) == "ddPaso" and dd_tit(pg).endswith("te toca explicar!"): pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(250)
+def dd_terminar(pg):
+    """'Terminar por hoy' desde la entrega de turno (pasando antes la celebración del dibujo, si la hay)."""
+    if dd_tit(pg).startswith("¡Armaron"): pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150)
+    pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(150)
+def dd_estado(pg, js): return pg.evaluate("(()=>{ const D=Gioval.dedos.estado(); return %s; })()" % js)
+def dd_progreso(pg, kid):
+    """Estado comparable del progreso de UN chico (sin las entradas vacías que crea SK() al mirar una habilidad)."""
+    return pg.evaluate("""(k)=>{ const sk={}; Object.keys(store.sk).sort().forEach(x=>{ if(!x.startsWith(k+'|')) return; const v=store.sk[x]; if(!v.att&&!v.mast) return; sk[x]=JSON.stringify(v); });
+      return {sk, log:JSON.stringify(store.log[k]||[]), days:JSON.stringify(store.days[k]||[])}; }""", kid)
+
+def dd_turno(pg, cada_error=0, limite=250):
+    """Juega el turno de a dos en curso hasta que la pantalla deja de ser la de actividad. Devuelve el id de la pantalla a la que se pasó."""
+    dec = 0
+    for _ in range(limite):
+        pg.wait_for_timeout(35)
+        a = dd_id(pg)
+        if a != "act": return a
+        t = pg.evaluate(JS_TOQUES)
+        if not t: continue
+        dec += 1
+        ok = [i for i, v in enumerate(t["vals"]) if v == t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        mal = [i for i, v in enumerate(t["vals"]) if v != t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        clic = None
+        if cada_error and dec % cada_error == 0 and t["len"] == 1 and t["miss"] == 0 and mal: clic = mal[0]
+        elif ok: clic = ok[0]
+        if clic is not None:
+            pg.evaluate("(()=>{var T=S.tap; window.__ref=[T.it,T.pos,T.miss,T.used.size,T.dead.size]; })()")
+            pg.click(".opt[data-i='%d']" % clic, force=True)
+            try: pg.wait_for_function("(function(){var T=S.tap,r=window.__ref; return !T||S.mode!=='play'||T.it!==r[0]||T.pos!==r[1]||T.miss!==r[2]||T.used.size!==r[3]||T.dead.size!==r[4];})()", timeout=2500, polling=15)
+            except Exception: pass
+    return "limite"
+
+def dd_uno(pg):
+    """Responde bien un ítem (el que está en pantalla) y espera a que el juego lo procese."""
+    pg.wait_for_function("(function(){return !!(S.tap&&S.mode==='play'&&S.tap.v);})()", timeout=5000)
+    i0 = pg.evaluate("S.session.i")
+    for _ in range(12):
+        t = pg.evaluate(JS_TOQUES)
+        if t:
+            ok = [i for i, v in enumerate(t["vals"]) if v == t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+            if ok: pg.click(".opt[data-i='%d']" % ok[0], force=True)
+        pg.wait_for_timeout(60)
+        if pg.evaluate("!S.session||S.session.i") != i0: break
+
+def dd_revelar(pg):
+    """Se equivoca tres veces en el ítem en pantalla (la app muestra la respuesta) y después toca la correcta."""
+    pg.wait_for_function("(function(){return !!(S.tap&&S.mode==='play'&&S.tap.v);})()", timeout=5000)
+    for _ in range(3):
+        t = pg.evaluate(JS_TOQUES)
+        mal = [i for i, v in enumerate(t["vals"]) if v != t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        verificar(mal, "no hay opciones equivocadas para probar el reintento")
+        pg.click(".opt[data-i='%d']" % mal[0], force=True); pg.wait_for_timeout(330)   # la app ignora toques durante 250 ms después de un error
+    verificar(pg.evaluate("S.tap.revealed"), "la app no mostró la respuesta tras 3 errores")
+
+@prueba("de a dos: la entrada aparece solo con dos o más jugadores (¿Quién juega? y mapa) y el armado elige jugadores, orden e isla")
+def t_dd_entrada(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err); instalar_speak(pg)
+    igual(pg.evaluate("document.querySelectorAll('[data-modo]').length"), 0, "con un solo jugador no hay tarjeta (quién juega)")
+    entrar(pg, "Vale"); igual(pg.evaluate("document.querySelectorAll('[data-modo]').length"), 0, "con un solo jugador no hay tarjeta (mapa)"); ctx.close()
+    ctx, pg = dd_pagina(C)
+    igual(pg.evaluate("[...document.querySelectorAll('#profiles .song')].map(x=>x.innerText.replace(/\\n/g,'|'))"), ["🦊|Giovanni", "🦊|Valentino", "👫|De a dos", "➕|Nuevo jugador"], "tarjeta en ¿Quién juega?")
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(120); igual(dd_id(pg), "ddSetup")
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-k]')].map(x=>x.querySelector('b').innerText+':'+(x.querySelector('.dd-ord')||{innerText:''}).innerText)"), ["Giovanni:1", "Valentino:2"], "con dos jugadores libres vienen elegidos, en el orden de los perfiles")
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-isla]')].map(x=>x.dataset.isla+(x.classList.contains('sel')?'*':''))"), ["numeros*", "letras"], "islas por toque")
+    verificar(not pg.evaluate("document.getElementById('ddIr').disabled"), "A jugar habilitado con dos")
+    pg.click(".dd-chip[data-k='0']"); pg.wait_for_timeout(60)   # saca a Giovanni
+    verificar(pg.evaluate("document.getElementById('ddIr').disabled"), "A jugar bloqueado con uno solo"); verificar("Falta elegir" in dd_texto(pg), "avisa que falta alguien")
+    pg.click(".dd-chip[data-k='0']"); pg.wait_for_timeout(60)   # lo vuelve a sumar: ahora va segundo
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-k]')].map(x=>x.querySelector('b').innerText+':'+(x.querySelector('.dd-ord')||{innerText:''}).innerText)"), ["Giovanni:2", "Valentino:1"], "el orden es el de los toques")
+    pg.click("[data-isla=letras]"); igual(pg.evaluate("document.querySelector('.dd-chip[data-isla].sel').dataset.isla"), "letras")
+    pg.click("#ddIr"); pg.wait_for_timeout(120); igual(dd_tit(pg), "Ahora le toca a Valentino", "empieza el que se tocó primero"); igual(dd_estado(pg, "D.isla.id"), "letras")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(250); igual(dd_id(pg), "act"); igual(pg.evaluate("KID"), "Valentino")
+    verificar(pg.evaluate("S.session.items.every(i=>i.skill.id.startsWith('let_')||ACTIVITIES[i.skill.type])"), "juega habilidades de Letras")
+    verificar(pg.evaluate("PACK.id") == "letras", "isla elegida")
+    ctx.close()
+    # desde el mapa: la tarjeta está en el mapa y "volver" regresa al mapa
+    ctx, pg = dd_pagina(C); entrar(pg, "Valentino")
+    igual(pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n')[1])"), ["Isla Música", "Isla Números", "Isla Letras", "Isla Misiones", "Isla Ritmo", "De a dos", "Isla Animales"], "tarjeta en el mapa")
+    pg.click("#islands [data-modo=dedos]"); pg.wait_for_timeout(120)
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-k]')].map(x=>x.querySelector('b').innerText+':'+(x.querySelector('.dd-ord')||{innerText:''}).innerText)"), ["Giovanni:2", "Valentino:1"], "desde el mapa empieza quien estaba jugando")
+    pg.click("#ddSetupBack"); pg.wait_for_timeout(100); igual(dd_id(pg), "map", "volver regresa al mapa"); ctx.close()
+    # un chico sin tiempo hoy no se puede elegir
+    ctx, pg = dd_pagina(C, st=dd_store(limite=15, time={"Valentino|" + time.strftime("%Y-%m-%d"): 900}))
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(120)
+    verificar(pg.evaluate("document.querySelector('.dd-chip[data-k=\"1\"]').disabled"), "Valentino ya jugó sus 15 minutos: no se puede elegir")
+    verificar("Ya jugó hoy" in dd_texto(pg) and "dos jugadores con tiempo" in dd_texto(pg), dd_texto(pg)); verificar(pg.evaluate("document.getElementById('ddIr').disabled"))
+    ctx.close()
+
+@prueba("de a dos: los turnos se alternan, cada chico juega SU plan y su progreso solo cambia con SUS respuestas (reglas de dominio y ayudas intactas)")
+def t_dd_turnos(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg)
+    JS_PLAN = "(()=>({ses:S.session.items.map(i=>i.skill.id), desbloq:unlockedList().map(s=>s.id), dominadas:PACK.skills.filter(s=>store.sk[KID+'|'+s.id]&&store.sk[KID+'|'+s.id].mast).map(s=>s.id)}))()"
+    orden = []; items = {}
+    for n in range(4):
+        quien = dd_estado(pg, "D.kids[D.idx%2]"); otro = "Valentino" if quien == "Giovanni" else "Giovanni"
+        igual(dd_tit(pg), "Ahora le toca a " + quien, "pantalla de entrega"); igual(pg.evaluate("document.querySelector('#ddAv .dd-av').innerText"), {"Giovanni": "🦊", "Valentino": "🐻"}[quien], "avatar grande")
+        igual(pg.evaluate("window.__LOG[window.__LOG.length-1]"), "Ahora le toca a %s. Cuando quieras, tocá el botón grande." % quien, "la voz anuncia el turno")
+        antes_otro = dd_progreso(pg, otro); att0 = pg.evaluate("(k)=>Object.entries(store.sk).filter(([x,v])=>x.startsWith(k+'|')).reduce((a,[x,v])=>a+v.att,0)", quien)
+        n_antes = dd_estado(pg, "D.porKid['%s'].n" % quien)
+        dd0 = pg.evaluate("(k)=>[(store.log[k]||[]).length, (store.log[k]||[]).filter(e=>e.d===1).length]", quien)
+        dd_vamos(pg, True); igual(dd_id(pg), "act"); igual(pg.evaluate("KID"), quien, "el motor juega con el chico del turno"); orden.append(quien)
+        igual(pg.evaluate("document.querySelector('#ddEquipo .dd-quien span:last-child').innerText.trim()"), quien, "franja con el nombre")
+        plan = pg.evaluate(JS_PLAN); items.setdefault(quien, set()).update(plan["ses"])
+        verificar(set(plan["ses"]) <= set(plan["desbloq"]), "ítems fuera del plan de %s: %s" % (quien, plan["ses"]))
+        verificar(not (set(plan["ses"]) & set(plan["dominadas"])), "%s repasa lo que no toca todavía: %s" % (quien, plan["ses"]))
+        igual(len(plan["ses"]), 4, "4 ítems por turno")
+        r = dd_turno(pg, cada_error=2 if (quien == "Valentino" and n == 3) else 0); igual(r, "ddPaso", "al terminar el turno vuelve la entrega")
+        igual(dd_progreso(pg, otro), antes_otro, "el progreso de %s NO cambió durante el turno de %s" % (otro, quien))
+        d = pg.evaluate("(k)=>{ const sk=Object.entries(store.sk).filter(([x,v])=>x.startsWith(k+'|')); return [sk.reduce((a,[x,v])=>a+v.att,0), (store.log[k]||[]).length, (store.log[k]||[]).filter(e=>e.d===1).length]; }", quien)
+        n_resp = dd_estado(pg, "D.porKid['%s'].n" % quien) - n_antes
+        igual(d[0] - att0, n_resp, "intentos de %s sumados en este turno = respuestas de su turno" % quien); igual(d[2] - dd0[1], n_resp, "eventos de este turno marcados d:1 (de a dos)")
+        if n == 1 and quien == "Valentino":   # 4 aciertos al primer intento desde cero: las MISMAS cuentas que en una sesión suelta
+            s = pg.evaluate("store.sk['Valentino|num_c10']"); esp = .5
+            for _ in range(4): esp = esp * .7 + .3   # la fórmula del motor (itemDone), 4 aciertos al primer intento
+            verificar(abs(s["score"] - esp) < 1e-9, "puntaje %r ≠ %r" % (s["score"], esp)); igual([s["att"], s["lvl"], s["rec"], s["mast"]], [4, 1, [1], False], "dominio y ayudas igual que siempre")
+        if n < 3:
+            if dd_tit(pg).startswith("¡Armaron"): pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150)   # el 8.º casillero completó el dibujo
+            igual(dd_tit(pg), "Ahora le toca a " + otro, "entrega al otro")
+    igual(orden, ["Giovanni", "Valentino", "Giovanni", "Valentino"], "alternan")
+    verificar("num_c10" not in items["Giovanni"], "a Giovanni no le tocó lo de Valentino: %s" % items["Giovanni"]); verificar(items["Valentino"] == {"num_c10"}, "Valentino solo juega lo suyo: %s" % items["Valentino"])
+    verificar(items["Giovanni"] <= {"num_sub5", "num_c20", "num_add10"}, "Giovanni juega su siguiente nivel: %s" % items["Giovanni"])
+    igual(dd_estado(pg, "[D.porKid.Giovanni.turnos, D.porKid.Valentino.turnos]"), [2, 2])
+    igual(pg.evaluate("S.session"), None, "no queda sesión suelta entre turnos"); ctx.close()
+
+@prueba("de a dos: el dibujo del equipo crece con los aciertos de cualquiera, un error no resta, mostrar la respuesta no suma y completarlo se celebra")
+def t_dd_equipo(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg)
+    eq = lambda: pg.evaluate("(()=>{ const e=Gioval.dedos.equipo('Giovanni','Valentino'); return [e.piezas,e.cuadros,e.total]; })()")
+    igual(eq(), [0, 0, 0]); igual(pg.evaluate("document.querySelectorAll('#ddCuadro .dd-cell').length"), 8, "8 casilleros"); verificar("Huerta (0 de 8)" in dd_texto(pg), dd_texto(pg))
+    dd_vamos(pg, True); dd_turno(pg); igual(eq(), [4, 0, 4], "Giovanni: 4 aciertos → 4 piezas")
+    igual(pg.evaluate("document.querySelectorAll('#ddCuadro .dd-cell.on').length"), 4, "se ven las 4 piezas en la entrega"); verificar("Huerta (4 de 8)" in dd_texto(pg))
+    dd_vamos(pg, True); dd_turno(pg, cada_error=1)   # Valentino se equivoca primero en cada ítem y después acierta
+    n_v = dd_estado(pg, "D.porKid.Valentino.n"); verificar(n_v >= 4, "respondió %d" % n_v)
+    e = eq(); igual(e[2], 4 + n_v, "los errores no restan: cada ítem resuelto sin que la app muestre la respuesta suma una pieza"); igual(e[0] + 8 * e[1], 4 + n_v)
+    igual(dd_estado(pg, "D.piezas"), 4 + n_v, "piezas de la sesión")
+    # mostrar la respuesta (3 errores) no suma: el resto sí
+    base = eq()[2]; n0 = dd_estado(pg, "D.porKid.Giovanni.n"); dd_vamos(pg, True); dd_revelar(pg); dd_turno(pg); n_g = dd_estado(pg, "D.porKid.Giovanni.n") - n0
+    igual(eq()[2], base + n_g - 1, "el ítem con la respuesta mostrada no suma pieza; los demás sí")
+    ctx.close()
+    # completar el dibujo: celebración, dibujo nuevo, y todo queda guardado (también tras recargar)
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, dedos={"eq": {"Giovanni|Valentino": {"piezas": 6, "cuadros": 0, "total": 6}}, "reg": {}})); dd_empezar(pg)
+    dd_vamos(pg, True); r = dd_turno(pg); igual(r, "ddPaso")
+    igual(dd_tit(pg), "¡Armaron el dibujo «Huerta» entre los dos!", "celebración al completar"); igual(eq(), [2, 1, 10], "1 dibujo completo y 2 piezas del siguiente")
+    verificar(any("Lo lograron" in x for x in pg.evaluate("window.__LOG")), "la voz lo celebra")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150); igual(dd_tit(pg), "Ahora le toca a Valentino"); verificar("Ciudad (2 de 8)" in dd_texto(pg), "el dibujo nuevo (Ciudad) sigue con 2 piezas: " + dd_texto(pg))
+    pg.evaluate("save(); Gioval.almacen.guardarYa()"); pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("store.dedos.eq['Giovanni|Valentino']"), {"piezas": 2, "cuadros": 1, "total": 10}, "el dibujo del equipo se conserva al recargar"); ctx.close()
+
+@prueba("de a dos: explicar a otro (regla fija): se propone solo cuando el otro practica lo que yo ya domino, suma piezas al equipo y NADA al dominio")
+def t_dd_explicar(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True)); dd_empezar(pg)   # Giovanni domina num_c10; Valentino lo está practicando (3 intentos)
+    prop = pg.evaluate("(()=>{ const p=Gioval.dedos.proponerExplicacion('Giovanni'); return p&&[p.id,p.explica,p.oyente]; })()"); igual(prop, ["num_c10", "Giovanni", "Valentino"], "regla: Giovanni domina lo que Valentino practica")
+    igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Valentino')"), None, "Valentino no domina nada que Giovanni esté practicando")
+    dd_vamos(pg); igual(dd_id(pg), "ddPaso"); igual(dd_tit(pg), "Giovanni, ¡te toca explicar!")
+    t = dd_texto(pg); verificar("Valentino está practicando «Contar hasta 10» y vos ya lo sabés. ¿Le explicás cómo se hace?" in t, t)
+    verificar(any(c in t for c in ("Contale qué mirás primero.", "Mostrale un ejemplo.", "Decile qué hacés cuando te trabás.")), "consejo simple: " + t)
+    verificar(any("te toca explicar" in x or "está practicando" in x for x in pg.evaluate("window.__LOG")), "la voz lo dice")
+    antes = (dd_progreso(pg, "Giovanni"), dd_progreso(pg, "Valentino"), pg.evaluate("JSON.stringify(store.time)"))
+    eq0 = pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total")
+    pg.click("#ddAcc .btn:has-text('Ya le expliqué')"); pg.wait_for_timeout(300)
+    igual(dd_id(pg), "act", "después de explicar empieza su turno"); igual(pg.evaluate("KID"), "Giovanni")
+    igual(pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total"), eq0 + 2, "+2 piezas de equipo")
+    igual((dd_progreso(pg, "Giovanni"), dd_progreso(pg, "Valentino")), antes[:2], "explicar NO toca el dominio, el registro ni los días de nadie")
+    igual(dd_estado(pg, "[D.porKid.Giovanni.e, D.porKid.Valentino.r, D.expl.n]"), [1, 1, 1])
+    dd_turno(pg)   # turno de Giovanni; después el de Valentino (con errores para no dominar), y de nuevo Giovanni: no se repite la propuesta
+    dd_vamos(pg); dd_turno(pg, cada_error=1)
+    dd_vamos(pg); igual(dd_id(pg), "act", "no se repite la misma explicación en esta sesión (ni antes de 3 turnos)")
+    dd_turno(pg); r = pg.evaluate("Gioval.dedos.datos().reg"); igual(r["Giovanni"][0]["e"], 1, "registro: explicó 1 vez"); igual(r["Valentino"][0]["r"], 1, "registro: escuchó 1 vez"); igual(r["Giovanni"][0]["r"], 0)
+    ctx.close()
+    # "Ahora no": sin premio y sin castigo; una saltada sin comprobar NO es saber (no se propone); con el otro sin tiempo tampoco
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True)); dd_empezar(pg); dd_vamos(pg)
+    eq0 = pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total"); pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(250)
+    igual(dd_id(pg), "act"); igual(pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total"), eq0, "sin premio"); igual(dd_estado(pg, "D.expl.n"), 0, "no cuenta como explicación")
+    verificar(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')") is None, "no se vuelve a pedir lo mismo"); ctx.close()
+    st = dd_store(practicando=True); st["sk"]["Giovanni|num_c10"]["skip"] = {"por": "rapido", "t": 1, "estado": "pendiente"}
+    ctx, pg = dd_pagina(C, st=st); dd_empezar(pg); igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')"), None, "una habilidad saltada sin comprobar no cuenta como saber"); ctx.close()
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True, limite=15, time={"Valentino|" + time.strftime("%Y-%m-%d"): 899})); dd_empezar(pg)
+    pg.evaluate("store.time['Valentino|'+today()]=900"); igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')"), None, "si el otro ya no tiene tiempo hoy, no se propone"); ctx.close()
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg); igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')"), None, "si el otro todavía no practicó esa habilidad, no se propone"); ctx.close()
+
+@prueba("de a dos: tope diario por chico (cada turno gasta SU tiempo; al llegar al tope sigue el otro o termina con mensaje amable; sin apuro ni castigo)")
+def t_dd_tope(C):
+    hoy = lambda k: "%s|%s" % (k, time.strftime("%Y-%m-%d"))
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, limite=15)); dd_empezar(pg)
+    t0 = pg.evaluate("[store.time['Giovanni|'+today()]||0, store.time['Valentino|'+today()]||0]")
+    pg.wait_for_timeout(2300); igual(pg.evaluate("[store.time['Giovanni|'+today()]||0, store.time['Valentino|'+today()]||0]"), t0, "esperar en la entrega de turno NO gasta tiempo de nadie")
+    dd_vamos(pg); pg.wait_for_timeout(2300); dd_uno(pg)   # Giovanni mira la pantalla un rato y responde
+    t1 = pg.evaluate("[store.time['Giovanni|'+today()]||0, store.time['Valentino|'+today()]||0]"); verificar(t1[0] >= t0[0] + 2, "el turno gasta el tiempo de Giovanni: %s → %s" % (t0, t1)); igual(t1[1], t0[1], "y no el de Valentino")
+    dd_turno(pg)
+    ctx.close()
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, limite=15)); dd_empezar(pg); dd_vamos(pg)
+    pg.evaluate("store.time['Giovanni|'+today()]=capBase()-1"); pg.wait_for_timeout(1600)   # pasa el segundo del reloj: el motor avisa el tope
+    igual(dd_id(pg), "act", "el cartel de tope del motor NO interrumpe el ítem en curso"); verificar(not pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "no sale el cartel de siempre")
+    dd_uno(pg); pg.wait_for_function("document.querySelector('.screen.active').id==='ddPaso'", timeout=6000)
+    igual(dd_tit(pg), "Giovanni ya jugó por hoy"); t = dd_texto(pg); verificar("completó los 15 minutos de hoy. ¡Gracias por jugar! Mañana seguimos." in t and "Seguir con Valentino" in t and "Terminar por hoy" in t, t)
+    igual(dd_estado(pg, "D.porKid.Giovanni.n"), 1, "terminó solo el ítem que tenía en curso")
+    tg = pg.evaluate("store.time['Giovanni|'+today()]"); pg.wait_for_timeout(1500); igual(pg.evaluate("store.time['Giovanni|'+today()]"), tg, "Giovanni ya no gasta tiempo")
+    ant_g = dd_progreso(pg, "Giovanni")
+    pg.click("#ddAcc .btn:has-text('Seguir con Valentino')"); pg.wait_for_timeout(150); igual(dd_tit(pg), "Ahora le toca a Valentino")
+    dd_vamos(pg); pg.wait_for_timeout(1300); dd_turno(pg); igual(dd_tit(pg), "Ahora le toca a Valentino", "Giovanni ya no tiene tiempo: sigue Valentino otra vez")
+    igual(dd_progreso(pg, "Giovanni"), ant_g, "el progreso de Giovanni no cambió mientras jugó Valentino"); verificar(pg.evaluate("store.time['Valentino|'+today()]") >= 1, "tiempo de Valentino")
+    # Valentino también llega a su tope: la sesión termina con un mensaje amable (sin cartel de motor y sin entrega)
+    dd_vamos(pg); pg.evaluate("store.time['Valentino|'+today()]=capBase()-1"); pg.wait_for_timeout(1600); dd_uno(pg)
+    pg.wait_for_function("document.getElementById('ddTit').innerText==='¡Buen trabajo, equipo!'", timeout=6000)
+    t = dd_texto(pg); verificar("Giovanni: 1 respuesta" in t and "Valentino: " in t and "Hoy sumaron" in t, t)
+    verificar(any("Gracias por jugar de a dos, Giovanni y Valentino" in x for x in pg.evaluate("window.__LOG")), "la voz se despide")
+    # el registro quedó guardado por chico
+    r = pg.evaluate("Gioval.dedos.datos().reg"); igual([r["Giovanni"][0]["c"], r["Valentino"][0]["c"]], ["Valentino", "Giovanni"]); igual(r["Giovanni"][0]["n"], 1); verificar(r["Valentino"][0]["n"] >= 1 and r["Valentino"][0]["s"] >= 1, str(r["Valentino"]))
+    pg.click("#ddAcc .btn"); pg.wait_for_timeout(150); igual(dd_id(pg), "who", "al terminar vuelve a ¿Quién juega?"); ctx.close()
+    # si en pleno ítem no se resuelve nada, a los 45 s (acá 0,4) el turno se cierra solo y amablemente; un +15 min de los adultos devuelve el tiempo
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, limite=15)); dd_empezar(pg); dd_vamos(pg)
+    pg.evaluate("Gioval.dedos.AJ.graciaTopeMs=400; store.time['Giovanni|'+today()]=capBase()+5"); pg.wait_for_function("document.querySelector('.screen.active').id==='ddPaso'", timeout=8000)
+    igual(dd_tit(pg), "Giovanni ya jugó por hoy"); igual(pg.evaluate("[S.session, S.tap]"), [None, None], "no queda nada colgado")
+    pg.evaluate("store.extra['Giovanni|'+today()]=900"); igual(pg.evaluate("Gioval.dedos.restante('Giovanni')>0"), True, "+15 min de los adultos suma tiempo a ese chico"); ctx.close()
+    # pausa con ⬅: lo hecho queda guardado, se puede seguir o terminar
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg); dd_vamos(pg); dd_uno(pg)
+    pg.click("#btnActBack"); pg.wait_for_timeout(150); igual(dd_id(pg), "ddPaso"); igual(dd_tit(pg), "¿Terminamos por hoy?"); verificar("Lo que hicieron hasta ahora quedó guardado." in dd_texto(pg))
+    igual(pg.evaluate("store.sk['Giovanni|num_sub5']&&store.sk['Giovanni|num_sub5'].att||store.sk['Giovanni|num_c20']&&store.sk['Giovanni|num_c20'].att||store.sk['Giovanni|num_add10']&&store.sk['Giovanni|num_add10'].att"), 1, "la respuesta anterior ya estaba guardada")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(250); igual(dd_id(pg), "act", "seguir jugando"); igual(pg.evaluate("KID"), "Giovanni")
+    pg.click("#btnActBack"); pg.wait_for_timeout(150); pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(150); igual(dd_tit(pg), "¡Buen trabajo, equipo!"); ctx.close()
+
+@prueba("de a dos: informe para adultos por chico (sesiones, respuestas, explicaciones) y sin sección si nunca jugó de a dos")
+def t_dd_informe(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True)); dd_empezar(pg)
+    dd_vamos(pg); pg.click("#ddAcc .btn:has-text('Ya le expliqué')"); pg.wait_for_timeout(250); dd_turno(pg)
+    dd_vamos(pg); dd_turno(pg, cada_error=1); dd_terminar(pg)
+    igual(dd_tit(pg), "¡Buen trabajo, equipo!"); pg.click("#ddAcc .btn"); pg.wait_for_timeout(150)
+    r = pg.evaluate("Gioval.dedos.datos().reg"); g, v = r["Giovanni"][0], r["Valentino"][0]
+    rep = {k: pg.evaluate("(k)=>{ KID=k; return reportText(); }", k) for k in ("Giovanni", "Valentino", "Otro")}
+    verificar("DE A DOS (por turnos, en el mismo aparato)" in rep["Giovanni"] and "1 sesión de a dos." in rep["Giovanni"], rep["Giovanni"])
+    verificar("Explicarle a otro no suma nada al dominio." in rep["Giovanni"], "aclara que explicar no suma dominio")
+    pl = lambda n, a, b: "%d %s" % (n, a if n == 1 else b)
+    fila = lambda e, c: "con %s: %s (%d al primer intento), %d min, %s" % (c, pl(e["n"], "respuesta", "respuestas"), e["ok"], round(e["s"] / 60), pl(e["tr"], "turno", "turnos"))
+    verificar(fila(g, "Valentino") in rep["Giovanni"], "fila de Giovanni: " + rep["Giovanni"][-900:])
+    verificar(fila(v, "Giovanni") in rep["Valentino"], "fila de Valentino (con SUS cifras): " + rep["Valentino"][-900:])
+    verificar(g["n"] != v["n"] or g["tr"] != v["tr"] or g["ok"] != v["ok"], "las cifras de cada chico son distintas (si no, la prueba no distingue)")
+    verificar("Le explicó a Valentino (1 vez). No cuenta para el dominio." in rep["Giovanni"] and "Escuchó la explicación de Giovanni (1 vez)." in rep["Valentino"], "explicaciones por chico")
+    verificar("Escuchó" not in rep["Giovanni"] and "Le explicó" not in rep["Valentino"], "cada chico ve solo lo suyo")
+    verificar("DE A DOS" not in rep["Otro"], "quien nunca jugó de a dos no tiene la sección")
+    igual(pg.evaluate("(k)=>(store.log[k]||[]).filter(e=>e.d===1).length", "Giovanni"), g["n"], "eventos de práctica marcados")
+    # lo que respondieron cuenta en su progreso de siempre: la sección de la isla también lo muestra
+    verificar("Contar hasta 10" in rep["Valentino"] and "Contar hasta 10" in rep["Giovanni"], "las habilidades siguen en el informe de siempre")
+    ctx.close()
+
+JS_DD_EXTRA = """(function(){ const W=innerWidth,H=innerHeight,o=[];
+  if(document.body.scrollWidth>document.body.clientWidth+2) o.push('body: desborde horizontal');
+  document.querySelectorAll('.dd-chip,.dd-cell,.dd-quien,.dd-eq,#ddCuadro,.dd-acc,.dd-txt').forEach(e=>{ if(e.closest('.screen:not(.active)')) return; const r=e.getBoundingClientRect(); if(!r.width) return;
+    if(r.right>W+1||r.left<-1) o.push((e.id||e.className)+' fuera de pantalla (horizontal)'); });
+  const a=document.querySelector('.screen.active'); if(a&&a.id==='ddPaso'){ const b=a.querySelector('#ddAcc .btn'); if(b){ const r=b.getBoundingClientRect(); if(r.bottom>H+1||r.top<0) o.push('el botón principal no se ve sin desplazar (arriba='+Math.round(r.top)+', abajo='+Math.round(r.bottom)+', alto de pantalla='+H+')'); } }
+  if(a&&a.id==='ddSetup'){ const b=a.querySelector('#ddIr'); const r=b.getBoundingClientRect(); const p=a.querySelector('#ddSetupBody'); if(r.bottom>H+1&&!(p.scrollHeight>p.clientHeight)) o.push('A jugar fuera de pantalla'); }
+  return o; })()"""
+
+def dd_recorrer(pg, ver, texto=None):
+    """Pasa por TODAS las pantallas de De a dos: armado, entrega, explicar, turno (con la franja del equipo), pausa, tope, celebración, entrega al que sigue y fin."""
+    pg.evaluate("Gioval.dedos.AJ.graciaTopeMs=300")
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(150); ver("1_armado")
+    pg.click("#ddIr"); pg.wait_for_timeout(150); ver("2_entrega")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150); ver("3_explicar")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(400); dd_uno(pg); pg.wait_for_timeout(150); ver("4_turno")
+    pg.click("#btnActBack"); pg.wait_for_timeout(150); ver("5_pausa")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(300)
+    pg.evaluate("store.time[KID+'|'+today()]=capBase()+1"); pg.wait_for_function("document.querySelector('.screen.active').id==='ddPaso'", timeout=9000); pg.wait_for_timeout(100); ver("6_tope")
+    pg.click("#ddAcc .btn:not(.alt)"); pg.wait_for_timeout(150); ver("7_celebracion")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150); ver("8_entrega_solo")
+    pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(150); ver("9_fin")
+
+def dd_sembrado(): return dd_store(practicando=True, limite=15, dedos={"eq": {"Giovanni|Valentino": {"piezas": 6, "cuadros": 0, "total": 6}}, "reg": {}})
+
+@prueba("de a dos: sin desbordes horizontales y con el botón principal a la vista en Pixel 7, 360x700, 740x330 y tableta 820x1180 (es-AR); capturas")
+def t_dd_vistas(C):
+    mal = []
+    for v in ("pixel7", "360x700", "740x330", "820x1180"):
+        ctx, pg = dd_pagina(C, vista=v, st=dd_sembrado(), congelar=True, semilla=62)
+        def ver(n, v=v, pg=pg):
+            pg.wait_for_timeout(120); r = pg.evaluate(JS_DESBORDES) + pg.evaluate(JS_DD_EXTRA)
+            CAPTURAS.append(foto(pg, "%s_90_dedos_%s" % (v, n)))
+            mal.extend("%s %s: %s" % (v, n, x) for x in r)
+        dd_recorrer(pg, ver); ctx.close()
+    verificar(not mal, "desbordes: " + "; ".join(mal[:10]))
+
+@prueba("de a dos con el pseudo-idioma (+40 %, acentos) y en RTL: sin desbordes que no hubiera en es-AR")
+def t_dd_pseudo(C):
+    mal = []
+    for idioma in ("qps-ploc", "qps-plocm"):
+        for v in ("360x700", "740x330", "820x1180"):
+            ctx, pg = dd_pagina(C, vista=v, st=dd_sembrado(), idioma=idioma, congelar=True, semilla=63)
+            def ver(n, v=v, pg=pg, idioma=idioma):
+                pg.wait_for_timeout(120); r = pg.evaluate(JS_DESBORDES) + pg.evaluate(JS_DD_EXTRA)
+                if v != "820x1180": CAPTURAS.append(foto(pg, "%s_%s_91_dedos_%s" % (v, idioma, n)))
+                mal.extend("%s %s %s: %s" % (idioma, v, n, x) for x in r)
+            dd_recorrer(pg, ver)
+            igual(pg.evaluate("[document.documentElement.dir, Gioval.i18n.faltantes.size]"), ["rtl" if idioma == "qps-plocm" else "ltr", 0], "dir/faltantes"); ctx.close()
+    verificar(not mal, "desbordes: " + "; ".join(mal[:12]))
+
+@prueba("de a dos en inglés: todas las pantallas, la voz y el informe sin una palabra en español, sin claves faltantes")
+def t_dd_ingles(C):
+    ctx, pg = dd_pagina(C, st=dd_sembrado(), idioma="en", semilla=64); textos = []
+    dd_recorrer(pg, lambda n: textos.append(dd_texto(pg)))
+    dicho = pg.evaluate("window.__LOG.concat(window.__BUB)"); todo = [l for t in textos for l in t.split("\n") if l.strip()] + dicho
+    verificar(not sin_espanol(todo), "español en inglés: %s" % sin_espanol(todo)[:5])
+    verificar(any("It's Giovanni's turn" in x for x in dicho) and any("You built the “Garden” picture together!" in x for x in textos), "frases en inglés: %s" % textos[:3])
+    rep = pg.evaluate("(()=>{ KID='Giovanni'; return reportText(); })()"); verificar("TOGETHER (in turns, on the same device)" in rep and "with Valentino" in rep, rep[-700:])
+    verificar(not sin_espanol([l for l in rep.split("\n") if "TOGETHER" in l or "with Valentino" in l or "Explained" in l]), "informe en inglés")
+    igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes"); ctx.close()
+
+@prueba("de a dos: el almacén v3 → v4 conserva TODO, crea 'dedos' vacío, deja copia previa exacta, no migra dos veces y un respaldo con 'dedos' se restaura")
+def t_dd_migracion(C):
+    v3 = {"version": 3, "profiles": ["Giovanni", "Valentino"], "stars": {"x": 2}, "sk": {"Giovanni|n1": dd_sk(True, 9), "Valentino|num_c10": dd_sk(False, 3)}, "days": {"Giovanni": ["2026-11-01"]},
+          "time": {"Giovanni|2026-11-01": 300}, "log": {"Giovanni": [{"t": 5, "s": "n1", "o": 1, "f": 1, "g": 0, "k": "learn"}]}, "checks": {"Giovanni": [{"d": "2026-11-02", "n": 4, "ok": 3, "p": "musica"}]},
+          "extra": {"Giovanni|2026-11-01": 900}, "limit": {"Giovanni": 20}, "idioma": {"Valentino": "en"}, "intake": {"Valentino": {"v": 1, "edad": 6, "resp": {}}}, "meta": {"ultimoRespaldo": 5, "guardado": 9, "desde": 7}}
+    txt = json.dumps(v3); ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=txt, errores=err); nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
+    igual(nuevo["version"], 4, "version"); igual(nuevo["dedos"], {}, "dedos vacío")
+    for k in v3:
+        if k not in ("version", "meta"): igual(nuevo[k], v3[k], "campo " + k)
+    igual(nuevo["meta"]["ultimoRespaldo"], 5, "meta conservada")
+    igual(pg.evaluate("localStorage.getItem('gioval_pre_migracion')"), txt, "copia previa exacta (localStorage)")
+    rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v3" in rs[0]["id"] and json.loads(rs[0]["json"]) == v3, "copia previa en IndexedDB: %s" % [r["id"] for r in rs])
+    igual(pg.evaluate("Gioval.almacen.errorMigracion"), None)
+    # jugar de a dos sobre datos migrados, guardar, recargar: sigue todo y no vuelve a migrar ni a copiar
+    pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').piezas=3; Gioval.dedos.datos().reg.Giovanni=[{t:1,c:'Valentino',n:2,ok:1,s:60,tr:1,e:0,r:0,p:2}]; save(); Gioval.almacen.guardarYa()")
+    pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("store.version"), 4); igual(pg.evaluate("store.dedos.eq['Giovanni|Valentino'].piezas"), 3, "el dibujo se conserva"); igual(pg.evaluate("store.dedos.reg.Giovanni[0].n"), 2)
+    igual(len(pg.evaluate("Gioval.almacen.respaldos()")), 1, "no vuelve a migrar ni a hacer otra copia")
+    # restaurar un respaldo con 'dedos' (formato de exportar) y otro viejo sin 'dedos' (v3): ambos quedan bien
+    datos = pg.evaluate("JSON.parse(JSON.stringify(store))")
+    pg.evaluate("(d)=>Gioval.almacen.restaurar(d)", datos); igual(pg.evaluate("store.dedos.eq['Giovanni|Valentino'].piezas"), 3, "restaurar conserva dedos")
+    r = pg.evaluate("(async(v3)=>{ const f=new File([JSON.stringify({app:'gioval',formato:1,store:v3})],'r.json'); const o=await Gioval.almacen.leerRespaldo(f); return [o.ok,o.datos&&o.datos.version,o.datos&&JSON.stringify(o.datos.dedos)]; })(%s)" % txt)
+    igual(r, [True, 4, "{}"], "un respaldo viejo (v3) se convierte al leerlo"); verificar(not err, str(err)); ctx.close()
+
+@prueba("de a dos: no cambia nada si no se usa (sesión suelta, tope del motor, informe y mapa de siempre; las islas registradas son las mismas)")
+def t_dd_no_toca(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); entrar(pg, "Giovanni")
+    igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "letras", "misiones", "ritmo"], "De a dos no es una isla de aprendizaje")
+    igual(pg.evaluate("Gioval.modos.map(m=>m.id)"), ["dedos"])
+    abrir_isla(pg, "Números"); tarjeta(pg, "Sesión de hoy"); verificar(jugar(pg, perfecto=True) == "fin", "sesión suelta"); cerrar_fin(pg, "#btnFinOk")
+    igual(pg.evaluate("S.session"), None); igual(pg.evaluate("document.getElementById('ddEquipo').classList.contains('on')"), False, "la franja del equipo no aparece en una sesión suelta")
+    verificar("DE A DOS" not in pg.evaluate("reportText()"), "informe sin sección")
+    pg.evaluate("S.run++; resetFlow(); goMap(); store.time['Giovanni|'+today()]=0"); llegar_al_tope(pg, "Números")
+    verificar(pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "el tope del motor sigue funcionando en una sesión suelta"); ctx.close()
 
 # ================================================================== runner
 class Ctx: pass

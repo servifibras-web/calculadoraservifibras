@@ -155,6 +155,7 @@ async function itemDone(run,it,res){
   else { st.box=ok?Math.min(3,st.box+1):Math.max(0,st.box-1); st.due=Date.now()+INTERVALS[st.box]*DAY; }
   const saltos=Gioval.dominio?Gioval.dominio.alResponder(sk,st,ss):[];   /* genérico: dominio rápido → se saltean las siguientes (ver js/core/dominio.js) */
   save();
+  if(ss.alResponder) ss.alResponder(it,res,{ok,first});   /* gancho genérico: un modo con sesión propia se entera del resultado (el progreso ya se guardó) */
   ss.log[ss.i]=first?1:2; ss.i++; ss.streak=first?ss.streak+1:0;
   if(!ok&&!it.retry){ ss.items.splice(Math.min(ss.i+2,ss.items.length),0,{...makeItem(sk),retry:true}); }
   renderProg();
@@ -168,7 +169,9 @@ async function itemDone(run,it,res){
   if(run!==S.run) return; nextItem(run);
 }
 async function endSession(run){
-  const ss=S.session; S.mode="done"; S.onDone=null;
+  const ss=S.session;
+  if(ss&&ss.alFin) return ss.alFin(run);   /* sesión propia de un modo (p. ej. De a dos): ese módulo decide qué pasa al terminar (gancho genérico) */
+  S.mode="done"; S.onDone=null;
   const day=today(); const ds=store.days[KID]||(store.days[KID]=[]); if(!ds.includes(day)){ ds.push(day); store.days[KID]=ds.slice(-90); }
   S.finMode="session";
   const fin=PACK.fin||{}; $("btnFinOk").textContent=fin.ok||t("motor.fin.volver"); $("btnFinHome").textContent=fin.home||t("motor.fin.mapa");
@@ -192,6 +195,7 @@ async function endSession(run){
   save(); $("finish").classList.add("show"); await speak(speech);
 }
 function showCap(){
+  if(S.session&&S.session.alTope&&S.session.alTope()) return;   /* gancho genérico: un modo con sesión propia maneja el tope de tiempo a su manera */
   S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
   $("capBox").classList.add("show");
   /* gancho genérico: un módulo opcional (p. ej. Ayudantes) puede sumar una frase (d.extra) y botones a #capAcc */
