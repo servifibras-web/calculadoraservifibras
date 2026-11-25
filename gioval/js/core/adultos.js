@@ -9,12 +9,13 @@ function reportText(){
   const pc=a=>a.length?Math.round(100*a.filter(Boolean).length/a.length)+"% (n="+a.length+")":"–";
   let lastPk=null;
   Gioval.islas.habilidades().forEach(s=>{
-    const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
+    const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast&&!st.skip) return;
     const pk=PACKS.find(p=>p.skills.includes(s)); if(pk&&pk!==lastPk){ lines.push(pk.emoji+" "+pk.name.toUpperCase()); lastPk=pk; }
     const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
     lines.push("• "+s.name+": "+(st.mast?"dominado":"en práctica"));
     lines.push("   Aciertos al primer intento: primeros "+pc(first.slice(0,5))+" → últimos "+pc(first.slice(-5)));
     lines.push("   Retención (acierto ≥1 día después de practicar): "+pc(ret));
+    if(Gioval.dominio) Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l)); /* tiempo de respuesta y saltos */
   });
   const ck=store.checks[KID]||[];
   lines.push("", "CHEQUEOS SIN AYUDA (1 por semana y por isla)");

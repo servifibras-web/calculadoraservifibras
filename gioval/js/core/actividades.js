@@ -36,10 +36,11 @@ function tapRender(){
 $("actStage").onclick=e=>{ const T=S.tap; if(!T||S.mode!=="play") return; const A=ACTIVITIES[T.it.skill.type]; const ob=e.target.closest(".ob"); if(ob&&A.stageTap) A.stageTap(T.it,T,+ob.dataset.i); };
 async function tapItem(run,it,A,ss){
   let aid=S.hint; if(A.noVoiceAid!=null&&!voiceReady()) aid=Math.min(aid,A.noVoiceAid);
-  S.tap={it,run,aid,pos:it.start||0,miss:0,used:new Set(),dead:new Set(),help:false,reveal:false,revealed:false,cnt:[],v:null};
+  S.tap={it,run,aid,pos:it.start||0,miss:0,used:new Set(),dead:new Set(),help:false,reveal:false,revealed:false,cnt:[],v:null,t0:performance.now(),tReady:0};
   renderProg(); tapRender();
   S.mode="play";
   await speak(S.tap.v.say);
+  if(S.tap&&S.tap.it===it) S.tap.tReady=performance.now(); /* el tiempo de respuesta (rt) cuenta desde que termina la voz */
 }
 async function tapPick(i){
   const T=S.tap; if(!T||S.mode!=="play") return;
@@ -53,7 +54,8 @@ async function tapPick(i){
     const fin=T.pos>=it.seq.length;
     if(fin) S.mode="between";
     T.reveal=false; tapRender();
-    if(fin){ const b2=$("actOpts").children[i]; if(b2) b2.classList.add("ok"); await sleep(520); if(run!==S.run) return; S.onDone({miss:T.miss,revealed:T.revealed}); }
+    if(fin){ const rt=T.miss===0?Math.round(Math.max(0,now-(T.tReady||now))):null; /* rt: solo si salió al primer intento; si respondió antes de que termine la voz, 0 */
+      const b2=$("actOpts").children[i]; if(b2) b2.classList.add("ok"); await sleep(520); if(run!==S.run) return; S.onDone({miss:T.miss,revealed:T.revealed,rt}); }
     return;
   }
   S.lastWrong=now; T.miss++;

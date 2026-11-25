@@ -110,7 +110,7 @@ async function startCheck(){
   if(capLeft()<=0) return showCap();
   ensureCtx(); S.run++; const run=S.run;
   let items=[]; PACK.skills.filter(s=>SK(s.id).mast).forEach(s=>{ const n=ACTIVITIES[s.type].chequeoItems||2; for(let i=0;i<n;i++) items.push(makeItem(s)); });
-  items=shuffle(items).slice(0,10);
+  items=Gioval.dominio?Gioval.dominio.elegirChequeo(items):shuffle(items).slice(0,10); /* las saltadas se re-evalúan primero */
   if(PACK.antesDeSesion) PACK.antesDeSesion(); S.finMode="session"; S.check=true; S.capShown=false;
   S.session={items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{},checkRes:[]};
   enterPlay("Chequeo semanal");
@@ -125,9 +125,10 @@ async function nextItem(run){
   S.onDone=res=>itemDone(run,it,res);
   return ACTIVITIES[sk.type].jugar(run,it,ss);
 }
-function logEvent(sk,ok,first,kind){
+function logEvent(sk,ok,first,kind,rt){
   const st=SK(sk.id), now=Date.now(); const g=st.last?+((now-st.last)/DAY).toFixed(2):0; st.last=now;
-  const l=store.log[KID]||(store.log[KID]=[]); l.push({t:now,s:sk.id,o:ok?1:0,f:first?1:0,g,k:kind}); if(l.length>800) l.splice(0,l.length-800);
+  const e={t:now,s:sk.id,o:ok?1:0,f:first?1:0,g,k:kind}; if(rt!=null) e.r=rt; /* r = tiempo de respuesta en ms (solo primer intento correcto) */
+  const l=store.log[KID]||(store.log[KID]=[]); l.push(e); if(l.length>800) l.splice(0,l.length-800);
 }
 async function itemDone(run,it,res){
   if(run!==S.run) return;
@@ -139,7 +140,7 @@ async function itemDone(run,it,res){
     setBubble(rnd(["¡Anotado! ✍️","¡Seguimos!","¡Gracias! Vamos a la próxima."])); await sleep(600);
     if(run!==S.run) return; return nextItem(run);
   }
-  const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn");
+  const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn",res.rt);
   st.att++; st.score=st.score*.7+(ok?1:0)*.3; st.rec=st.rec.concat(ok?1:0).slice(-5);
   const rc=st.rec;
   if(rc.length>=3&&rc.slice(-3).every(x=>x)&&st.lvl<2){ st.lvl++; st.rec=[]; }
@@ -147,6 +148,7 @@ async function itemDone(run,it,res){
   let achievement=null;
   if(!st.mast){ if(st.att>=6&&st.score>=.8){ st.mast=true; st.box=1; st.due=Date.now()+INTERVALS[1]*DAY; achievement=sk.name; ss.newly.push(sk.name); } }
   else { st.box=ok?Math.min(3,st.box+1):Math.max(0,st.box-1); st.due=Date.now()+INTERVALS[st.box]*DAY; }
+  if(achievement) Gioval.emit("dominada",{skill:sk}); /* gancho: salto por dominio rápido (js/core/dominio.js) */
   save();
   ss.log[ss.i]=first?1:2; ss.i++; ss.streak=first?ss.streak+1:0;
   if(!ok&&!it.retry){ ss.items.splice(Math.min(ss.i+2,ss.items.length),0,{...makeItem(sk),retry:true}); }
@@ -168,6 +170,7 @@ async function endSession(run){
   if(S.check){
     const n=ss.checkRes.length, okc=ss.checkRes.filter(x=>x.o).length;
     if(n){ const l=store.checks[KID]||(store.checks[KID]=[]); l.push({d:day,n,ok:okc,p:PACK.id}); store.checks[KID]=l.slice(-60); }
+    Gioval.emit("chequeo",{res:ss.checkRes,pack:PACK}); /* gancho: re-evaluar habilidades saltadas */
     $("finStars").textContent="✅ "+okc+" de "+n; $("finTitle").textContent="¡Chequeo listo!";
     speech="¡Terminamos el chequeo, "+KID+"! Lo anoté para papá. ¡Gracias por mostrar lo que sabés!";
   } else {
