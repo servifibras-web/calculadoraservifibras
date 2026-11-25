@@ -7,11 +7,21 @@ Esta isla pasa de 9 a **31 habilidades** ordenadas desde los 4 años, con un **p
 
 | Qué | Dónde |
 |---|---|
-| Habilidades, ejes, preguntas al adulto, umbrales de tiempo, textos (`TEXTOS`) | `gioval/js/datos/numeros.js` (`Gioval.datos.numeros`) |
+| Habilidades, ejes, preguntas al adulto, umbrales de tiempo y **textos por idioma** (`TEXTOS`: es-AR, en, es-419, es-ES) | `gioval/js/datos/numeros.js` (`Gioval.datos.numeros`) |
 | Actividades de toque nuevas (15 tipos) y registro de la isla | `gioval/js/islas/numeros.js` (las 9 de la v1 no se tocaron) |
 | Punto de partida, escalera del test, pantallas del adulto, informe de la isla | `gioval/js/islas/numeros_ubicacion.js` (`Gioval.numeros`) |
 | Dominio rápido, saltos, reevaluación, sesiones guiadas (**genérico, no nombra ninguna isla**) | `gioval/js/core/dominio.js` (`Gioval.dominio`) |
-| Migración v1 → v2 (`store.intake`) | `gioval/js/core/almacen.js` |
+| Migración v2 → v3 (`store.intake`) | `gioval/js/core/almacen.js` |
+
+## Textos e idiomas
+
+Todo lo visible o hablado es una clave de las tablas de idiomas (`js/i18n/`), con frases completas y huecos con nombre (ver
+`AGREGAR_IDIOMA.md`). Los de esta isla se agregan al principio de `datos/numeros.js` con `Gioval.i18n.agregar`:
+`numeros.ed.*` (pantallas del adulto, test, actividades nuevas `numeros.ed.act.<tipo>.*`, preguntas `numeros.ed.intake.<pregunta>.*`),
+`numeros.hab.<id>` (nombres de las 22 habilidades nuevas). El inglés es obligatorio (la prueba de completitud exige las mismas
+claves); es-419 y es-ES solo traen el tuteo. Los textos del núcleo genérico (salto rápido, informe de saltadas) están en
+`js/i18n/es-AR.js` y `en.js` (`motor.salto.*`, `informe.salto.*`, `menu.saltada`). Los motivos de cada habilidad saltada se
+guardan como `{k: clave, p: datos}` y se escriben en el idioma de quien lee el informe.
 
 ## La escalera
 
@@ -44,7 +54,7 @@ toca **Aceptar** en el resumen, donde puede ajustar habilidad por habilidad.
 
 Desde el resumen → **Hacer el test de ubicación**. Es una sesión guiada (`Gioval.dominio.iniciarGuiada`): usa los mismos
 ítems de toque, con voz, no toca habilidades, registro ni días. Escalera por eje, empezando donde dijo el adulto:
-2 aciertos aprueban, 2 errores fallan, si hay 1 y 1 va un 3.er ítem; sube un nivel al aprobar, baja con pasos crecientes al
+2 aciertos al primer intento aprueban, 2 errores fallan, si hay 1 y 1 va un 3.er ítem; sube un nivel al aprobar, baja con pasos crecientes al
 fallar. Topes en `UBICACION`: 10 ítems por eje, 30 en total, 5 minutos (cierra al terminar el ítem en curso). **Seguir ➜**
 cuenta como "no sé". Una aprobación con tiempo de respuesta lento queda **en curso**, no saltada. Al terminar, el niño
 escucha que sigue un adulto; el adulto ve el resumen (lo que dijo vs. lo que se vio), lo ajusta y acepta.

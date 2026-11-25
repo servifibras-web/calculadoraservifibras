@@ -198,7 +198,7 @@ def abrir_panel(pg):
 
 
 def snapshot(pg):
-    """Estado comparable del progreso (sin marcas de tiempo)."""
-    return pg.evaluate("""(()=>{ var sk={}; Object.keys(store.sk).sort().forEach(function(k){ var v=store.sk[k]; sk[k]=[v.mast,v.att,+v.score.toFixed(6),v.box,v.lvl,JSON.stringify(v.rec)]; });
+    """Estado comparable del progreso (sin marcas de tiempo). Se omiten las habilidades sin intentos ni dominio: son solo la entrada vacía que crea SK() al mirar una habilidad (la isla Números por edades tiene más habilidades que la versión publicada)."""
+    return pg.evaluate("""(()=>{ var sk={}; Object.keys(store.sk).sort().forEach(function(k){ var v=store.sk[k]; if(!v.att&&!v.mast) return; sk[k]=[v.mast,v.att,+v.score.toFixed(6),v.box,v.lvl,JSON.stringify(v.rec)]; });
       var log={}; Object.keys(store.log).forEach(function(k){ log[k]=store.log[k].map(function(e){ return [e.s,e.o,e.f,e.k].join(); }); });
       return {sk:sk, log:log, days:store.days, stars:store.stars, checks:store.checks, profiles:store.profiles, limit:store.limit}; })()""")
