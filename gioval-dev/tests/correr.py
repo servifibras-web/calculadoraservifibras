@@ -92,13 +92,13 @@ def t_perfiles(C):
     foto(pg, "360x700_01_perfiles"); CAPTURAS.append("360x700_01_perfiles.png")
     entrar(pg, "Vale"); igual(pg.evaluate("KID"), "Vale"); ctx.close()
 
-@prueba("mapa: muestra Música, Números, Misiones, Ritmo y las islas con candado")
+@prueba("mapa: muestra Música, Números, Letras, Misiones, Ritmo y las islas con candado")
 def t_mapa(C):
     for v in ("pixel7", "360x700", "740x330"):
         ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err); instalar_speak(pg)
         entrar(pg, "Vale")
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.replace(/\\n/g,'|')+(x.classList.contains('off')?'|off':''))")
-        igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🧭|Isla Misiones|¡Cosas de verdad!", "🥁|Isla Ritmo|¡A marcar el ritmo!", "🔒|Isla Letras|Pronto|off", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
+        igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🔤|Isla Letras|¡A jugar con las letras!", "🧭|Isla Misiones|¡Cosas de verdad!", "🥁|Isla Ritmo|¡A marcar el ritmo!", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
         foto(pg, v + "_02_mapa"); CAPTURAS.append(v + "_02_mapa.png"); ctx.close()
 
 # ---------------------------------------------------------------- islas
@@ -400,7 +400,7 @@ def t_entradas(C):
     ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=71); instalar_speak(pg)
     igual(sorted(pg.evaluate("Object.keys(Gioval.entrada.proveedores)")), ["golpes", "microfono", "toque"], "proveedores")
     igual(pg.evaluate("Gioval.entrada.necesito(['toque','golpe','acorde'])"), {"disponibles": ["toque", "golpe"], "faltan": ["acorde"]}, "necesito")
-    igual(pg.evaluate("PACKS.map(p=>[p.id,p.instrumento,p.entradas])"), [["musica", "piano", ["nota", "toque"]], ["numeros", None, ["toque"]], ["misiones", None, []], ["ritmo", "percusion", ["golpe"]]], "declaración de las islas")
+    igual(pg.evaluate("PACKS.map(p=>[p.id,p.instrumento,p.entradas])"), [["musica", "piano", ["nota", "toque"]], ["numeros", None, ["toque"]], ["letras", None, ["toque"]], ["misiones", None, []], ["ritmo", "percusion", ["golpe"]]], "declaración de las islas")
     r = pg.evaluate("(()=>{ const got=[]; const off=Gioval.entrada.suscribir('golpe',e=>got.push(e)); Gioval.entrada.emitir({tipo:'golpe',fuerza:.5}); off(); Gioval.entrada.emitir({tipo:'golpe'}); return [got.length,got[0].tipo,typeof got[0].t]; })()")
     igual(r, [1, "golpe", "number"], "emitir/suscribir")
     for f in ("acordes", "midi"):   # archivos reservados documentados (golpes.js ya está implementado: ver pruebas de Ritmo)
@@ -478,22 +478,28 @@ def t_paridad(C):
     igual(ln[0], la[0], "encabezado del informe"); igual(ln[3:], la[3:], "cuerpo del informe") if False else None
     return "%d frases, %d eventos de registro idénticos" % (len(a["dicho"]), sum(len(v) for v in a["estado"]["log"].values()))
 
-def px_igual(a, b):
+def px_igual(a, b, permitido=None, ancho_css=None):
+    """permitido = (izq, arr, der, aba) en px CSS: la diferencia puede estar SOLO ahí (la tarjeta de una isla que dejó de estar bloqueada)."""
     from PIL import Image, ImageChops
     ia, ib = Image.open(a).convert("RGB"), Image.open(b).convert("RGB")
     if ia.size != ib.size: return "tamaños distintos %s %s" % (ia.size, ib.size)
     bb = ImageChops.difference(ia, ib).getbbox()
-    return None if bb is None else "difieren en %s" % (bb,)
+    if bb is None: return None
+    if permitido:
+        k = ia.size[0] / ancho_css; m = 14
+        if bb[0] >= (permitido[0] - m) * k and bb[1] >= (permitido[1] - m) * k and bb[2] <= (permitido[2] + m) * k and bb[3] <= (permitido[3] + m) * k: return None
+    return "difieren en %s" % (bb,)
 
 @prueba("regresión visual: las pantallas del niño se ven idénticas a la versión publicada (píxel a píxel)")
 def t_pixeles(C):
-    SALIDA.mkdir(exist_ok=True); difs = []; n = 0
+    SALIDA.mkdir(exist_ok=True); difs = []; n = 0; RECT = {}
     for v in ("360x700", "740x330"):
         for nombre, ruta in (("anterior", "/legacy/index.html"), ("nueva", "/index.html")):
             ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + ruta, store=STORE_KID, semilla=777, errores=None, congelar=True); instalar_speak(pg)
             pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
             def f(tag): foto(pg, "cmp_%s_%s_%s" % (v, tag, nombre))
             pg.evaluate("renderWho(); show('who')"); f("who"); entrar(pg, "Vale")
+            if nombre == "nueva": RECT[v] = pg.evaluate("(()=>{ const b=[...document.querySelectorAll('#islands .island')].find(x=>x.innerText.includes('Letras')).getBoundingClientRect(); return [b.left,b.top,b.right,b.bottom]; })()")
             pg.evaluate("document.querySelectorAll('#islands .island').forEach(b=>{ if(b.innerText.includes('Misiones')||b.innerText.includes('Ritmo')) b.style.display='none'; })"); f("mapa")   # Misiones y Ritmo son nuevas: se oculta su tarjeta para comparar el resto del mapa
             pg.click(".island:has-text('Música')"); pg.wait_for_timeout(150); f("menu_musica")
             pg.click(".island:has-text('Sesión de hoy')"); pg.wait_for_timeout(500); pg.evaluate("clearTimeout(0)"); f("musica_sesion")
@@ -502,10 +508,10 @@ def t_pixeles(C):
             pg.click(".island:has-text('Sesión de hoy')"); pg.wait_for_timeout(700); f("numeros_actividad")
             ctx.close()
         for tag in ("who", "mapa", "menu_musica", "musica_sesion", "musica_sesion2", "menu_numeros", "numeros_actividad"):
-            d = px_igual(SALIDA / ("cmp_%s_%s_anterior.png" % (v, tag)), SALIDA / ("cmp_%s_%s_nueva.png" % (v, tag))); n += 1
+            d = px_igual(SALIDA / ("cmp_%s_%s_anterior.png" % (v, tag)), SALIDA / ("cmp_%s_%s_nueva.png" % (v, tag)), RECT[v] if tag == "mapa" else None, int(v.split("x")[0])); n += 1
             if d: difs.append("%s/%s: %s" % (v, tag, d))
     verificar(not difs, "diferencias visuales: " + "; ".join(difs))
-    return "%d capturas comparadas, 0 píxeles distintos" % n
+    return "%d capturas comparadas, 0 píxeles distintos (el mapa solo difiere en la tarjeta de Letras, que ahora está abierta)" % n
 
 
 @prueba("agregar una isla: 1 archivo + 1 línea en index.html + 1 línea en sw.js (ejemplo de docs/AGREGAR_ISLA.md) funciona entera")
@@ -524,7 +530,7 @@ def t_agregar_isla(C):
         ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, url2 + "/index.html", store=STORE_KID, errores=err, semilla=3); instalar_speak(pg); entrar(pg, "Vale")
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n')[1])")
         verificar("Isla Colores" in islas, str(islas))
-        igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "colores", "misiones", "ritmo"], "islas registradas")
+        igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "colores", "letras", "misiones", "ritmo"], "islas registradas")
         for i in range(3):
             abrir_isla(pg, "Colores"); tarjeta(pg, "Sesión de hoy"); verificar(jugar(pg, cada_error=4 if i == 0 else 0) == "fin"); cerrar_fin(pg)
         pg.evaluate("PACK=PACKS.find(p=>p.id==='colores')"); verificar(pg.evaluate("SK('col_nom').mast"), "no dominó la primera habilidad")
@@ -544,6 +550,283 @@ def t_agregar_isla(C):
     finally:
         srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
 
+# ---------------------------------------------------------------- Isla Letras
+STORE_LET = {"profiles": ["Vale"], "limit": {"Vale": 120}}
+
+def entrar_letras(pg, bienvenida=False):
+    abrir_isla(pg, "Letras")
+    if not bienvenida and pg.evaluate("document.getElementById('letOv').classList.contains('show')"):
+        pg.click("#letOv [data-a=cerrar]"); pg.wait_for_timeout(80)
+
+def llenar_intake_let(pg, edad, letras, lee, nombre):
+    for k, v in (("edad", edad), ("letras", letras), ("lee", lee), ("nombre", nombre)):
+        pg.click("#letOv .letBtn[data-k='%s'][data-v='%s']" % (k, v))
+    pg.click("#letOv [data-a=guardarIntake]"); pg.wait_for_timeout(120)
+
+def pack_letras(pg): pg.evaluate("PACK=PACKS.find(p=>p.id==='letras')")
+
+JS_NIVEL = "(S.tap&&S.mode==='play'&&S.tap.v&&S.tap.it!==window.__ult)?(function(){var T=S.tap;return {w:T.it.seq[0],vals:T.v.opts.map(function(o){return o.val}),niv:T.it.skill.nivel,tipo:T.it.skill.type};})():null"
+
+def jugar_ubicacion(pg, conoce, limite=60):
+    """Simula a un chico que sabe todo hasta el tramo `conoce` (responde bien) y en el resto toca «No sé»."""
+    n = 0; t0 = time.time()
+    while time.time() - t0 < 90:
+        pg.wait_for_timeout(30)
+        if pg.evaluate("document.getElementById('gateBox').classList.contains('show')"): return n
+        t = pg.evaluate(JS_NIVEL)
+        if not t: continue
+        want = t["w"] if t["niv"] <= conoce else "__nose"
+        i = t["vals"].index(want)
+        pg.evaluate("(()=>{ var T=S.tap; window.__ult=T.it; window.__ref=[T.pos,T.miss,T.used.size]; })()")   # una sola respuesta por ítem
+        pg.click(".opt[data-i='%d']" % i, force=True)
+        try:
+            pg.wait_for_function("(function(){var T=S.tap,r=window.__ref; return !T||S.mode!=='play'||T.it!==window.__ult||T.pos!==r[0]||T.miss!==r[1]||T.used.size!==r[2];})()", timeout=1500, polling=15)
+            n += 1
+        except Exception:
+            pg.evaluate("window.__ult=null")   # el motor ignora un toque que llega justo después de un error: se reintenta
+    raise Falla("la ubicación no terminó")
+
+@prueba("Letras: el contenido es válido (30 habilidades, 20 tipos, todo ítem tiene respuesta y no hay pares confusos)")
+def t_letras_contenido(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=81); instalar_speak(pg)
+    r = pg.evaluate("""(()=>{ const out=[], L=Gioval.letras, D=Gioval.datos.letras, S0=L.SKILLS, by=Object.fromEntries(S0.map(s=>[s.id,s]));
+      const tipos=new Set(S0.map(s=>s.type));
+      S0.forEach(s=>{ s.req.forEach(r=>{ if(!by[r]) out.push(s.id+": req inexistente "+r); else if(by[r].nivel>s.nivel) out.push(s.id+": req de tramo mayor "+r); });
+        if(s.name.startsWith("letras.")) out.push(s.id+": sin nombre en la tabla es-AR"); if(!s.edad||!s.eje||s.nivel==null) out.push(s.id+": faltan edad/eje/nivel"); });
+      for(let t=0;t<=7;t++){ const sondas=S0.filter(s=>s.nivel===t&&s.sonda); if(sondas.length<2) out.push("tramo "+t+" con menos de 2 sondas"); }
+      const em={}; L.WORDS.forEach(w=>{ if(em[w.e]) out.push("dibujo repetido "+w.e+": "+em[w.e]+" y "+w.w); em[w.e]=w.w; if(w.sy.join('')!==w.w) out.push('sílabas '+w.w); });
+      D.RIMAS.forEach(g=>g.forEach(x=>{ if(!L.WORDS.some(w=>w.w===x)) out.push('rima sin palabra '+x); }));
+      Object.values(D.ANCLAS).forEach(x=>{ if(!L.WORDS.some(w=>w.w===x)) out.push('ancla sin palabra '+x); });
+      'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ'.split('').forEach(c=>{ if(!D.ANCLAS[c]) out.push('sin ancla '+c); if(!Gioval.i18n.dato('letras.nombres_letras')[c]) out.push('sin nombre de letra '+c); });
+      for(const s of S0){ const A=ACTIVITIES[s.type]; for(let i=0;i<60;i++){ try{ const it=A.make(s); for(const aid of [0,1,2]){ const T={pos:0,reveal:false,used:new Set(),dead:new Set()}; const v=A.view(it,aid,T);
+          if(!v.say||typeof v.say!=='string') out.push(s.id+': sin voz'); const vals=(it.consume?it.opts:v.opts).map(o=>o.val);
+          it.seq.forEach(x=>{ if(!vals.includes(x)) out.push(s.id+': la respuesta '+JSON.stringify(x)+' no está en las opciones (ayuda '+aid+')'); });
+          if(!it.consume&&new Set(v.opts.map(o=>o.val)).size!==v.opts.length) out.push(s.id+': opciones repetidas'); }
+          if(!A.okMsgs||!A.okMsgs.length) out.push(s.id+': sin mensajes de proceso'); }catch(e){ out.push(s.id+': '+e.message); break; } } }
+      const conf=(a,b)=>a!==b&&((D.CONFUNDEN[a]||'').includes(b)||(D.CONFUNDEN[b]||'').includes(a));
+      for(const id of ['let_s1','let_s2']){ const s=by[id], A=ACTIVITIES[s.type];
+        for(let i=0;i<150;i++){ const it=A.make(s), ok=it.seq[0]; it.opts.forEach(o=>{ if(conf(ok,o.val)) out.push(id+': la respuesta '+ok+' junto a una letra que suena parecido: '+o.val); }); } }
+      return {n:S0.length,tipos:[...tipos].length,palabras:L.WORDS.length,errores:[...new Set(out)].slice(0,25)}; })()""")
+    igual(r["errores"], [], "problemas de contenido")
+    verificar(r["n"] >= 25 and r["n"] <= 32, "habilidades: %d" % r["n"]); igual(r["tipos"], 20, "tipos de actividad")
+    txt = pg.evaluate("JSON.stringify(Object.entries(Gioval.i18n.tablas['es-AR'].textos).filter(([k])=>k.startsWith('letras.')))").lower()
+    for malo in ("inteligente", "genio", "sos el mejor", "racha", "perdiste"):
+        verificar(malo not in txt, "texto no permitido: " + malo)
+    verificar(not err, str(err)); ctx.close(); return "%d habilidades, %d tipos, %d palabras con dibujo" % (r["n"], r["tipos"], r["palabras"])
+
+@prueba("Letras: migración de almacén v1 → v3 (idioma + intake) conserva todo")
+def t_letras_migracion(C):
+    v1 = {"version": 1, "profiles": ["Vale"], "stars": {}, "sk": {"Vale|n1": {"score": .9, "att": 7, "box": 1, "due": 5, "lvl": 1, "rec": [1], "mast": True, "last": 4}}, "days": {"Vale": ["2026-11-01"]},
+          "time": {}, "log": {}, "checks": {}, "extra": {}, "limit": {"Vale": 20}, "meta": {"ultimoRespaldo": 0, "guardado": 5, "desde": 5}}
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=v1, errores=err)
+    igual(pg.evaluate("store.version"), 3); igual(pg.evaluate("store.intake"), {}); igual(pg.evaluate("store.idioma"), {}); igual(pg.evaluate("store.sk"), v1["sk"], "progreso")
+    igual(pg.evaluate("store.profiles"), ["Vale"]); igual(pg.evaluate("store.limit"), {"Vale": 20})
+    verificar(not err, str(err)); ctx.close()
+
+NIVELES_EDAD = [   # (edad, letras, lee, nombre) -> tramo de arranque, primera habilidad a practicar, arranque del juego de ubicación
+    ((4, 1, "no", "copia"), 0, "let_v", 0), ((5, 2, "no", "copia"), 2, "let_c2", 2), ((6, 3, "silabas", "solo"), 3, "let_s2", 3),
+    ((7, 3, "frases", "solo"), 5, "let_rf1", 5), ((7, 0, "no", "no"), 0, "let_v", 3), ((4, 0, "no", "no"), 0, "let_v", 0), ((8, 3, "textos", "solo"), 6, "let_ora", 6)]
+
+@prueba("Letras: preguntas para adultos → punto de partida para edades 4, 5, 6 y 7 (y la edad sola no salta nada)")
+def t_letras_intake(C):
+    for k, (resp, niv, primera, ubic) in enumerate(NIVELES_EDAD):
+        ctx = C.banco.contexto("360x700"); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=82 + k); instalar_speak(pg); entrar(pg, "Vale")
+        abrir_isla(pg, "Letras")
+        verificar(pg.evaluate("document.getElementById('letOv').classList.contains('show')"), "no aparece la bienvenida para adultos")
+        if k == 0:
+            CAPTURAS.append(foto(pg, "360x700_60_letras_bienvenida"))
+        pg.click("#letOv [data-a=bienvenidaSi]"); pasar_gate(pg)
+        pg.click("#letOv [data-a=guardarIntake]"); verificar("Faltan respuestas" in pg.evaluate("document.getElementById('letFalta').innerText"), "debería pedir las 4 respuestas")
+        if k == 0:
+            CAPTURAS.append(foto(pg, "360x700_61_letras_intake"))
+        llenar_intake_let(pg, *resp)
+        igual(pg.evaluate("Gioval.letras.nivelDe(Gioval.letras.intakeDe(KID))"), niv, "tramo de arranque %s" % (resp,))
+        igual(pg.evaluate("Gioval.letras.arranqueUbic(Gioval.letras.intakeDe(KID))"), ubic, "arranque del juego de ubicación %s" % (resp,))
+        if k == 0:
+            CAPTURAS.append(foto(pg, "360x700_62_letras_intake_sugerido"))
+        pg.click("#letOv [data-a=usarPunto]"); pg.wait_for_timeout(120)
+        pack_letras(pg)
+        marcadas = pg.evaluate("Gioval.letras.SKILLS.filter(s=>SK(s.id).mast).map(s=>s.id)"); esperadas = pg.evaluate("Gioval.letras.SKILLS.filter(s=>s.nivel<%d).map(s=>s.id)" % niv)
+        igual(sorted(marcadas), sorted(esperadas), "habilidades marcadas como sabidas %s" % (resp,))
+        verificar(all(pg.evaluate("SK('%s').skip.estado==='pendiente'&&SK('%s').skip.por==='preguntas'" % (i, i)) for i in marcadas), "las marcadas deben quedar pendientes de comprobar")
+        igual(pg.evaluate("unlockedList().find(s=>!SK(s.id).mast).id"), primera, "primera habilidad a practicar %s" % (resp,))
+        verificar(not pg.evaluate("document.getElementById('letOv').classList.contains('show')"))
+        igual(pg.evaluate("store.intake['letras|Vale'].edad"), resp[0], "guardó la edad"); igual(pg.evaluate("store.intake['letras|Vale'].inicio.origen"), "preguntas")
+        pg.reload(); esperar_listo(pg); instalar_speak(pg); entrar(pg, "Vale"); abrir_isla(pg, "Letras")
+        verificar(not pg.evaluate("document.getElementById('letOv').classList.contains('show')"), "volvió a preguntar")
+        igual(pg.evaluate("store.intake['letras|Vale'].letras"), resp[1], "sobrevive a recargar")
+        verificar(not err, str(err)); ctx.close()
+    return "7 perfiles (edades 4 a 8); tramos de arranque 0,2,3,5,0,0,6"
+
+@prueba("Letras: juego de ubicación adaptativo con respuestas simuladas (sube, baja, para y no pasa de 16 preguntas)")
+def t_letras_ubicacion(C):
+    casos = [(2, (5, 0, "no", "no"), 2), (5, (6, 3, "silabas", "solo"), 5), (-1, (6, 3, "silabas", "solo"), 0), (7, (6, 3, "silabas", "solo"), 7), (3, (7, 0, "no", "no"), 3)]
+    detalle = []
+    for k, (conoce, resp, esperado) in enumerate(casos):
+        ctx = C.banco.contexto("360x700"); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=90 + k); instalar_speak(pg); entrar(pg, "Vale")
+        abrir_isla(pg, "Letras"); pg.click("#letOv [data-a=bienvenidaSi]"); pasar_gate(pg); llenar_intake_let(pg, *resp); pg.click("#letOv [data-a=jugarUbic]"); pg.wait_for_timeout(300)
+        igual(pg.evaluate("document.querySelector('.screen.active').id"), "act", "pantalla de juego")
+        if k == 1:
+            CAPTURAS.append(foto(pg, "360x700_63_letras_ubicacion"))
+            verificar(pg.evaluate("document.getElementById('btnActSkip').style.display==='none'"), "«Seguir» no debe verse en la ubicación")
+            verificar("No sé" in pg.evaluate("document.getElementById('actOpts').innerText"), "falta «No sé»")
+        n = jugar_ubicacion(pg, conoce)
+        pend = pg.evaluate("store.intake['letras|Vale'].ubicacionPend"); verificar(pend, "no guardó el resultado pendiente")
+        igual(pend["iniPropuesto"], esperado, "tramo propuesto (conoce hasta %s, respuestas %s)" % (conoce, resp))
+        verificar(3 <= pend["n"] <= 16, "preguntas: %d" % pend["n"]); igual(pend["n"], n, "preguntas contadas")
+        igual(pg.evaluate("Gioval.letras.SKILLS.filter(s=>SK(s.id).mast).length"), 0, "no se marcó nada antes de aceptar")
+        pasar_gate(pg); pg.wait_for_selector("#letOv.show"); txt = pg.evaluate("document.querySelector('#letOv .letCard').innerText")
+        verificar("Resultado del juego de ubicación" in txt and "Tramo 1" in txt, txt[:200])
+        final = esperado
+        if k == 1:
+            CAPTURAS.append(foto(pg, "360x700_64_letras_resumen"))
+            pg.click("#letOv [data-a=antes]"); verificar("tramo 5" in pg.evaluate("document.querySelector('#letOv .letProp').innerText"), "no ajustó a un tramo antes")
+            final = 4
+        pg.click("#letOv [data-a=aceptarUbic]"); pg.wait_for_timeout(120); pack_letras(pg)
+        ini = pg.evaluate("store.intake['letras|Vale'].inicio"); igual(ini["tramo"], final, "tramo aceptado")
+        igual(ini["origen"], "ajustado" if k == 1 else "ubicacion", "origen")
+        igual(pg.evaluate("Gioval.letras.SKILLS.filter(s=>SK(s.id).mast).length"), pg.evaluate("Gioval.letras.SKILLS.filter(s=>s.nivel<%d).length" % final), "habilidades marcadas")
+        verificar(pg.evaluate("!store.intake['letras|Vale'].ubicacionPend && !!store.intake['letras|Vale'].ubicacion"), "no limpió el pendiente")
+        detalle.append("conoce %s→tramo %d en %d preguntas" % (conoce, final, n)); verificar(not err, str(err)); ctx.close()
+    ctx = C.banco.contexto("740x330"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=99); instalar_speak(pg); entrar(pg, "Vale"); abrir_isla(pg, "Letras")
+    pg.click("#letOv [data-a=bienvenidaSi]"); pasar_gate(pg); llenar_intake_let(pg, 6, 3, "silabas", "solo"); pg.click("#letOv [data-a=jugarUbic]"); pg.wait_for_timeout(300)
+    CAPTURAS.append(foto(pg, "740x330_63_letras_ubicacion"))
+    jugar_ubicacion(pg, 4); pasar_gate(pg); pg.wait_for_selector("#letOv.show")
+    CAPTURAS.append(foto(pg, "740x330_64_letras_resumen"))
+    pg.click("#letOv [data-a=descartarUbic]"); pg.wait_for_timeout(100); pack_letras(pg)
+    igual(pg.evaluate("Gioval.letras.SKILLS.filter(s=>SK(s.id).mast).length"), 0, "descartar no debe marcar nada")
+    verificar(pg.evaluate("!store.intake['letras|Vale'].ubicacionPend"), "descartar limpia el pendiente")
+    verificar(not err, str(err)); ctx.close()
+    return "; ".join(detalle)
+
+@prueba("Letras: sesión completa de una habilidad con dominio y desbloqueo (sin rachas ni elogio a la persona)")
+def t_letras_sesion(C):
+    for v in ("pixel7", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=110); instalar_speak(pg); entrar(pg, "Vale"); entrar_letras(pg)
+        tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(400)
+        igual(pg.evaluate("document.querySelector('.screen.active').id"), "act")
+        CAPTURAS.append(foto(pg, v + "_65_letras_actividad"))
+        verificar(jugar(pg, cada_error=4) == "fin"); cerrar_fin(pg)
+        for _ in range(6):
+            pack_letras(pg)
+            if pg.evaluate("SK('let_v').mast"): break
+            pasar_sesiones(pg, "Letras", 1, perfecto=True)
+        pack_letras(pg)
+        verificar(pg.evaluate("SK('let_v').mast"), "let_v no quedó dominada")
+        desbloq = pg.evaluate("unlockedList().map(s=>s.id)"); verificar("let_c1" in desbloq or pg.evaluate("SK('let_c1').mast"), "no se abrió let_c1: %s" % desbloq)
+        ses = pg.evaluate("window.__LOG.concat(window.__BUB).join(' | ')").lower()
+        for malo in ("inteligente", "genio", "racha"): verificar(malo not in ses, "texto no permitido en la sesión: " + malo)
+        verificar(not err, "%s: %s" % (v, err)); ctx.close()
+
+@prueba("Letras: una actividad de cada tipo se ve bien (capturas 360x700 y 740x330), no se desborda y se juega sin errores")
+def t_letras_tipos(C):
+    tipos = [("let_v", "lname"), ("let_s1", "lsound"), ("let_p1", "lpic"), ("let_cs1", "lcount"), ("let_ri1", "lrhyme"), ("let_sil", "lsyl"), ("let_arm", "lbuild"),
+             ("let_f2", "lmissing"), ("let_ms", "lcase"), ("let_sp", "lsplit"), ("let_nom", "lnombre"), ("let_rs", "lrsyl"), ("let_rp1", "lrword"), ("let_rf1", "lrphrase"),
+             ("let_abc1", "labc"), ("let_comp2", "lcomp"), ("let_ora", "lorden"), ("let_tr", "lcluster"), ("let_ort", "lbien"), ("let_abc2", "lalfa")]
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=120); instalar_speak(pg); entrar(pg, "Vale"); pack_letras(pg)
+        for sid, tipo in tipos:
+            igual(pg.evaluate("Gioval.letras.SKILLS.find(s=>s.id==='%s').type" % sid), tipo, sid)
+            pg.evaluate("""(sid)=>{ const s=Gioval.letras.SKILLS.find(x=>x.id===sid); const A=ACTIVITIES[s.type]; const it=A.make(s); S.run++; S.check=false; S.hint=0; S.session=null; entrarToques(s.name); window.__fin=null; S.onDone=r=>{ window.__fin=r; }; A.jugar(S.run,it,null); }""", sid)
+            pg.wait_for_timeout(120); CAPTURAS.append(foto(pg, "%s_66_letras_tipo_%s" % (v, tipo)))
+            sobra = pg.evaluate("""(()=>{ const vw=innerWidth, vh=innerHeight, mal=[]; document.querySelectorAll('#actStage *, #actOpts .opt').forEach(e=>{ const r=e.getBoundingClientRect(); if(r.width&&(r.right>vw+1||r.left<-1||r.bottom>vh+1)) mal.push(e.className+':'+Math.round(r.right)+','+Math.round(r.bottom)); }); return mal.slice(0,3); })()""")
+            igual(sobra, [], "%s se sale de la pantalla en %s" % (tipo, v))
+            for _ in range(40):   # se juega con las respuestas correctas hasta que el ítem termina
+                if pg.evaluate("window.__fin"): break
+                t = pg.evaluate(JS_TOQUES)
+                if not t: pg.wait_for_timeout(30); continue
+                ok = [i for i, x in enumerate(t["vals"]) if x == t["w"] and t["ids"][i] not in t["used"] and x not in t["dead"]]
+                pg.evaluate("(()=>{var T=S.tap; window.__ref=[T.it,T.pos,T.miss,T.used.size,T.dead.size]; })()")
+                pg.click(".opt[data-i='%d']" % ok[0], force=True)
+                try: pg.wait_for_function("(function(){var T=S.tap,r=window.__ref; return !T||window.__fin||S.mode!=='play'||T.it!==r[0]||T.pos!==r[1]||T.miss!==r[2]||T.used.size!==r[3]||T.dead.size!==r[4];})()", timeout=2500, polling=15)
+                except Exception: pass
+            fin = pg.evaluate("window.__fin"); verificar(fin and fin.get("miss") == 0, "%s no terminó bien en %s: %s" % (tipo, v, fin))
+        verificar(not err, "%s: %s" % (v, err)); ctx.close()
+    return "20 tipos en 2 tamaños"
+
+@prueba("Salto por dominio rápido (motor genérico): criterios, salto de la siguiente, chequeo que confirma o devuelve a práctica")
+def t_salto(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=130); instalar_speak(pg); entrar(pg, "Vale"); entrar_letras(pg); pack_letras(pg)
+    r = pg.evaluate("""(()=>{ const sk={id:'x1',rapido:{rt:3000,salta:[]},name:'X'}; const D=Gioval.dominio; const log=store.log[KID]=[]; const out={};
+      const poner=(arr)=>{ log.length=0; arr.forEach(([f,r])=>log.push({s:'x1',k:'learn',f,o:f,rt:r})); };
+      const rep=(n,fn)=>Array.from({length:n},(_, i)=>fn(i+1)); const ok=()=>D.evaluar(sk).cumple;
+      poner(rep(10,()=>[1,1800])); out.rapida=ok();
+      poner(rep(10,i=>i===3?[0,null]:[1,1800])); out.un_error_de_10=ok();
+      poner(rep(10,i=>i<=2?[0,null]:[1,1800])); out.dos_errores_de_10=ok();
+      poner(rep(10,()=>[1,4200])); out.lenta=ok();
+      poner(rep(5,()=>[1,1000])); out.pocos_intentos=ok();
+      poner(rep(6,i=>[1,i<=3?1000:null])); out.pocos_tiempos=ok();
+      poner(rep(10,i=>[1,i%2?1000:5000])); out.mediana_justa=ok();
+      poner(rep(10,()=>[1,1800])); out.sin_umbral=D.evaluar({id:'x1',name:'X'}).cumple;
+      out.med=D.mediana([5,1,3,2]); store.log[KID]=[]; return out; })()""")
+    igual(r, {"rapida": True, "un_error_de_10": True, "dos_errores_de_10": False, "lenta": False, "pocos_intentos": False, "pocos_tiempos": False, "mediana_justa": False, "sin_umbral": False, "med": 3}, "criterios de rapidez (la mediana tiene que ser MENOR que el umbral)")
+    for _ in range(8):
+        pasar_sesiones(pg, "Letras", 1, perfecto=True); pack_letras(pg)
+        if pg.evaluate("SK('let_v').mast"): break
+    verificar(pg.evaluate("SK('let_v').mast"), "let_v no se dominó")
+    sk = pg.evaluate("SK('let_c1')"); verificar(sk["mast"] and sk["skip"]["estado"] == "pendiente" and sk["skip"]["por"] == "rapido", "let_c1 no quedó saltada: %s" % sk)
+    igual(sk["skip"]["de"], "let_v"); verificar(sk["skip"]["ev"]["n"] >= 6 and sk["skip"]["ev"]["aciertos"] / sk["skip"]["ev"]["n"] >= .9, sk["skip"]["ev"])
+    rt = pg.evaluate("store.log.Vale.filter(e=>e.s==='let_v'&&e.k==='learn'&&typeof e.rt==='number').length"); verificar(rt >= 5, "el registro debe guardar el tiempo de respuesta (rt): %d" % rt)
+    verificar(pg.evaluate("!SK('let_v').skip"), "la que se domina por práctica no es 'saltada'")
+    verificar(pg.evaluate("!SK('let_s1').skip"), "no debe encadenar saltos: una saltada no dispara otra")
+    rep = pg.evaluate("reportText()"); verificar("Saltada por dominio rápido de" in rep and "Tiempo de respuesta (mediana" in rep and "HABILIDADES SALTADAS" in rep, rep[:900])
+    pg.evaluate("window.__OFF=8*864e5"); abrir_isla(pg, "Letras"); tarjeta(pg, "Chequeo semanal")
+    items = pg.evaluate("S.session.items.map(i=>i.skill.id)"); verificar("let_c1" in items, "el chequeo no incluye la saltada: %s" % items)
+    verificar(jugar(pg, perfecto=True) == "fin"); cerrar_fin(pg); pack_letras(pg)
+    sk = pg.evaluate("SK('let_c1')"); igual(sk["skip"]["estado"], "confirmada", "tras acertar en el chequeo"); verificar(sk["mast"])
+    verificar("CONFIRMADA en el chequeo" in pg.evaluate("reportText()"), "el informe no dice que se confirmó")
+    pg.evaluate("(()=>{ SK('let_c1').skip.estado='pendiente'; save(); })()"); pg.evaluate("window.__OFF=16*864e5")
+    abrir_isla(pg, "Letras"); tarjeta(pg, "Chequeo semanal"); verificar("let_c1" in pg.evaluate("S.session.items.map(i=>i.skill.id)"))
+    verificar(jugar(pg, cada_error=1) == "fin"); cerrar_fin(pg); pack_letras(pg)
+    sk = pg.evaluate("SK('let_c1')"); igual(sk["mast"], False, "debería volver a práctica"); igual(sk["skip"]["estado"], "revertida")
+    verificar("VOLVIÓ A PRÁCTICA" in pg.evaluate("reportText()"), "el informe no dice que volvió a práctica")
+    verificar(pg.evaluate("unlockedList().some(s=>s.id==='let_c1')"), "let_c1 vuelve a estar para practicar")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("Salto por dominio rápido: NO se salta si falla seguido o si es lento, y Música/Números no se ven afectados")
+def t_salto_no(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=131); instalar_speak(pg); entrar(pg, "Vale"); entrar_letras(pg); pack_letras(pg)
+    for _ in range(3):   # con errores seguidos nunca alcanza el 90 %
+        pasar_sesiones(pg, "Letras", 1, cada_error=2); pack_letras(pg)
+    verificar(pg.evaluate("!SK('let_c1').skip && !SK('let_c1').mast"), "se saltó con errores")
+    verificar(pg.evaluate("!Gioval.dominio.evaluar(Gioval.letras.SKILLS.find(s=>s.id==='let_v')).cumple"), "con errores no puede ser rápida")
+    ctx.close()
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=132); instalar_speak(pg); entrar(pg, "Vale"); entrar_letras(pg); pack_letras(pg)
+    pg.evaluate("Gioval.letras.SKILLS.find(s=>s.id==='let_v').rapido.rt=-1")   # umbral imposible = «lento»
+    for _ in range(6):
+        pasar_sesiones(pg, "Letras", 1, perfecto=True); pack_letras(pg)
+        if pg.evaluate("SK('let_v').mast"): break
+    verificar(pg.evaluate("SK('let_v').mast"), "let_v no se dominó"); verificar(pg.evaluate("!SK('let_c1').skip && !SK('let_c1').mast"), "se saltó siendo lento")
+    # Música no declara umbral: jamás salta nada (Números sí tiene el suyo, con sus propias pruebas)
+    igual(pg.evaluate("PACKS.find(p=>p.id==='musica').skills.filter(s=>s.rapido).length"), 0, "Música no declara umbral")
+    pasar_sesiones(pg, "Música", 2, perfecto=True)
+    igual(pg.evaluate("PACKS.find(p=>p.id==='musica').skills.filter(s=>SK(s.id).skip).length"), 0, "no debe haber saltos en Música")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("Letras: informe para adultos con evidencia (aciertos, tiempo, retención ≥1 día) y lo que se saltó y por qué")
+def t_letras_informe(C):
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_LET, errores=err, semilla=140); instalar_speak(pg); entrar(pg, "Vale"); abrir_isla(pg, "Letras")
+        pg.click("#letOv [data-a=bienvenidaSi]"); pasar_gate(pg); llenar_intake_let(pg, 5, 2, "no", "copia"); pg.click("#letOv [data-a=usarPunto]"); pg.wait_for_timeout(100); pack_letras(pg)
+        for dia in range(3):
+            pg.evaluate("window.__OFF=%d*864e5" % (dia * 2)); pasar_sesiones(pg, "Letras", 1, perfecto=True)
+        pg.evaluate("window.__OFF=7*864e5")
+        abrir_isla(pg, "Letras"); tarjeta(pg, "Informe para adultos"); pasar_gate(pg); pg.wait_for_selector("#letOv.show")
+        txt = pg.evaluate("document.getElementById('letPre').innerText")
+        for esperado in ("INFORME DE LETRAS — VALE", "Respuestas de los adultos", "5 años", "Punto de partida: tramo 3", "HABILIDADES", "Aciertos al primer intento", "Retención", "Saltada según las preguntas para adultos", "SALTOS:", "Cómo leerlo"):
+            verificar(esperado in txt, "falta «%s» en el informe:\n%s" % (esperado, txt[:1800]))
+        CAPTURAS.append(foto(pg, v + "_67_letras_informe"))
+        verificar(not err, "%s: %s" % (v, err)); ctx.close()
+    return txt.split("\n")[0]
 # ---------------------------------------------------------------- Misiones reales + Álbum de logros reales
 import unicodedata
 # Lista PROPIA de la prueba (independiente de la que usa la app): fuego/calor, filo y corte, químicos del hogar, electricidad de red, resina/epoxi/solventes
@@ -949,7 +1232,7 @@ def t_mis_idiomas(C):
             def ver(nombre):
                 pg.wait_for_timeout(120); r[nombre] = pg.evaluate(JS_DESBORDES)
                 if idioma != "es-AR": CAPTURAS.append(foto(pg, "%s_%s_mis_%s" % (v, idioma, nombre)))
-            pg.click("#islands .island >> nth=2"); pg.wait_for_timeout(120); ver("1_menu")
+            pg.click("#islands .island >> nth=3"); pg.wait_for_timeout(120); ver("1_menu")   # Misiones (después de Música, Números y Letras)
             pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(120); ver("2_lista")
             pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150); ver("3_aviso")
             mis_hasta(pg, "materiales"); ver("4_materiales"); mis_hasta(pg, "antes"); ver("5_prediccion")
@@ -1028,10 +1311,11 @@ def t_i18n_cadena(C):
 def t_i18n_completitud(C):
     ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
     T = tablas(pg); es, en = T["es-AR"], T["en"]
+    # Letras enseña a leer en español: sus textos (claves "letras.*") viven solo en es-AR y no tienen tabla en otros idiomas
     usadas = set()
     for f in list((APP / "js" / "core").rglob("*.js")) + list((APP / "js" / "islas").rglob("*.js")) + list((APP / "js" / "datos").rglob("*.js")):
         txt = f.read_text(encoding="utf-8")
-        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros|misiones|ritmo)\.[a-z0-9_.]+)"', txt))
+        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros|letras|dominio|misiones|ritmo)\.[a-z0-9_.]+)"', txt))
     for f in [APP / "index.html"] + list((APP / "js" / "islas").rglob("*.js")):
         usadas |= set(re.findall(r'data-i18n(?:-html|-title|-placeholder)?="([^"]+)"', f.read_text(encoding="utf-8")))
     dinam = [k for k in usadas if k.endswith(".") or k.endswith("_")]
@@ -1039,9 +1323,9 @@ def t_i18n_completitud(C):
     faltan = sorted(k for k in usadas if k not in es); verificar(not faltan, "claves usadas que no están en es-AR: %s" % faltan)
     # claves dinámicas: habilidades y canciones
     din = pg.evaluate("PACKS.flatMap(p=>p.skills.map(s=>s.name)).concat(SKILLS_DUMMY=0?[]:[])")
-    verificar(all(not n.startswith(("musica.", "numeros.")) for n in din), "habilidad sin traducir: %s" % din)
+    verificar(all(not n.startswith(("musica.", "numeros.", "letras.")) for n in din), "habilidad sin traducir: %s" % din)
     verificar(not pg.evaluate("[...Gioval.i18n.faltantes]"), "claves faltantes: %s" % pg.evaluate("[...Gioval.i18n.faltantes]"))
-    igual(sorted(en), sorted(es), "en tiene que tener EXACTAMENTE las claves de es-AR")
+    igual(sorted(en), sorted(k for k in es if not k.startswith("letras.")), "en tiene que tener EXACTAMENTE las claves de es-AR (menos las de Letras, que enseña español)")
     for c in ("es-419", "es-ES"):
         extra = sorted(set(T[c]) - set(es)); verificar(not extra, "%s tiene claves que es-AR no tiene: %s" % (c, extra))
     P = lambda c, k: sorted({x for v in (T[c][k] if isinstance(T[c][k], list) else [T[c][k]]) if isinstance(v, str) for x in pg.evaluate("s=>Gioval.i18n.parametros(s)", v)})
@@ -1086,7 +1370,7 @@ def t_ingles(C):
     verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change", "botón Cambiar")
     entrar(pg, "Vale")
     islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n').slice(1).join('|'))")
-    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Missions Island|Real things!", "Rhythm Island|Let's keep the beat!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
+    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Isla Letras|¡A jugar con las letras!", "Missions Island|Real things!", "Rhythm Island|Let's keep the beat!", "Animals Island|Soon"], "mapa en inglés")
     foto(pg, "pixel7_60_ingles_mapa"); CAPTURAS.append("pixel7_60_ingles_mapa.png")
     abrir_isla(pg, "Music"); tarjeta(pg, "Today"); pg.wait_for_timeout(400)
     labels = pg.evaluate("[...document.querySelectorAll('.key span')].map(s=>s.textContent).join('')")
@@ -2377,12 +2661,12 @@ def t_ay_no_toca(C):
     res = {}
     for nombre, ruta in (("anterior", "/legacy/index.html"), ("nueva", "/index.html")):
         ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + ruta, store=STORE_KID, errores=C.err if nombre == "nueva" else None, semilla=5); instalar_speak(pg); entrar(pg, "Vale")
-        r = {"mapa": ay_texto(pg, "#islands").replace("🧭\nIsla Misiones\n¡Cosas de verdad!\n", "").replace("🥁\nIsla Ritmo\n¡A marcar el ritmo!\n", "")}   # Misiones y Ritmo (otras ramas) son lo único que se suma al mapa
+        r = {"mapa": ay_texto(pg, "#islands").replace("🧭\nIsla Misiones\n¡Cosas de verdad!\n", "").replace("🥁\nIsla Ritmo\n¡A marcar el ritmo!\n", "").replace("🔤\nIsla Letras\n¡A jugar con las letras!\n", "").replace("🔒\nIsla Letras\nPronto\n", "")}   # Letras, Misiones y Ritmo (otras ramas) son lo único que se suma al mapa
         for isla in ("Música", "Números"): abrir_isla(pg, isla); r["menu " + isla] = ay_texto(pg, "#musicMenu,#menuIslaItems")
         res[nombre] = r; ctx.close()
     igual(res["nueva"], res["anterior"], "textos del mapa y de los menús")
-    ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "misiones", "ritmo"], "Ayudantes no es una isla de aprendizaje (Misiones es la otra isla sin habilidades)")
-    igual(pg.evaluate("Gioval.islas.habilidades().filter(s=>!s.id.startsWith('rit_')).length"), 38, "habilidades (Música 7 + Números 31 desde Números por edades; Ritmo suma las suyas)")
+    ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "letras", "misiones", "ritmo"], "Ayudantes no es una isla de aprendizaje (Misiones es la otra isla sin habilidades)")
+    igual(pg.evaluate("Gioval.islas.habilidades().filter(s=>!s.id.startsWith('rit_')).length"), 68, "habilidades (Música 7 + Números 31 + Letras 30; Ritmo suma las suyas)")
     for isla in ("Música", "Números"):    # al llegar al tope en cualquier isla, el flujo anterior sigue igual: "¡Chau, zorro!" cierra y vuelve al menú
         llegar_al_tope(pg, isla); pg.click("#capOk"); pg.wait_for_timeout(120)
         igual(pg.evaluate("document.querySelector('.screen.active').id"), "menuIsla", isla)
