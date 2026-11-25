@@ -77,7 +77,7 @@ def t_arranque(C):
         ctx = C.banco.contexto(v); err = []
         pg = abrir(ctx, C.url + "/index.html", errores=err)
         verificar(pg.evaluate("document.getElementById('nameBox').classList.contains('show')"), "no pide el nombre (%s)" % v)
-        igual(pg.evaluate("store.version"), 3, "store.version"); igual(pg.evaluate("store.intake"), {}, "store.intake")
+        igual(pg.evaluate("store.version"), 4, "store.version"); igual(pg.evaluate("store.intake"), {}, "store.intake")
         verificar(not err, "errores en %s: %s" % (v, err))
         foto(pg, v + "_00_nombre"); CAPTURAS.append(v + "_00_nombre.png"); ctx.close()
 
@@ -100,6 +100,90 @@ def t_mapa(C):
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.replace(/\\n/g,'|')+(x.classList.contains('off')?'|off':''))")
         igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🔤|Isla Letras|¡A jugar con las letras!", "🧭|Isla Misiones|¡Cosas de verdad!", "🥁|Isla Ritmo|¡A marcar el ritmo!", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
         foto(pg, v + "_02_mapa"); CAPTURAS.append(v + "_02_mapa.png"); ctx.close()
+
+# ---------------------------------------------------------------- tablets
+# Revisión de una pantalla: sin desborde horizontal, nada tocable cortado por la pantalla (salvo dentro de una lista que se desplaza),
+# y todo lo tocable de al menos 48 px CSS de ancho y de alto.
+JS_TABLET = r"""(()=>{
+ const vw=innerWidth, vh=innerHeight, out=[];
+ const sel='button,a[href],input,select,textarea,summary,[role=button],.key,.opt,.island,.song,.mis-chip,.mis-mat,.ayCard';
+ const vis=e=>{ for(let d=e.closest('details');d;d=d.parentElement&&d.parentElement.closest('details')){ if(!d.open&&!(e.closest('summary')&&e.closest('summary').parentElement===d)) return false; } const cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden'||cs.pointerEvents==='none') return false; const r=e.getBoundingClientRect(); if(r.width<1||r.height<1) return false;
+   for(let p=e;p&&p!==document.body;p=p.parentElement){ const c=getComputedStyle(p); if(c.display==='none'||c.visibility==='hidden'||(c.opacity==='0')) return false; } return true; };
+ const scrollAnc=e=>{ for(let p=e.parentElement;p&&p!==document.body;p=p.parentElement){ const c=getComputedStyle(p); if(/(auto|scroll)/.test(c.overflowY)&&p.scrollHeight>p.clientHeight+1) return p; } return null; };
+ const name=e=>(e.id?'#'+e.id:'')+(e.className&&typeof e.className==='string'?'.'+e.className.trim().split(/\s+/).join('.'):'')||e.tagName;
+ if(document.documentElement.scrollWidth>vw+1||document.body.scrollWidth>vw+1) out.push('desborde horizontal '+document.documentElement.scrollWidth+'>'+vw);
+ document.querySelectorAll(sel).forEach(e=>{
+   if(!vis(e)) return; if(e.type==='file'||e.type==='checkbox'&&false) return;
+   const r=e.getBoundingClientRect();
+   if(e.closest('.aviso')&&!document.getElementById('avisoVersion').classList.contains('show')) return;
+   if(r.width<47.5||r.height<47.5){ if(!(e.tagName==='INPUT'&&e.type==='checkbox'&&e.closest('label'))) out.push('chico '+name(e)+' '+Math.round(r.width)+'x'+Math.round(r.height)); }
+   const sa=scrollAnc(e);
+   if(!sa&&(r.right>vw+1||r.left<-1||r.bottom>vh+1||r.top<-1)) out.push('cortado '+name(e)+' '+[r.left,r.top,r.right,r.bottom].map(Math.round));
+   if(sa){ const c=sa.getBoundingClientRect(); if(r.right>c.right+1||r.left<c.left-1) out.push('cortado en lateral '+name(e)); }
+ });
+ return out;
+})()"""
+
+def revisar_tablet(pg, donde, mal):
+    pg.wait_for_timeout(120)
+    for m in pg.evaluate(JS_TABLET): mal.append("%s: %s" % (donde, m))
+
+@prueba("tablets (768x1024, 820x1180, 1024x768, 1280x800): mapa, menú de cada isla y una actividad por isla sin desborde, sin cortes y con toques de 48 px")
+def t_tablets(C):
+    for v in Banco.TABLETS:
+        ctx = C.banco.contexto(v); err = []; mal = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=5, congelar=True); instalar_speak(pg)
+        pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
+        pg.evaluate("renderWho(); show('who')"); revisar_tablet(pg, v + " quién juega", mal); CAPTURAS.append(foto(pg, v + "_90_tablet_quien"))
+        entrar(pg, "Vale"); revisar_tablet(pg, v + " mapa", mal); CAPTURAS.append(foto(pg, v + "_91_tablet_mapa"))
+        # el mapa aprovecha la pantalla: tarjetas grandes, emoji grande y las filas llegan por lo menos a la mitad del alto
+        g = pg.evaluate("""(()=>{ const c=[...document.querySelectorAll('#islands .island')].map(b=>b.getBoundingClientRect()); const e=parseFloat(getComputedStyle(document.querySelector('#islands .island .em')).fontSize);
+          return {ancho:Math.min(...c.map(r=>r.width)), alto:Math.min(...c.map(r=>r.height)), fondo:Math.max(...c.map(r=>r.bottom)), emoji:e, vh:innerHeight, cols:new Set(c.map(r=>Math.round(r.left))).size}; })()""")
+        verificar(g["alto"] >= 180 and g["emoji"] >= 84 and g["fondo"] >= g["vh"] * 0.55, "%s: el mapa no aprovecha la pantalla %s" % (v, g))
+        verificar(g["cols"] in (3, 4), "%s: columnas del mapa %s" % (v, g))
+        for isla in ("Música", "Números", "Letras", "Misiones", "Ritmo"):
+            abrir_isla(pg, isla)
+            if isla == "Letras" and pg.evaluate("document.getElementById('letOv').classList.contains('show')"): pg.click("#letOv [data-a=cerrar]"); pg.wait_for_timeout(80)
+            revisar_tablet(pg, "%s menú %s" % (v, isla), mal)
+            if isla == "Música": CAPTURAS.append(foto(pg, v + "_92_tablet_menu_musica"))
+            if isla == "Misiones":
+                pg.click("#menuIslaItems .island:has-text('Elegir')"); pg.wait_for_timeout(150); revisar_tablet(pg, v + " misiones lista", mal)
+                pg.click(".mis-card >> nth=0"); pg.wait_for_timeout(200); revisar_tablet(pg, v + " misión", mal); CAPTURAS.append(foto(pg, v + "_93_tablet_mision"))
+            else:
+                tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(700); revisar_tablet(pg, "%s actividad %s" % (v, isla), mal); CAPTURAS.append(foto(pg, "%s_94_tablet_actividad_%s" % (v, isla)))
+            ir_mapa(pg)
+        abrir_isla(pg, "Números"); pg.click(".island:has-text('Mis logros')"); pg.wait_for_timeout(200); revisar_tablet(pg, v + " logros", mal); ir_mapa(pg)
+        abrir_isla(pg, "Música"); tarjeta(pg, "Mis canciones"); revisar_tablet(pg, v + " canciones", mal); ir_mapa(pg)
+        pg.evaluate("document.getElementById('letOv').classList.remove('show')")
+        abrir_panel(pg); revisar_tablet(pg, v + " panel de adultos", mal); pg.evaluate("document.getElementById('panel').classList.remove('show')")
+        # Ritmo: lectura con tarjetas y composición con paleta (las dos pantallas más cargadas de la isla)
+        for sid, fase, tag in (("rit_lee2", "turno", "lectura"), ("rit_compone", "componer", "componer")):
+            abrir_isla(pg, "Ritmo"); solo_habilidad(pg, sid); tarjeta(pg, "Sesión de hoy"); esperar_fase(pg, fase); pg.wait_for_timeout(500)
+            revisar_tablet(pg, "%s ritmo %s" % (v, tag), mal); CAPTURAS.append(foto(pg, "%s_95_tablet_ritmo_%s" % (v, tag)))
+            pg.evaluate("S.run++; resetFlow(); goMenuIsla()")
+        # Misiones: el recorrido completo de un experimento, paso a paso
+        ir_mapa(pg); abrir_isla(pg, "Misiones"); pg.click("#menuIslaItems .island:has-text('Elegir')"); pg.wait_for_timeout(100)
+        pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150); revisar_tablet(pg, v + " misión aviso", mal)
+        pg.click("#misAcc .btn:last-child"); revisar_tablet(pg, v + " misión materiales", mal)
+        for k in range(pg.locator("#misCont .mis-mat").count()): pg.click("#misCont .mis-mat >> nth=%d" % k)
+        pg.click("#misTodo"); revisar_tablet(pg, v + " misión predicción", mal)
+        pg.click("#misCont .mis-chip >> nth=0"); pg.click("#misAcc .btn")
+        for k in range(2): pg.click("#misAcc .btn:last-child")
+        revisar_tablet(pg, v + " misión hacer", mal)
+        while mis_paso(pg) == "hacer": pg.click("#misAcc .btn:last-child"); pg.wait_for_timeout(40)
+        pg.click("#misCont .mis-chip >> nth=1"); revisar_tablet(pg, v + " misión qué pasó", mal); pg.click("#misAcc .btn")
+        pg.fill("#misCont textarea[data-in=porque]", "porque"); pg.click("#misAcc .btn:has-text('explicación')"); revisar_tablet(pg, v + " misión por qué", mal); pg.click("#misAcc .btn:last-child")
+        pg.fill("#misCont textarea[data-in=frase]", "El del sol"); pg.click("#misCont [data-res=distinto]"); revisar_tablet(pg, v + " misión registro", mal)
+        pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'"); revisar_tablet(pg, v + " misión fin", mal)
+        pg.click("#misAcc .btn:has-text('álbum')"); pg.wait_for_timeout(250); revisar_tablet(pg, v + " álbum", mal); CAPTURAS.append(foto(pg, v + "_96_tablet_album"))
+        # Hora de ayudantes (aparece al llegar al tope diario): tope, lista, detalle, cronómetro, tiempo cumplido y fin
+        llegar_al_tope(pg, directo=True); revisar_tablet(pg, v + " tope diario", mal); pg.click("#capAyud"); pg.wait_for_timeout(100); revisar_tablet(pg, v + " ayudantes lista", mal)
+        pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(80); revisar_tablet(pg, v + " ayudantes detalle", mal)
+        pg.click("[data-a='empezar']"); pg.wait_for_timeout(120); revisar_tablet(pg, v + " ayudantes cronómetro", mal)
+        pg.evaluate("window.__OFF=400000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(120); revisar_tablet(pg, v + " ayudantes tiempo", mal)
+        pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); revisar_tablet(pg, v + " ayudantes fin", mal)
+        verificar(not err, "%s: %s" % (v, err)); verificar(not mal, "tablet: " + "; ".join(mal[:8])); ctx.close()
+    return "4 tamaños, 5 islas (menú + actividad), Ritmo lectura/composición, misión completa, Hora de ayudantes, logros, canciones y panel de adultos"
 
 # ---------------------------------------------------------------- islas
 def pasar_sesiones(pg, isla, n, cada_error=0, perfecto=False):
@@ -214,7 +298,7 @@ def t_migracion(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 3, "version"); igual(nuevo["intake"], {}, "intake nuevo")
+    igual(nuevo["version"], 4, "version"); igual(nuevo["intake"], {}, "intake nuevo")
     for k in ("profiles", "stars", "sk", "days", "time", "log", "extra", "limit"):
         igual(nuevo[k], viejo[k], "campo " + k)
     esperado = json.loads(json.dumps(viejo["checks"])); esperado["Valentino"][0]["p"] = "musica"
@@ -225,7 +309,7 @@ def t_migracion(C):
     igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
     entrar(pg, "Valentino"); abrir_isla(pg, "Música"); txt = pg.evaluate("document.getElementById('menuIslaItems').innerText")
     verificar("Sesión de hoy" in txt); verificar(not err, str(err)); ctx.close()
-    return "versión 0 → 3, %d claves de progreso intactas" % len(viejo["sk"])
+    return "versión 0 → 4, %d claves de progreso intactas" % len(viejo["sk"])
 
 @prueba("migración: si falla, no se pierde nada")
 def t_migracion_falla(C):
@@ -365,6 +449,104 @@ def t_alarma3(C):
     pg.wait_for_timeout(1500); igual(pg.evaluate("window.__not"), [["Fin", "Listo"]], "notificación vía service worker")
     verificar(not err, str(err)); ctx.close()
 
+# ---------------------------------------------------------------- alarma nativa (envoltorio Android)
+JS_PLUGIN_NATIVO = """
+  window.__nat=[]; window.__perm='prompt';
+  var est=function(){ return {sdk:34,exacta:false,notificaciones:window.__perm==='granted',permisoNotificaciones:window.__perm,pantallaCompleta:true,sinRestriccionBateria:false}; };
+  window.Capacitor={Plugins:{
+    GiovalAlarma:{
+      programar:function(o){ window.__nat.push(['programar',o]); return Promise.resolve({exacta:true}); },
+      cancelar:function(o){ window.__nat.push(['cancelar',o]); return Promise.resolve(); },
+      detener:function(){ window.__nat.push(['detener']); return Promise.resolve(); },
+      estado:function(){ return Promise.resolve(est()); },
+      pedirNotificaciones:function(){ window.__nat.push(['pedirNotificaciones']); window.__perm='granted'; return Promise.resolve(est()); },
+      abrirAjustes:function(o){ window.__nat.push(['abrirAjustes',o.tipo]); return Promise.resolve(); },
+      mantenerPantalla:function(o){ window.__nat.push(['pantalla',o.activo]); return Promise.resolve(); }
+    },
+    App:{ addListener:function(n,f){ window.__back=f; return Promise.resolve({remove:function(){}}); }, minimizeApp:function(){ window.__nat.push(['minimizar']); return Promise.resolve(); } }
+  }};
+"""
+
+@prueba("alarma nativa: fuera del envoltorio (navegador, PWA, o solo LocalNotifications) el puente NO cambia nada")
+def t_nativa_sin_capacitor(C):
+    for init in (None, "window.Capacitor={Plugins:{LocalNotifications:{schedule:function(){},cancel:function(){}}}};"):
+        ctx = C.banco.contexto("360x700"); err = []
+        pg = abrir(ctx, C.url + "/index.html", errores=err, extra_init=init)
+        igual(pg.evaluate("[Gioval.alarmaNativa.activa, Gioval.envoltorio.activo]"), [False, False], "el puente se activó sin el plugin nativo")
+        igual(pg.evaluate("'serviceWorker' in navigator"), True, "no hay que tocar el service worker en la web")
+        igual(pg.evaluate("!!document.getElementById('nativaPanel')"), False, "sección nativa en el panel sin envoltorio")
+        verificar(not pg.evaluate("Alarma.programar.toString().includes('pantalla()')"), "Alarma.programar fue envuelta sin el envoltorio")
+        # la alarma web sigue funcionando igual
+        pg.evaluate("window.__fin=[]; Alarma.onFin(function(i){ window.__fin.push(i); }); Alarma.programar(60,{titulo:'T'}); 0")
+        verificar(58 <= pg.evaluate("Alarma.restante()") <= 60, "restante"); pg.evaluate("window.__OFF=61000; Alarma._revisar()")
+        igual(pg.evaluate("window.__fin.length"), 1, "no disparó"); verificar(not err, str(err)); ctx.close()
+    # los archivos del puente están en index.html y en la precarga del service worker (ya lo exige también la prueba "sw")
+    html = (APP / "index.html").read_text(encoding="utf-8"); F = lista_sw()
+    for f in ("js/core/alarma_nativa.js", "js/core/envoltorio.js"):
+        verificar('<script src="%s">' % f in html and f in F, "falta registrar " + f)
+    verificar(html.index("js/core/alarma.js") < html.index("js/core/alarma_nativa.js"), "alarma_nativa.js tiene que cargar DESPUÉS de alarma.js")
+
+@prueba("alarma nativa: con el plugin simulado programa/cancela la alarma del sistema, pide permiso, mantiene la pantalla y la web sigue andando")
+def t_nativa_con_plugin(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, extra_init=JS_PLUGIN_NATIVO, semilla=91); instalar_speak(pg)
+    pg.wait_for_timeout(200)
+    igual(pg.evaluate("[Gioval.alarmaNativa.activa, Gioval.envoltorio.activo]"), [True, True])
+    igual(pg.evaluate("'serviceWorker' in navigator"), False, "en el envoltorio no se registra el service worker")
+    # programar: alarma web (igual que siempre) + alarma del sistema con la hora ABSOLUTA
+    pg.evaluate("window.__fin=[]; Alarma.onFin(function(i){ window.__fin.push(i); }); Alarma.programar(120,{titulo:'Hola',texto:'Cuerpo'}); 0"); pg.wait_for_timeout(150)
+    verificar(118 <= pg.evaluate("Alarma.restante()") <= 120, "la alarma web dejó de andar")
+    prog = [x for x in pg.evaluate("window.__nat") if x[0] == "programar"]; igual(len(prog), 1, "una sola llamada a programar")
+    o = prog[0][1]; igual((o["id"], o["titulo"], o["texto"]), (7001, "Hola", "Cuerpo")); verificar(abs(o["fin"] - pg.evaluate("Date.now()") - 120000) < 3000, "hora absoluta de fin: %s" % o["fin"])
+    verificar(["pantalla", True] in pg.evaluate("window.__nat"), "no pidió mantener la pantalla encendida con una alarma en marcha")
+    # reprogramar reemplaza (mismo id) y cancelar cancela en el sistema
+    pg.evaluate("Alarma.programar(300)"); verificar(len([x for x in pg.evaluate("window.__nat") if x[0] == "programar"]) == 2)
+    pg.evaluate("Alarma.cancelar()"); pg.wait_for_timeout(100)
+    verificar(["cancelar", {"id": 7001}] in pg.evaluate("window.__nat"), "no canceló la alarma del sistema"); igual(pg.evaluate("Alarma.activa()"), False)
+    verificar(["pantalla", False] in pg.evaluate("window.__nat"), "no soltó la pantalla al cancelar")
+    # permiso de avisos: Notification refleja el permiso nativo
+    igual(pg.evaluate("Notification.permission"), "default")
+    igual(pg.evaluate("Alarma.pedirPermiso()"), "granted"); igual(pg.evaluate("Notification.permission"), "granted"); verificar(["pedirNotificaciones"] in pg.evaluate("window.__nat"))
+    # panel de adultos: sección "Alarma del teléfono" con el estado y los botones
+    pg.evaluate("window.__perm='prompt'"); abrir_panel(pg); pg.wait_for_timeout(200)
+    tp = pg.evaluate("document.getElementById('nativaPanel').innerText")
+    verificar("Alarma del teléfono" in tp and "Alarmas exactas NO permitidas" in tp and "ahorro de batería" in tp and "Probar alarma" in tp, tp[:400])
+    pg.click("#nativaPanel [data-nativa=exacta]"); pg.click("#nativaPanel [data-nativa=bateria]"); pg.wait_for_timeout(100)
+    verificar(["abrirAjustes", "exacta"] in pg.evaluate("window.__nat") and ["abrirAjustes", "bateria"] in pg.evaluate("window.__nat"), "los botones no abren los ajustes")
+    pg.click("#nativaPanel [data-nativa=probar]"); pg.wait_for_timeout(100); verificar(8 <= pg.evaluate("Alarma.restante()") <= 10, "la prueba de alarma no programó 10 s")
+    pg.evaluate("Alarma.cancelar()")
+    # el texto también sale en inglés (y sin español)
+    pg.evaluate("Gioval.i18n.usar('en')"); pg.wait_for_timeout(100)
+    te = pg.evaluate("document.getElementById('nativaPanel').innerText"); verificar("Phone alarm" in te and not sin_espanol(te.split("\n")), te[:300])
+    pg.evaluate("Gioval.i18n.usar('es-AR')"); verificar(not pg.evaluate("[...Gioval.i18n.faltantes]"), "claves faltantes: %s" % pg.evaluate("[...Gioval.i18n.faltantes]"))
+    # pantalla encendida durante una actividad
+    pg.evaluate("document.getElementById('btnGear').click()"); pg.evaluate("window.__nat=[]"); pg.evaluate("document.getElementById('act').classList.add('active')"); pg.wait_for_timeout(150)
+    verificar(["pantalla", True] in pg.evaluate("window.__nat"), "no mantuvo la pantalla encendida en una actividad"); pg.evaluate("document.getElementById('act').classList.remove('active')"); pg.wait_for_timeout(150)
+    verificar(["pantalla", False] in pg.evaluate("window.__nat"), "no soltó la pantalla al salir de la actividad")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("envoltorio Android: el botón atrás cierra carteles, vuelve de pantalla en pantalla y en el inicio minimiza (sin cerrar)")
+def t_envoltorio_atras(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, extra_init=JS_PLUGIN_NATIVO, semilla=92); instalar_speak(pg)
+    activa = lambda: pg.evaluate("document.querySelector('.screen.active').id")
+    atras = lambda: (pg.evaluate("window.__back({canGoBack:false})"), pg.wait_for_timeout(120))
+    verificar(pg.evaluate("typeof window.__back") == "function", "no se registró el listener de backButton")
+    igual(activa(), "who"); atras(); verificar(["minimizar"] in pg.evaluate("window.__nat"), "en el inicio tiene que minimizar la app")
+    entrar(pg, "Vale"); igual(activa(), "map")
+    atras(); igual(activa(), "who", "del mapa vuelve a '¿Quién juega?'")
+    entrar(pg, "Vale"); pg.click(".island >> nth=0"); pg.wait_for_timeout(150); verificar(activa() in ("menuIsla", "home", "ayudantes", "misLista"), activa())
+    for _ in range(4):
+        if activa() == "map": break
+        atras()
+    igual(activa(), "map", "de la isla vuelve al mapa")
+    # un cartel abierto se cierra primero
+    pg.evaluate("document.getElementById('reportBox').classList.add('show')"); atras()
+    igual(pg.evaluate("document.getElementById('reportBox').classList.contains('show')"), False, "no cerró el cartel"); igual(activa(), "map", "cerró también la pantalla")
+    abrir_panel(pg); igual(pg.evaluate("document.getElementById('panel').classList.contains('show')"), True); atras()
+    igual(pg.evaluate("document.getElementById('panel').classList.contains('show')"), False, "no cerró el panel de adultos")
+    verificar(not err, str(err)); ctx.close()
+
 # ---------------------------------------------------------------- aviso de versión
 @prueba("aviso de versión nueva: solo en menús, nunca en sesión; Actualizar recarga con la versión nueva")
 def t_version(C):
@@ -414,16 +596,17 @@ def t_entradas(C):
         verificar(pg.evaluate(firma) != antes, "el evento '%s' no hizo avanzar el juego" % tipo)
     verificar(not err, str(err)); ctx.close()
 
-@prueba("entradas: YIN del micrófono igual al de la versión anterior (mismas frecuencias, mismos umbrales)")
+@prueba("entradas: YIN del micrófono da las mismas notas que la versión anterior (170–1200 Hz) y más cerca de la frecuencia real")
 def t_yin(C):
     ctxn = C.banco.contexto("360x700"); ctxl = C.banco.contexto("360x700")
     pn = abrir(ctxn, C.url + "/index.html", errores=C.err); pl = abrir(ctxl, C.url + "/legacy/index.html", esperar=True)
     js = """(fn)=>{ const out=[]; for(const f of [196,220,261.63,329.63,440,523.25,659.25]){ const sr=48000, b=new Float32Array(4096); for(let i=0;i<4096;i++) b[i]=.4*Math.sin(2*Math.PI*f*i/sr)+.1*Math.sin(2*Math.PI*2*f*i/sr);
       const y=fn(b,sr); out.push([f,y,y?Math.round(69+12*Math.log2(y/440)):null]); } const nada=fn(new Float32Array(4096),48000); out.push(['silencio',nada,null]); return out; }"""
     a = pn.evaluate("(%s)(Gioval.entrada.proveedores.microfono.yin)" % js); b = pl.evaluate("(%s)(yin)" % js)
-    igual(a, b, "YIN nuevo vs anterior")
-    for f, y, m in a[:-1]: verificar(abs(y - f) / f < .01, "YIN %s Hz dio %s" % (f, y))
-    ctxn.close(); ctxl.close(); return "7 frecuencias idénticas"
+    igual([x[2] for x in a], [x[2] for x in b], "notas del YIN nuevo vs anterior"); igual([x[1] for x in a[-1:]], [None], "el silencio no da nota")
+    for (f, y, m), (_, y0, _) in zip(a[:-1], b[:-1]):
+        verificar(abs(y - f) / f < .003, "YIN nuevo %s Hz dio %s (error mayor a 5 cents)" % (f, y)); verificar(abs(y - f) <= abs(y0 - f) + 1e-6, "el nuevo debería estar igual o más cerca de la frecuencia real: %s -> %s (antes %s)" % (f, y, y0))
+    ctxn.close(); ctxl.close(); return "7 frecuencias: mismas notas, error < 5 cents"
 
 @prueba("sonido: instrumentos intercambiables y muestras por demanda; tone() usa el activo")
 def t_sonido(C):
@@ -450,6 +633,217 @@ def t_mic_real(C):
         verificar(not pg.evaluate("Gioval.entrada.proveedores.microfono.activo"), "no se detuvo")
         verificar(not err, str(err)); ctx.close(); return "notas emitidas por el tono falso: %d" % n
     finally: b.cerrar()
+
+# ---------------------------------------------------------------- micrófono de Música: piano real (simulado) con el micrófono falso de Chrome
+NAT_PRUEBA = [60, 62, 64, 65, 67, 69, 71, 72, 52, 64, 76]     # los 7 naturales Do4–Do5 y además Mi3, Mi4 y Mi5
+NOMBRES_NOTA = {0: "Do", 2: "Re", 4: "Mi", 5: "Fa", 7: "Sol", 9: "La", 11: "Si"}
+TIMBRES = ("piano", "fundamental_debil", "electrico")
+
+def mic_wav(C, x, sr_ctx=None, umbral=0.008, antes="", esperar_extra=0.8, pagina=None, url=None, store=None):
+    """Toca el audio `x` por el micrófono falso de Chrome y devuelve las notas que emitió el proveedor:
+    [{t (ms desde que se encendió), midi, cents, hz, midiFloat, afinacion}] y la frecuencia de muestreo del contexto de audio."""
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x, SALIDA / ("mic_%d.wav" % os.getpid())); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"])
+        init = ""
+        if sr_ctx: init = "(function(){ var AC=window.AudioContext; window.AudioContext=function(o){ return new AC(Object.assign({},o,{sampleRate:%d})); }; window.AudioContext.prototype=AC.prototype; })();" % sr_ctx
+        pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False, extra_init=init or None, store=store)
+        if pagina: pagina(pg)
+        r = pg.evaluate("""async(a)=>{ window.__n=[]; const M=Gioval.entrada.proveedores.microfono; Gioval.entrada.suscribir('nota',e=>window.__n.push({t:Math.round(performance.now()-window.__t0),midi:e.midi,cents:e.cents,hz:e.hz,midiFloat:e.midiFloat,afinacion:e.afinacion}));
+          %s
+          window.__t0=performance.now(); await M.iniciar({umbral:()=>a}); return ctx.sampleRate; }""" % antes, umbral)
+        pg.wait_for_timeout(int(len(x) / SR_AUDIO * 1000 + esperar_extra * 1000))
+        ev = pg.evaluate("window.__n"); verificar(not err, str(err)); ctx.close()
+        return ev, r
+    finally: b.cerrar()
+
+def nombre_nota(m): return "%s%d" % (NOMBRES_NOTA.get(m % 12, "#%d" % (m % 12)), m // 12 - 1)
+
+@prueba("micrófono: los 7 naturales Do4–Do5 y Mi3/Mi4/Mi5 se reconocen en 3 timbres, con el piano afinado y desafinado −30 y +30 cents")
+def t_mic_notas(C):
+    resumen = []
+    for timbre in TIMBRES:
+        for cents in (0, -30, 30):
+            x, _ = senal_notas(NAT_PRUEBA, timbre=timbre, cents=cents, paso=1.3, dur=1.2, suelta=0.7)
+            ev, sr = mic_wav(C, x); got = [e["midi"] for e in ev]
+            if timbre == "fundamental_debil":
+                # el micrófono de un celular casi no capta el primer parcial grave: puede dar la octava de arriba (la nota es la misma; con "cualquier octava" alcanza)
+                igual([m % 12 for m in got], [m % 12 for m in NAT_PRUEBA], "%s %+d cents: notas (sin octava) %s" % (timbre, cents, [nombre_nota(m) for m in got]))
+                verificar(all(g in (m, m + 12) for g, m in zip(got, NAT_PRUEBA)), "%s %+d cents: octavas %s" % (timbre, cents, [nombre_nota(m) for m in got]))
+            else:
+                igual(got, NAT_PRUEBA, "%s %+d cents: %s" % (timbre, cents, [nombre_nota(m) for m in got]))
+            resumen.append("%s%+d:%d" % (timbre[:4], cents, len(got)))
+    return "11 notas × 9 casos OK (" + " ".join(resumen) + ")"
+
+@prueba("micrófono: piano muy desafinado (−50 cents): la afinación se aprende sola y 'pedido Mi → tocar Mi = acierto; tocar Do = error'")
+def t_mic_desafinado(C):
+    seq = [60, 62, 64, 65, 67, 69, 71, 72, 64, 62, 60, 67, 64, 76, 64]
+    x, _ = senal_notas(seq, timbre="piano", cents=-50, paso=1.3, dur=1.2, suelta=0.7)
+    ev, sr = mic_wav(C, x); verificar(len(ev) == len(seq), "eventos %d de %d" % (len(ev), len(seq)))
+    for e, m in zip(ev, seq):     # la regla que usa el juego (musica.js): a menos de 0,62 semitonos de la nota pedida, con la afinación aplicada
+        aj = e["midiFloat"] - e["afinacion"] / 100; verificar(abs(aj - m) <= 0.62, "%s se leyó %.2f (afinación %.1f)" % (nombre_nota(m), aj, e["afinacion"]))
+    verificar(ev[-1]["afinacion"] <= -25, "la afinación debería haber bajado a ≈ −40 y quedó en %s" % ev[-1]["afinacion"])
+    verificar(all(e["midi"] == m for e, m in zip(ev[-5:], seq[-5:])), "ya aprendida, las últimas notas tienen que ser exactas: %s" % [nombre_nota(e["midi"]) for e in ev[-5:]])
+    # juego de verdad: el niño tiene que tocar Mi y Mi; toca Mi (acierto) y después Do (error). Piano −50: Mi llega "entre Re# y Mi"
+    x2, _ = senal_notas([64, 60], timbre="piano", cents=-50, tiempos=[2.0, 4.0], dur=1.2, suelta=0.7)
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x2, SALIDA / "mic_juego.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, rapido=False); instalar_speak(pg)
+        entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(500)
+        pg.evaluate("S.chunks=[[{midi:64,beats:1},{midi:64,beats:1}]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.lastWrong=0; S.mode='play'; muteUntil=0; document.getElementById('anyOctave').checked=false")
+        pg.click("#btnMic"); pg.wait_for_function("S.ni>=1", timeout=6000)
+        igual(pg.evaluate("[S.ni,S.missPhrase]"), [1, 0], "tocar Mi cuando se pide Mi = acierto, sin error")
+        pg.wait_for_function("S.missPhrase>=1", timeout=6000)
+        igual(pg.evaluate("[S.ni,S.missPhrase]"), [1, 1], "tocar Do cuando se pide Mi = error y no avanza")
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    return "afinación aprendida %.0f cents; juego OK" % ev[-1]["afinacion"]
+
+@prueba("micrófono: dos frecuencias de muestreo (44,1 y 48 kHz) dan las mismas notas")
+def t_mic_muestreo(C):
+    for sr in (44100, 48000):
+        x, _ = senal_notas(NAT_PRUEBA[:8] + [52, 76], timbre="piano", cents=-20, paso=1.3, dur=1.2, suelta=0.7)
+        ev, real = mic_wav(C, x, sr_ctx=sr); igual(real, sr, "el contexto de audio no tomó la frecuencia pedida")
+        igual([e["midi"] for e in ev], NAT_PRUEBA[:8] + [52, 76], "a %d Hz" % sr)
+    return "44100 y 48000 OK"
+
+@prueba("micrófono: rango de 80 a 1200 Hz (Do3, Re3, Mi3 y Do6 se reconocen; la versión anterior leía Mi3 como Fa3) y el ruido no da notas")
+def t_mic_rango(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    js = """({notas, sr, timbre})=>{ const M=Gioval.entrada.proveedores.microfono, out=[];
+      for(const m of notas){ const f0=440*Math.pow(2,(m-69)/12), b=new Float32Array(4096); const hs=timbre==='debil'?[[1,.1],[2,1],[3,.8],[4,.4],[5,.3]]:[[1,1],[2,.5],[3,.3],[4,.2]];
+        for(let i=0;i<4096;i++){ let v=0; for(const [h,a] of hs) if(f0*h<sr/2) v+=a*Math.sin(2*Math.PI*f0*h*i/sr); b[i]=.2*v; }
+        const f=M.yin(b,sr); out.push([m, f?Math.round(69+12*Math.log2(f/440)):null, f?Math.round(1200*Math.log2(f/f0)):null]); } return out; }"""
+    for sr in (44100, 48000):
+        r = pg.evaluate("(%s)" % js, dict(notas=[48, 50, 52, 53, 55, 57, 59, 60, 64, 72, 84], sr=sr, timbre="piano"))
+        for m, got, dc in r: verificar(got == m and abs(dc) <= 8, "a %d Hz: %s se leyó %s (%s cents)" % (sr, nombre_nota(m), got, dc))
+        r = pg.evaluate("(%s)" % js, dict(notas=[48, 50, 52, 55, 60], sr=sr, timbre="debil"))
+        for m, got, dc in r: verificar(got is not None and (got - m) % 12 == 0, "fundamental débil a %d Hz: %s se leyó %s" % (sr, nombre_nota(m), got))
+    # ruido y silencio: ninguna nota
+    r = pg.evaluate("""()=>{ const M=Gioval.entrada.proveedores.microfono; let a=1; const rnd=()=>((a=(a*1664525+1013904223)>>>0)/4294967296-.5); const out=[];
+      for(const amp of [.01,.05,.2]){ const b=new Float32Array(4096); for(let i=0;i<4096;i++) b[i]=amp*rnd(); out.push(M.yin(b,48000)); } out.push(M.yin(new Float32Array(4096),48000)); return out; }""")
+    igual(r, [None] * 4, "ruido blanco y silencio no deberían dar nota")
+    ctx.close(); return "Do3–Do6 OK a 44,1 y 48 kHz; ruido y silencio sin nota"
+
+@prueba("micrófono: afinación del piano (estimación automática con guardas, calibración 'Tocá un La', reinicio y persistencia)")
+def t_mic_afinacion(C):
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", errores=err)
+    seq = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 60, 64, 67, 71]
+    sim = """({desvio, notas, negras})=>{ const M=Gioval.entrada.proveedores.microfono; M.reiniciarAfinacion(); let max=0;
+      notas.forEach((m,i)=>{ M.aportarAfinacion(m+desvio/100+((i*7)%5-2)/100); max=Math.max(max,Math.abs(M.afinacion())); });
+      return [M.afinacion(), max, M.muestrasAfinacion().length]; }"""
+    for d, esperado in ((-40, -40), (-25, -25), (30, 30), (0, 0), (-12, -12)):
+        a, mx, n = pg.evaluate("(%s)" % sim, dict(desvio=d, notas=seq * 3, negras=0))
+        verificar(abs(a - esperado) <= 12 and abs(a) <= 50, "desvío %+d: la afinación quedó en %.1f" % (d, a))
+    # teclas negras y notas sueltas NO mueven la afinación; no se mueve por menos de 8 cents; tope ±50; con 2 notas solamente no decide
+    a, _, _ = pg.evaluate("(%s)" % sim, dict(desvio=0, notas=[61, 63, 66, 68, 70, 61, 63, 66, 68, 70, 61, 63], negras=1)); igual(a, 0, "teclas negras")
+    a, _, _ = pg.evaluate("(%s)" % sim, dict(desvio=5, notas=seq * 3, negras=0)); igual(a, 0, "5 cents: dentro de la banda muerta")
+    a, _, _ = pg.evaluate("(%s)" % sim, dict(desvio=-45, notas=[64, 71] * 12, negras=0)); igual(a, 0, "solo Mi y Si (junto a Fa y Do): no alcanza para decidir")
+    # lenta: un solo cambio de ≤ 8 cents por muestra
+    pasos = pg.evaluate("""()=>{ const M=Gioval.entrada.proveedores.microfono; M.reiniciarAfinacion(); const out=[]; let prev=0; const seq=[60,62,64,65,67,69,71,72,60,62,64,65,67,69,71,72];
+      seq.forEach(m=>{ M.aportarAfinacion(m-.4); out.push(Math.abs(M.afinacion()-prev)); prev=M.afinacion(); }); return Math.max(...out); }""")
+    verificar(pasos <= 8.01, "un paso movió %.1f cents" % pasos)
+    # persistencia: se guarda en este aparato (localStorage, no en el progreso) y se recupera al recargar
+    pg.evaluate("Gioval.entrada.proveedores.microfono.fijarAfinacion(-33, true)"); pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("[Gioval.entrada.proveedores.microfono.afinacion(), Gioval.entrada.proveedores.microfono.afinacionManual()]"), [-33, True], "persistencia tras recargar")
+    verificar("afinacion" not in json.dumps(pg.evaluate("store")), "la afinación no debe ir en el progreso de los chicos (store)")
+    pg.evaluate("Gioval.entrada.proveedores.microfono.reiniciarAfinacion()"); igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacion()"), 0, "reinicio")
+    pg.evaluate("Gioval.entrada.proveedores.microfono.fijarAfinacion(99)"); igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacion()"), 50, "tope ±50")
+    pg.evaluate("Gioval.entrada.proveedores.microfono.reiniciarAfinacion()")
+    verificar(not err, str(err)); ctx.close()
+    # calibración a mano con un La desafinado −35 cents, tocado por el micrófono falso: se mide, se guarda y la nota NO llega al juego
+    x, _ = senal_notas([69], timbre="piano", cents=-35, tiempos=[1.5], dur=1.5, suelta=1.0)
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x, SALIDA / "mic_cal.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+        r = pg.evaluate("""async()=>{ const M=Gioval.entrada.proveedores.microfono; await M.iniciar({umbral:()=>.008}); return await M.calibrarLa(); }""")
+        verificar(r["ok"] and abs(r["afinacion"] + 28) <= 12, "calibración con La −35: %s" % r)   # el timbre simulado suma ≈ +7 de estiramiento
+        igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacionManual()"), True)
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    # si no es un La: se avisa y no se cambia nada
+    x, _ = senal_notas([60], timbre="piano", tiempos=[1.5], dur=1.5, suelta=1.0); wav = a_wav(x, SALIDA / "mic_cal2.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+        r = pg.evaluate("""async()=>{ const M=Gioval.entrada.proveedores.microfono; await M.iniciar({umbral:()=>.008}); return await M.calibrarLa(); }""")
+        verificar(not r["ok"] and r["motivo"] == "no_es_la", "un Do no es un La: %s" % r); igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacion()"), 0)
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    return "automática, guardas, persistencia, calibración con La y rechazo de otra nota"
+
+@prueba("micrófono: notas repetidas y sostenidas (una nota larga cuenta UNA vez; la misma nota tocada seguido cuenta todas)")
+def t_mic_repetidas(C):
+    casos = [("seis notas sueltas, cada una sostenida 1,5 s", [60, 62, 64, 65, 67, 69], [1 + 1.8 * i for i in range(6)], 1.5),
+             ("Do 6 veces cada 0,45 s", [60] * 6, [1 + 0.45 * i for i in range(6)], 0.3),
+             ("Do 6 veces cada 0,30 s", [60] * 6, [1 + 0.30 * i for i in range(6)], 0.18),
+             ("Do-Re alternados cada 0,30 s", [60, 62] * 4, [1 + 0.30 * i for i in range(8)], 0.2),
+             ("Do Re Mi Fa Sol cada 0,6 s", [60, 62, 64, 65, 67], [1 + 0.6 * i for i in range(5)], 0.45)]
+    for nom, notas, ts, hold in casos:
+        for amp in (0.3, 0.08):
+            x, _ = senal_notas(notas, tiempos=ts, dur=1.6, amp=amp, suelta=hold); ev, _ = mic_wav(C, x)
+            got = [e["midi"] for e in ev]; etq = "%s (volumen %s)" % (nom, "normal" if amp > 0.1 else "suave")
+            if "0,30" in nom:   # 3 notas por segundo: es el límite; se tolera perder UNA (nunca sobrar: no hay dobles)
+                it = iter(notas); verificar(len(got) >= len(notas) - 1 and len(got) <= len(notas) and all(g in it for g in got), "%s: %s" % (etq, got))
+            else: igual(got, notas, etq)
+    return "5 casos × 2 volúmenes: sin dobles; sin pérdidas salvo (a veces, una) a 3 notas por segundo"
+
+@prueba("micrófono: lectura en vivo del panel de adultos (nota, Hz, cents, octava, volumen) y motivos de los sonidos ignorados + señal 'te escucho'")
+def t_mic_lectura(C):
+    # E4 normal · E4 muy suave · E4 mientras la app habla · dos notas juntas (no se sabe cuál) · Do2 (demasiado grave)
+    x1, _ = senal_notas([64], tiempos=[1.5], dur=1.2, suelta=0.8, amp=0.3)
+    x2, _ = senal_notas([64], tiempos=[3.5], dur=1.2, suelta=0.8, amp=0.011)
+    x3, _ = senal_notas([64], tiempos=[5.5], dur=1.2, suelta=0.8, amp=0.3)
+    x4a, _ = senal_notas([60], tiempos=[7.5], dur=1.2, suelta=0.8, amp=0.3); x4b, _ = senal_notas([66], tiempos=[7.5], dur=1.2, suelta=0.8, amp=0.3, semilla=9)
+    x5, _ = senal_notas([36], tiempos=[9.5], dur=1.2, suelta=0.8, amp=0.3)
+    n = max(len(x1), len(x2), len(x3), len(x4a), len(x5)); np = __import__("numpy"); x = np.zeros(n, dtype=np.float32)
+    for y in (x1, x2, x3, x4a, x4b, x5): x[:len(y)] += y
+    x = np.clip(x, -1, 1).astype(np.float32)
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x, SALIDA / "mic_lectura.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, rapido=False); instalar_speak(pg)
+        entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(500)
+        pg.evaluate("S.mode='play'; muteUntil=0; document.getElementById('panel').classList.add('show'); window.__lect=[]; window.__motivos=[]; window.__cue=[];")
+        pg.evaluate("""()=>{ const M=Gioval.entrada.proveedores.microfono; window.__t0=performance.now();
+          setInterval(()=>{ const v=M.vivo; if(v.motivo&&!window.__motivos.includes(v.motivo)) window.__motivos.push(v.motivo);
+            if(M.activo&&v.midi!=null&&document.getElementById('micVivoNota').textContent!=='–') window.__lect.push([document.getElementById('micVivoNota').textContent,document.getElementById('micVivoDet').textContent,document.getElementById('dbgLevelTxt').textContent]);
+            window.__cue.push([Math.round(performance.now()-window.__t0),document.getElementById('micCue').classList.contains('on'),v.silenciado]); },100);
+          setTimeout(()=>{ muteUntil=performance.now()+1700; }, 5200); }""")
+        pg.click("#btnMic"); pg.wait_for_timeout(int(len(x) / SR_AUDIO * 1000 + 500))
+        lect = pg.evaluate("window.__lect"); mot = pg.evaluate("window.__motivos"); cue = pg.evaluate("window.__cue")
+        verificar(any(l[0] == "Mi 4" and re.search(r"\b3(29|30|31),\d Hz", l[1]) and "octava 4" in l[1] and ("cents" in l[1] or "afinada" in l[1]) for l in lect), "la lectura en vivo no mostró Mi 4 / 329 Hz / octava 4: %s" % lect[:3])
+        verificar(any("Volumen" in l[2] and "mínimo 8" in l[2] for l in lect), "volumen contra el mínimo: %s" % lect[:1])
+        for m in ("bajo", "silenciado", "fuera_rango"): verificar(m in mot, "no apareció el motivo '%s' (aparecieron %s)" % (m, mot))
+        textos = pg.evaluate("""()=>({bajo:t('musica.motivo.bajo'),sil:t('musica.motivo.silenciado'),fr:t('musica.motivo.fuera_rango',{hz:65}),sn:t('musica.motivo.sin_nota')})""")
+        verificar(all(textos.values()) and all("musica." not in v for v in textos.values()), "textos de motivos: %s" % textos)
+        # señal "te escucho": prendida mientras escucha y la app no habla; apagada mientras la app está silenciada
+        verificar(any(c[1] for c in cue), "nunca se prendió el 'te escucho'"); verificar(any((not c[1]) and c[2] for c in cue), "tendría que apagarse mientras la app habla")
+        verificar(not any(c[1] and c[2] for c in cue), "'te escucho' prendido con la app hablando")
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    return "motivos vistos: %s" % mot
+
+@prueba("voz: sin voz (apagada o sin voces en el aparato) el micrófono NO se silencia; con voz sí")
+def t_voz_mute(C):
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+    r = pg.evaluate("""()=>{ const out={}; const ahora=()=>performance.now(); Gioval.voz.nivel='texto'; muteUntil=0; speak('Tocá el Mi'); out.texto=muteUntil<=ahora();
+      Gioval.voz.nivel='tts'; muteUntil=0; speak('Tocá el Mi'); out.tts=muteUntil>ahora()+500; return out; }""")
+    igual(r, {"texto": True, "tts": True}, "silencio del micrófono según haya o no voz"); verificar(not err, str(err)); ctx.close()
+
+@prueba("Música: con 'cualquier octava' apagado, la nota correcta en otra octava no es un error (solo se avisa); con tolerancia de afinación")
+def t_mic_octavas(C):
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=71); instalar_speak(pg)
+    entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(400)
+    preparar = "S.chunks=[[{midi:64,beats:1},{midi:62,beats:1}]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.lastWrong=0; S.mode='play'; muteUntil=0;"
+    emit = lambda m, f=None, a=0: pg.evaluate("Gioval.entrada.emitir({tipo:'nota',midi:%d,midiFloat:%s,afinacion:%s,fuerza:.7})" % (m, f if f is not None else m, a)); estado = lambda: pg.evaluate("[S.ni,S.missPhrase,S.missNote]")
+    pg.evaluate(preparar + "document.getElementById('anyOctave').checked=false")
+    emit(52); pg.wait_for_timeout(100); igual(estado(), [0, 0, 0], "Mi3 pedido Mi4 (octava estricta): no avanza pero tampoco es error")
+    verificar("octava" in pg.evaluate("document.getElementById('bubble').textContent"), "tendría que avisar que es otra octava: %s" % pg.evaluate("document.getElementById('bubble').textContent"))
+    pg.wait_for_timeout(350); emit(60); pg.wait_for_timeout(100); igual(estado(), [0, 1, 1], "Do4 pedido Mi4 = error")
+    pg.evaluate(preparar); pg.evaluate("document.getElementById('anyOctave').checked=true"); emit(76); pg.wait_for_timeout(100); igual(estado(), [1, 0, 0], "Mi5 pedido Mi4 con 'cualquier octava' = acierto")
+    pg.evaluate(preparar + "document.getElementById('anyOctave').checked=false")
+    emit(63, 63.55, 0); pg.wait_for_timeout(100); igual(estado(), [1, 0, 0], "Mi leído 45 cents abajo (Re# + 55 cents): lo cuenta como Mi (tolerancia de afinación)")
+    pg.evaluate(preparar); emit(65, 65.1, 0); pg.wait_for_timeout(100); igual(estado(), [0, 1, 1], "Fa claro pedido Mi = error")
+    verificar(not err, str(err)); ctx.close()
 
 # ---------------------------------------------------------------- regresión contra la versión publicada
 def guion(pg, esperar=True):
@@ -620,7 +1014,7 @@ def t_letras_migracion(C):
     v1 = {"version": 1, "profiles": ["Vale"], "stars": {}, "sk": {"Vale|n1": {"score": .9, "att": 7, "box": 1, "due": 5, "lvl": 1, "rec": [1], "mast": True, "last": 4}}, "days": {"Vale": ["2026-11-01"]},
           "time": {}, "log": {}, "checks": {}, "extra": {}, "limit": {"Vale": 20}, "meta": {"ultimoRespaldo": 0, "guardado": 5, "desde": 5}}
     ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=v1, errores=err)
-    igual(pg.evaluate("store.version"), 3); igual(pg.evaluate("store.intake"), {}); igual(pg.evaluate("store.idioma"), {}); igual(pg.evaluate("store.sk"), v1["sk"], "progreso")
+    igual(pg.evaluate("store.version"), 4); igual(pg.evaluate("store.intake"), {}); igual(pg.evaluate("store.idioma"), {}); igual(pg.evaluate("store.sk"), v1["sk"], "progreso")
     igual(pg.evaluate("store.profiles"), ["Vale"]); igual(pg.evaluate("store.limit"), {"Vale": 20})
     verificar(not err, str(err)); ctx.close()
 
@@ -1421,7 +1815,7 @@ def t_idioma_ui(C):
 def t_mig_v2(C):
     v1 = json.loads(FIXTURE); v1 = {"version": 1, "meta": {"ultimoRespaldo": 5, "guardado": 9, "desde": 7}, **v1}
     ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=v1, errores=C.err)
-    n = pg.evaluate("JSON.parse(JSON.stringify(store))"); igual(n["version"], 3); igual(n["idioma"], {}, "idioma"); igual(n["intake"], {}, "intake"); igual(n["sk"], v1["sk"], "sk"); igual(n["meta"]["ultimoRespaldo"], 5, "meta conservada")
+    n = pg.evaluate("JSON.parse(JSON.stringify(store))"); igual(n["version"], 4); igual(n["idioma"], {}, "idioma"); igual(n["intake"], {}, "intake"); igual(n["sk"], v1["sk"], "sk"); igual(n["meta"]["ultimoRespaldo"], 5, "meta conservada")
     rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(any("pre-migracion-v1" in r["id"] for r in rs), "copia previa v1: %s" % [r["id"] for r in rs])
     ctx.close()
 
@@ -1664,16 +2058,16 @@ def t_migracion_v3(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE_V2, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 3, "version"); igual(nuevo["intake"], {}, "intake"); igual(nuevo["idioma"], {"Valentino": "en"}, "idioma conservado")
+    igual(nuevo["version"], 4, "version"); igual(nuevo["intake"], {}, "intake"); igual(nuevo["idioma"], {"Valentino": "en"}, "idioma conservado")
     for k in ("profiles", "stars", "sk", "days", "time", "log", "checks", "extra", "limit"): igual(nuevo[k], viejo[k], "campo " + k)
     igual(pg.evaluate("localStorage.getItem('gioval_pre_migracion')"), FIXTURE_V2, "copia previa exacta")
     rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v2" in rs[0]["id"], str(rs)[:200]); verificar(json.loads(rs[0]["json"]) == viejo, "copia previa en IndexedDB")
     igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
-    igual([m["a"] for m in pg.evaluate("Gioval.almacen.migraciones.map(m=>({a:m.a}))")], [1, 2, 3], "migraciones numeradas")
+    igual([m["a"] for m in pg.evaluate("Gioval.almacen.migraciones.map(m=>({a:m.a}))")], [1, 2, 3, 4], "migraciones numeradas")
     # escribe un intake, recarga: se conserva y no se vuelve a migrar ni a hacer otra copia
     pg.evaluate("store.intake.Valentino={v:1,edad:6,resp:{cuenta:20}}; Gioval.almacen.guardarYa()"); pg.wait_for_timeout(300)
     pg.reload(); esperar_listo(pg)
-    igual(pg.evaluate("store.intake.Valentino.edad"), 6, "intake tras recargar"); igual(pg.evaluate("store.version"), 3)
+    igual(pg.evaluate("store.intake.Valentino.edad"), 6, "intake tras recargar"); igual(pg.evaluate("store.version"), 4)
     igual(len(pg.evaluate("Gioval.almacen.respaldos()")), 1, "no debe haber copias nuevas")
     verificar(not err, str(err)); ctx.close(); return "v2 → v3, %d claves de progreso intactas" % len(viejo["sk"])
 
@@ -1683,7 +2077,7 @@ def t_migracion_v1_a_v3(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE_V1, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 3); igual(nuevo["intake"], {}); igual(nuevo["idioma"], {})
+    igual(nuevo["version"], 4); igual(nuevo["intake"], {}); igual(nuevo["idioma"], {})
     for k in ("profiles", "stars", "sk", "days", "time", "log", "checks", "extra", "limit"): igual(nuevo[k], viejo[k], "campo " + k)
     rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v1" in rs[0]["id"], str(rs)[:200])
     verificar(not err, str(err)); ctx.close()
@@ -2717,6 +3111,379 @@ def t_ay_capturas(C):
         pg.click("[data-a='terminar']"); pg.wait_for_timeout(120); CAPTURAS.append(foto(pg, v + "_75_ayudantes_fin"))
         abrir_panel(pg); pg.click("#ayPanel summary"); pg.evaluate("document.getElementById('ayPanel').scrollIntoView()"); CAPTURAS.append(foto(pg, v + "_76_ayudantes_panel"))
         ctx.close()
+
+# ================================================================== De a dos (jugar por turnos con un hermano o hermana)
+FAR = 4_000_000_000_000
+
+def dd_sk(mast, att, **k):
+    d = {"score": .9 if mast else .4, "att": att, "box": 1 if mast else 0, "due": FAR if mast else 0, "lvl": 1 if mast else 0, "rec": [1, 1, 1] if mast else [], "mast": mast, "last": 0}
+    d.update(k); return d
+
+def dd_store(practicando=True, limite=60, **extra):
+    """Giovanni (el mayor) ya domina 4 habilidades de Números; Valentino empieza (o practica la primera si practicando=True). Orden de perfiles: Giovanni, Valentino."""
+    sk = {"Giovanni|" + i: dd_sk(True, 8) for i in ("num_c10", "num_r10", "num_may", "num_add5")}
+    if practicando: sk["Valentino|num_c10"] = dd_sk(False, 3, score=.4)
+    st = {"profiles": ["Giovanni", "Valentino"], "limit": {"Giovanni": limite, "Valentino": limite}, "sk": sk}
+    st.update(extra); return st
+
+def dd_pagina(C, vista="360x700", st=None, idioma=None, semilla=61, **kw):
+    ctx = C.banco.contexto(vista)
+    ini = ("localStorage.setItem('gioval_idioma','%s');" % idioma) if idioma else None
+    pg = abrir(ctx, C.url + "/index.html", store=st if st is not None else dd_store(), errores=C.err, semilla=semilla, extra_init=ini, **kw); instalar_speak(pg)
+    return ctx, pg
+
+def dd_id(pg): return pg.evaluate("document.querySelector('.screen.active').id")
+def dd_tit(pg): return pg.evaluate("document.getElementById('ddTit').innerText")
+def dd_texto(pg): return pg.evaluate("document.querySelector('.screen.active').innerText")
+def dd_empezar(pg, isla=None):
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(120)
+    if isla: pg.click("[data-isla=%s]" % isla)
+    pg.click("#ddIr"); pg.wait_for_timeout(120)
+def dd_vamos(pg, sin_explicar=False):
+    """Toca el botón grande de la entrega de turno (si antes aparece la celebración del dibujo, la pasa). sin_explicar=True: si se propone explicarle al otro, contesta 'Ahora no'."""
+    if dd_id(pg) == "ddPaso" and dd_tit(pg).startswith("¡Armaron"): pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150)
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(200)
+    if sin_explicar and dd_id(pg) == "ddPaso" and dd_tit(pg).endswith("te toca explicar!"): pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(250)
+def dd_terminar(pg):
+    """'Terminar por hoy' desde la entrega de turno (pasando antes la celebración del dibujo, si la hay)."""
+    if dd_tit(pg).startswith("¡Armaron"): pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150)
+    pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(150)
+def dd_estado(pg, js): return pg.evaluate("(()=>{ const D=Gioval.dedos.estado(); return %s; })()" % js)
+def dd_progreso(pg, kid):
+    """Estado comparable del progreso de UN chico (sin las entradas vacías que crea SK() al mirar una habilidad)."""
+    return pg.evaluate("""(k)=>{ const sk={}; Object.keys(store.sk).sort().forEach(x=>{ if(!x.startsWith(k+'|')) return; const v=store.sk[x]; if(!v.att&&!v.mast) return; sk[x]=JSON.stringify(v); });
+      return {sk, log:JSON.stringify(store.log[k]||[]), days:JSON.stringify(store.days[k]||[])}; }""", kid)
+
+def dd_turno(pg, cada_error=0, limite=250):
+    """Juega el turno de a dos en curso hasta que la pantalla deja de ser la de actividad. Devuelve el id de la pantalla a la que se pasó."""
+    dec = 0
+    for _ in range(limite):
+        pg.wait_for_timeout(35)
+        a = dd_id(pg)
+        if a != "act": return a
+        t = pg.evaluate(JS_TOQUES)
+        if not t: continue
+        dec += 1
+        ok = [i for i, v in enumerate(t["vals"]) if v == t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        mal = [i for i, v in enumerate(t["vals"]) if v != t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        clic = None
+        if cada_error and dec % cada_error == 0 and t["len"] == 1 and t["miss"] == 0 and mal: clic = mal[0]
+        elif ok: clic = ok[0]
+        if clic is not None:
+            pg.evaluate("(()=>{var T=S.tap; window.__ref=[T.it,T.pos,T.miss,T.used.size,T.dead.size]; })()")
+            pg.click(".opt[data-i='%d']" % clic, force=True)
+            try: pg.wait_for_function("(function(){var T=S.tap,r=window.__ref; return !T||S.mode!=='play'||T.it!==r[0]||T.pos!==r[1]||T.miss!==r[2]||T.used.size!==r[3]||T.dead.size!==r[4];})()", timeout=2500, polling=15)
+            except Exception: pass
+    return "limite"
+
+def dd_uno(pg):
+    """Responde bien un ítem (el que está en pantalla) y espera a que el juego lo procese."""
+    pg.wait_for_function("(function(){return !!(S.tap&&S.mode==='play'&&S.tap.v);})()", timeout=5000)
+    i0 = pg.evaluate("S.session.i")
+    for _ in range(12):
+        t = pg.evaluate(JS_TOQUES)
+        if t:
+            ok = [i for i, v in enumerate(t["vals"]) if v == t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+            if ok: pg.click(".opt[data-i='%d']" % ok[0], force=True)
+        pg.wait_for_timeout(60)
+        if pg.evaluate("!S.session||S.session.i") != i0: break
+
+def dd_revelar(pg):
+    """Se equivoca tres veces en el ítem en pantalla (la app muestra la respuesta) y después toca la correcta."""
+    pg.wait_for_function("(function(){return !!(S.tap&&S.mode==='play'&&S.tap.v);})()", timeout=5000)
+    for _ in range(3):
+        t = pg.evaluate(JS_TOQUES)
+        mal = [i for i, v in enumerate(t["vals"]) if v != t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        verificar(mal, "no hay opciones equivocadas para probar el reintento")
+        pg.click(".opt[data-i='%d']" % mal[0], force=True); pg.wait_for_timeout(330)   # la app ignora toques durante 250 ms después de un error
+    verificar(pg.evaluate("S.tap.revealed"), "la app no mostró la respuesta tras 3 errores")
+
+@prueba("de a dos: la entrada aparece solo con dos o más jugadores (¿Quién juega? y mapa) y el armado elige jugadores, orden e isla")
+def t_dd_entrada(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err); instalar_speak(pg)
+    igual(pg.evaluate("document.querySelectorAll('[data-modo]').length"), 0, "con un solo jugador no hay tarjeta (quién juega)")
+    entrar(pg, "Vale"); igual(pg.evaluate("document.querySelectorAll('[data-modo]').length"), 0, "con un solo jugador no hay tarjeta (mapa)"); ctx.close()
+    ctx, pg = dd_pagina(C)
+    igual(pg.evaluate("[...document.querySelectorAll('#profiles .song')].map(x=>x.innerText.replace(/\\n/g,'|'))"), ["🦊|Giovanni", "🦊|Valentino", "👫|De a dos", "➕|Nuevo jugador"], "tarjeta en ¿Quién juega?")
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(120); igual(dd_id(pg), "ddSetup")
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-k]')].map(x=>x.querySelector('b').innerText+':'+(x.querySelector('.dd-ord')||{innerText:''}).innerText)"), ["Giovanni:1", "Valentino:2"], "con dos jugadores libres vienen elegidos, en el orden de los perfiles")
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-isla]')].map(x=>x.dataset.isla+(x.classList.contains('sel')?'*':''))"), ["numeros*", "letras"], "islas por toque")
+    verificar(not pg.evaluate("document.getElementById('ddIr').disabled"), "A jugar habilitado con dos")
+    pg.click(".dd-chip[data-k='0']"); pg.wait_for_timeout(60)   # saca a Giovanni
+    verificar(pg.evaluate("document.getElementById('ddIr').disabled"), "A jugar bloqueado con uno solo"); verificar("Falta elegir" in dd_texto(pg), "avisa que falta alguien")
+    pg.click(".dd-chip[data-k='0']"); pg.wait_for_timeout(60)   # lo vuelve a sumar: ahora va segundo
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-k]')].map(x=>x.querySelector('b').innerText+':'+(x.querySelector('.dd-ord')||{innerText:''}).innerText)"), ["Giovanni:2", "Valentino:1"], "el orden es el de los toques")
+    pg.click("[data-isla=letras]"); igual(pg.evaluate("document.querySelector('.dd-chip[data-isla].sel').dataset.isla"), "letras")
+    pg.click("#ddIr"); pg.wait_for_timeout(120); igual(dd_tit(pg), "Ahora le toca a Valentino", "empieza el que se tocó primero"); igual(dd_estado(pg, "D.isla.id"), "letras")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(250); igual(dd_id(pg), "act"); igual(pg.evaluate("KID"), "Valentino")
+    verificar(pg.evaluate("S.session.items.every(i=>i.skill.id.startsWith('let_')||ACTIVITIES[i.skill.type])"), "juega habilidades de Letras")
+    verificar(pg.evaluate("PACK.id") == "letras", "isla elegida")
+    ctx.close()
+    # desde el mapa: la tarjeta está en el mapa y "volver" regresa al mapa
+    ctx, pg = dd_pagina(C); entrar(pg, "Valentino")
+    igual(pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n')[1])"), ["Isla Música", "Isla Números", "Isla Letras", "Isla Misiones", "Isla Ritmo", "De a dos", "Isla Animales"], "tarjeta en el mapa")
+    pg.click("#islands [data-modo=dedos]"); pg.wait_for_timeout(120)
+    igual(pg.evaluate("[...document.querySelectorAll('.dd-chip[data-k]')].map(x=>x.querySelector('b').innerText+':'+(x.querySelector('.dd-ord')||{innerText:''}).innerText)"), ["Giovanni:2", "Valentino:1"], "desde el mapa empieza quien estaba jugando")
+    pg.click("#ddSetupBack"); pg.wait_for_timeout(100); igual(dd_id(pg), "map", "volver regresa al mapa"); ctx.close()
+    # un chico sin tiempo hoy no se puede elegir
+    ctx, pg = dd_pagina(C, st=dd_store(limite=15, time={"Valentino|" + time.strftime("%Y-%m-%d"): 900}))
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(120)
+    verificar(pg.evaluate("document.querySelector('.dd-chip[data-k=\"1\"]').disabled"), "Valentino ya jugó sus 15 minutos: no se puede elegir")
+    verificar("Ya jugó hoy" in dd_texto(pg) and "dos jugadores con tiempo" in dd_texto(pg), dd_texto(pg)); verificar(pg.evaluate("document.getElementById('ddIr').disabled"))
+    ctx.close()
+
+@prueba("de a dos: los turnos se alternan, cada chico juega SU plan y su progreso solo cambia con SUS respuestas (reglas de dominio y ayudas intactas)")
+def t_dd_turnos(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg)
+    JS_PLAN = "(()=>({ses:S.session.items.map(i=>i.skill.id), desbloq:unlockedList().map(s=>s.id), dominadas:PACK.skills.filter(s=>store.sk[KID+'|'+s.id]&&store.sk[KID+'|'+s.id].mast).map(s=>s.id)}))()"
+    orden = []; items = {}
+    for n in range(4):
+        quien = dd_estado(pg, "D.kids[D.idx%2]"); otro = "Valentino" if quien == "Giovanni" else "Giovanni"
+        igual(dd_tit(pg), "Ahora le toca a " + quien, "pantalla de entrega"); igual(pg.evaluate("document.querySelector('#ddAv .dd-av').innerText"), {"Giovanni": "🦊", "Valentino": "🐻"}[quien], "avatar grande")
+        igual(pg.evaluate("window.__LOG[window.__LOG.length-1]"), "Ahora le toca a %s. Cuando quieras, tocá el botón grande." % quien, "la voz anuncia el turno")
+        antes_otro = dd_progreso(pg, otro); att0 = pg.evaluate("(k)=>Object.entries(store.sk).filter(([x,v])=>x.startsWith(k+'|')).reduce((a,[x,v])=>a+v.att,0)", quien)
+        n_antes = dd_estado(pg, "D.porKid['%s'].n" % quien)
+        dd0 = pg.evaluate("(k)=>[(store.log[k]||[]).length, (store.log[k]||[]).filter(e=>e.d===1).length]", quien)
+        dd_vamos(pg, True); igual(dd_id(pg), "act"); igual(pg.evaluate("KID"), quien, "el motor juega con el chico del turno"); orden.append(quien)
+        igual(pg.evaluate("document.querySelector('#ddEquipo .dd-quien span:last-child').innerText.trim()"), quien, "franja con el nombre")
+        plan = pg.evaluate(JS_PLAN); items.setdefault(quien, set()).update(plan["ses"])
+        verificar(set(plan["ses"]) <= set(plan["desbloq"]), "ítems fuera del plan de %s: %s" % (quien, plan["ses"]))
+        verificar(not (set(plan["ses"]) & set(plan["dominadas"])), "%s repasa lo que no toca todavía: %s" % (quien, plan["ses"]))
+        igual(len(plan["ses"]), 4, "4 ítems por turno")
+        r = dd_turno(pg, cada_error=2 if (quien == "Valentino" and n == 3) else 0); igual(r, "ddPaso", "al terminar el turno vuelve la entrega")
+        igual(dd_progreso(pg, otro), antes_otro, "el progreso de %s NO cambió durante el turno de %s" % (otro, quien))
+        d = pg.evaluate("(k)=>{ const sk=Object.entries(store.sk).filter(([x,v])=>x.startsWith(k+'|')); return [sk.reduce((a,[x,v])=>a+v.att,0), (store.log[k]||[]).length, (store.log[k]||[]).filter(e=>e.d===1).length]; }", quien)
+        n_resp = dd_estado(pg, "D.porKid['%s'].n" % quien) - n_antes
+        igual(d[0] - att0, n_resp, "intentos de %s sumados en este turno = respuestas de su turno" % quien); igual(d[2] - dd0[1], n_resp, "eventos de este turno marcados d:1 (de a dos)")
+        if n == 1 and quien == "Valentino":   # 4 aciertos al primer intento desde cero: las MISMAS cuentas que en una sesión suelta
+            s = pg.evaluate("store.sk['Valentino|num_c10']"); esp = .5
+            for _ in range(4): esp = esp * .7 + .3   # la fórmula del motor (itemDone), 4 aciertos al primer intento
+            verificar(abs(s["score"] - esp) < 1e-9, "puntaje %r ≠ %r" % (s["score"], esp)); igual([s["att"], s["lvl"], s["rec"], s["mast"]], [4, 1, [1], False], "dominio y ayudas igual que siempre")
+        if n < 3:
+            if dd_tit(pg).startswith("¡Armaron"): pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150)   # el 8.º casillero completó el dibujo
+            igual(dd_tit(pg), "Ahora le toca a " + otro, "entrega al otro")
+    igual(orden, ["Giovanni", "Valentino", "Giovanni", "Valentino"], "alternan")
+    verificar("num_c10" not in items["Giovanni"], "a Giovanni no le tocó lo de Valentino: %s" % items["Giovanni"]); verificar(items["Valentino"] == {"num_c10"}, "Valentino solo juega lo suyo: %s" % items["Valentino"])
+    verificar(items["Giovanni"] <= {"num_sub5", "num_c20", "num_add10"}, "Giovanni juega su siguiente nivel: %s" % items["Giovanni"])
+    igual(dd_estado(pg, "[D.porKid.Giovanni.turnos, D.porKid.Valentino.turnos]"), [2, 2])
+    igual(pg.evaluate("S.session"), None, "no queda sesión suelta entre turnos"); ctx.close()
+
+@prueba("de a dos: el dibujo del equipo crece con los aciertos de cualquiera, un error no resta, mostrar la respuesta no suma y completarlo se celebra")
+def t_dd_equipo(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg)
+    eq = lambda: pg.evaluate("(()=>{ const e=Gioval.dedos.equipo('Giovanni','Valentino'); return [e.piezas,e.cuadros,e.total]; })()")
+    igual(eq(), [0, 0, 0]); igual(pg.evaluate("document.querySelectorAll('#ddCuadro .dd-cell').length"), 8, "8 casilleros"); verificar("Huerta (0 de 8)" in dd_texto(pg), dd_texto(pg))
+    dd_vamos(pg, True); dd_turno(pg); igual(eq(), [4, 0, 4], "Giovanni: 4 aciertos → 4 piezas")
+    igual(pg.evaluate("document.querySelectorAll('#ddCuadro .dd-cell.on').length"), 4, "se ven las 4 piezas en la entrega"); verificar("Huerta (4 de 8)" in dd_texto(pg))
+    dd_vamos(pg, True); dd_turno(pg, cada_error=1)   # Valentino se equivoca primero en cada ítem y después acierta
+    n_v = dd_estado(pg, "D.porKid.Valentino.n"); verificar(n_v >= 4, "respondió %d" % n_v)
+    e = eq(); igual(e[2], 4 + n_v, "los errores no restan: cada ítem resuelto sin que la app muestre la respuesta suma una pieza"); igual(e[0] + 8 * e[1], 4 + n_v)
+    igual(dd_estado(pg, "D.piezas"), 4 + n_v, "piezas de la sesión")
+    # mostrar la respuesta (3 errores) no suma: el resto sí
+    base = eq()[2]; n0 = dd_estado(pg, "D.porKid.Giovanni.n"); dd_vamos(pg, True); dd_revelar(pg); dd_turno(pg); n_g = dd_estado(pg, "D.porKid.Giovanni.n") - n0
+    igual(eq()[2], base + n_g - 1, "el ítem con la respuesta mostrada no suma pieza; los demás sí")
+    ctx.close()
+    # completar el dibujo: celebración, dibujo nuevo, y todo queda guardado (también tras recargar)
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, dedos={"eq": {"Giovanni|Valentino": {"piezas": 6, "cuadros": 0, "total": 6}}, "reg": {}})); dd_empezar(pg)
+    dd_vamos(pg, True); r = dd_turno(pg); igual(r, "ddPaso")
+    igual(dd_tit(pg), "¡Armaron el dibujo «Huerta» entre los dos!", "celebración al completar"); igual(eq(), [2, 1, 10], "1 dibujo completo y 2 piezas del siguiente")
+    verificar(any("Lo lograron" in x for x in pg.evaluate("window.__LOG")), "la voz lo celebra")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150); igual(dd_tit(pg), "Ahora le toca a Valentino"); verificar("Ciudad (2 de 8)" in dd_texto(pg), "el dibujo nuevo (Ciudad) sigue con 2 piezas: " + dd_texto(pg))
+    pg.evaluate("save(); Gioval.almacen.guardarYa()"); pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("store.dedos.eq['Giovanni|Valentino']"), {"piezas": 2, "cuadros": 1, "total": 10}, "el dibujo del equipo se conserva al recargar"); ctx.close()
+
+@prueba("de a dos: explicar a otro (regla fija): se propone solo cuando el otro practica lo que yo ya domino, suma piezas al equipo y NADA al dominio")
+def t_dd_explicar(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True)); dd_empezar(pg)   # Giovanni domina num_c10; Valentino lo está practicando (3 intentos)
+    prop = pg.evaluate("(()=>{ const p=Gioval.dedos.proponerExplicacion('Giovanni'); return p&&[p.id,p.explica,p.oyente]; })()"); igual(prop, ["num_c10", "Giovanni", "Valentino"], "regla: Giovanni domina lo que Valentino practica")
+    igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Valentino')"), None, "Valentino no domina nada que Giovanni esté practicando")
+    dd_vamos(pg); igual(dd_id(pg), "ddPaso"); igual(dd_tit(pg), "Giovanni, ¡te toca explicar!")
+    t = dd_texto(pg); verificar("Valentino está practicando «Contar hasta 10» y vos ya lo sabés. ¿Le explicás cómo se hace?" in t, t)
+    verificar(any(c in t for c in ("Contale qué mirás primero.", "Mostrale un ejemplo.", "Decile qué hacés cuando te trabás.")), "consejo simple: " + t)
+    verificar(any("te toca explicar" in x or "está practicando" in x for x in pg.evaluate("window.__LOG")), "la voz lo dice")
+    antes = (dd_progreso(pg, "Giovanni"), dd_progreso(pg, "Valentino"), pg.evaluate("JSON.stringify(store.time)"))
+    eq0 = pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total")
+    pg.click("#ddAcc .btn:has-text('Ya le expliqué')"); pg.wait_for_timeout(300)
+    igual(dd_id(pg), "act", "después de explicar empieza su turno"); igual(pg.evaluate("KID"), "Giovanni")
+    igual(pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total"), eq0 + 2, "+2 piezas de equipo")
+    igual((dd_progreso(pg, "Giovanni"), dd_progreso(pg, "Valentino")), antes[:2], "explicar NO toca el dominio, el registro ni los días de nadie")
+    igual(dd_estado(pg, "[D.porKid.Giovanni.e, D.porKid.Valentino.r, D.expl.n]"), [1, 1, 1])
+    dd_turno(pg)   # turno de Giovanni; después el de Valentino (con errores para no dominar), y de nuevo Giovanni: no se repite la propuesta
+    dd_vamos(pg); dd_turno(pg, cada_error=1)
+    dd_vamos(pg); igual(dd_id(pg), "act", "no se repite la misma explicación en esta sesión (ni antes de 3 turnos)")
+    dd_turno(pg); r = pg.evaluate("Gioval.dedos.datos().reg"); igual(r["Giovanni"][0]["e"], 1, "registro: explicó 1 vez"); igual(r["Valentino"][0]["r"], 1, "registro: escuchó 1 vez"); igual(r["Giovanni"][0]["r"], 0)
+    ctx.close()
+    # "Ahora no": sin premio y sin castigo; una saltada sin comprobar NO es saber (no se propone); con el otro sin tiempo tampoco
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True)); dd_empezar(pg); dd_vamos(pg)
+    eq0 = pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total"); pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(250)
+    igual(dd_id(pg), "act"); igual(pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').total"), eq0, "sin premio"); igual(dd_estado(pg, "D.expl.n"), 0, "no cuenta como explicación")
+    verificar(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')") is None, "no se vuelve a pedir lo mismo"); ctx.close()
+    st = dd_store(practicando=True); st["sk"]["Giovanni|num_c10"]["skip"] = {"por": "rapido", "t": 1, "estado": "pendiente"}
+    ctx, pg = dd_pagina(C, st=st); dd_empezar(pg); igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')"), None, "una habilidad saltada sin comprobar no cuenta como saber"); ctx.close()
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True, limite=15, time={"Valentino|" + time.strftime("%Y-%m-%d"): 899})); dd_empezar(pg)
+    pg.evaluate("store.time['Valentino|'+today()]=900"); igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')"), None, "si el otro ya no tiene tiempo hoy, no se propone"); ctx.close()
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg); igual(pg.evaluate("Gioval.dedos.proponerExplicacion('Giovanni')"), None, "si el otro todavía no practicó esa habilidad, no se propone"); ctx.close()
+
+@prueba("de a dos: tope diario por chico (cada turno gasta SU tiempo; al llegar al tope sigue el otro o termina con mensaje amable; sin apuro ni castigo)")
+def t_dd_tope(C):
+    hoy = lambda k: "%s|%s" % (k, time.strftime("%Y-%m-%d"))
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, limite=15)); dd_empezar(pg)
+    t0 = pg.evaluate("[store.time['Giovanni|'+today()]||0, store.time['Valentino|'+today()]||0]")
+    pg.wait_for_timeout(2300); igual(pg.evaluate("[store.time['Giovanni|'+today()]||0, store.time['Valentino|'+today()]||0]"), t0, "esperar en la entrega de turno NO gasta tiempo de nadie")
+    dd_vamos(pg); pg.wait_for_timeout(2300); dd_uno(pg)   # Giovanni mira la pantalla un rato y responde
+    t1 = pg.evaluate("[store.time['Giovanni|'+today()]||0, store.time['Valentino|'+today()]||0]"); verificar(t1[0] >= t0[0] + 2, "el turno gasta el tiempo de Giovanni: %s → %s" % (t0, t1)); igual(t1[1], t0[1], "y no el de Valentino")
+    dd_turno(pg)
+    ctx.close()
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, limite=15)); dd_empezar(pg); dd_vamos(pg)
+    pg.evaluate("store.time['Giovanni|'+today()]=capBase()-1"); pg.wait_for_timeout(1600)   # pasa el segundo del reloj: el motor avisa el tope
+    igual(dd_id(pg), "act", "el cartel de tope del motor NO interrumpe el ítem en curso"); verificar(not pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "no sale el cartel de siempre")
+    dd_uno(pg); pg.wait_for_function("document.querySelector('.screen.active').id==='ddPaso'", timeout=6000)
+    igual(dd_tit(pg), "Giovanni ya jugó por hoy"); t = dd_texto(pg); verificar("completó los 15 minutos de hoy. ¡Gracias por jugar! Mañana seguimos." in t and "Seguir con Valentino" in t and "Terminar por hoy" in t, t)
+    igual(dd_estado(pg, "D.porKid.Giovanni.n"), 1, "terminó solo el ítem que tenía en curso")
+    tg = pg.evaluate("store.time['Giovanni|'+today()]"); pg.wait_for_timeout(1500); igual(pg.evaluate("store.time['Giovanni|'+today()]"), tg, "Giovanni ya no gasta tiempo")
+    ant_g = dd_progreso(pg, "Giovanni")
+    pg.click("#ddAcc .btn:has-text('Seguir con Valentino')"); pg.wait_for_timeout(150); igual(dd_tit(pg), "Ahora le toca a Valentino")
+    dd_vamos(pg); pg.wait_for_timeout(1300); dd_turno(pg); igual(dd_tit(pg), "Ahora le toca a Valentino", "Giovanni ya no tiene tiempo: sigue Valentino otra vez")
+    igual(dd_progreso(pg, "Giovanni"), ant_g, "el progreso de Giovanni no cambió mientras jugó Valentino"); verificar(pg.evaluate("store.time['Valentino|'+today()]") >= 1, "tiempo de Valentino")
+    # Valentino también llega a su tope: la sesión termina con un mensaje amable (sin cartel de motor y sin entrega)
+    dd_vamos(pg); pg.evaluate("store.time['Valentino|'+today()]=capBase()-1"); pg.wait_for_timeout(1600); dd_uno(pg)
+    pg.wait_for_function("document.getElementById('ddTit').innerText==='¡Buen trabajo, equipo!'", timeout=6000)
+    t = dd_texto(pg); verificar("Giovanni: 1 respuesta" in t and "Valentino: " in t and "Hoy sumaron" in t, t)
+    verificar(any("Gracias por jugar de a dos, Giovanni y Valentino" in x for x in pg.evaluate("window.__LOG")), "la voz se despide")
+    # el registro quedó guardado por chico
+    r = pg.evaluate("Gioval.dedos.datos().reg"); igual([r["Giovanni"][0]["c"], r["Valentino"][0]["c"]], ["Valentino", "Giovanni"]); igual(r["Giovanni"][0]["n"], 1); verificar(r["Valentino"][0]["n"] >= 1 and r["Valentino"][0]["s"] >= 1, str(r["Valentino"]))
+    pg.click("#ddAcc .btn"); pg.wait_for_timeout(150); igual(dd_id(pg), "who", "al terminar vuelve a ¿Quién juega?"); ctx.close()
+    # si en pleno ítem no se resuelve nada, a los 45 s (acá 0,4) el turno se cierra solo y amablemente; un +15 min de los adultos devuelve el tiempo
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False, limite=15)); dd_empezar(pg); dd_vamos(pg)
+    pg.evaluate("Gioval.dedos.AJ.graciaTopeMs=400; store.time['Giovanni|'+today()]=capBase()+5"); pg.wait_for_function("document.querySelector('.screen.active').id==='ddPaso'", timeout=8000)
+    igual(dd_tit(pg), "Giovanni ya jugó por hoy"); igual(pg.evaluate("[S.session, S.tap]"), [None, None], "no queda nada colgado")
+    pg.evaluate("store.extra['Giovanni|'+today()]=900"); igual(pg.evaluate("Gioval.dedos.restante('Giovanni')>0"), True, "+15 min de los adultos suma tiempo a ese chico"); ctx.close()
+    # pausa con ⬅: lo hecho queda guardado, se puede seguir o terminar
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); dd_empezar(pg); dd_vamos(pg); dd_uno(pg)
+    pg.click("#btnActBack"); pg.wait_for_timeout(150); igual(dd_id(pg), "ddPaso"); igual(dd_tit(pg), "¿Terminamos por hoy?"); verificar("Lo que hicieron hasta ahora quedó guardado." in dd_texto(pg))
+    igual(pg.evaluate("store.sk['Giovanni|num_sub5']&&store.sk['Giovanni|num_sub5'].att||store.sk['Giovanni|num_c20']&&store.sk['Giovanni|num_c20'].att||store.sk['Giovanni|num_add10']&&store.sk['Giovanni|num_add10'].att"), 1, "la respuesta anterior ya estaba guardada")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(250); igual(dd_id(pg), "act", "seguir jugando"); igual(pg.evaluate("KID"), "Giovanni")
+    pg.click("#btnActBack"); pg.wait_for_timeout(150); pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(150); igual(dd_tit(pg), "¡Buen trabajo, equipo!"); ctx.close()
+
+@prueba("de a dos: informe para adultos por chico (sesiones, respuestas, explicaciones) y sin sección si nunca jugó de a dos")
+def t_dd_informe(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=True)); dd_empezar(pg)
+    dd_vamos(pg); pg.click("#ddAcc .btn:has-text('Ya le expliqué')"); pg.wait_for_timeout(250); dd_turno(pg)
+    dd_vamos(pg); dd_turno(pg, cada_error=1); dd_terminar(pg)
+    igual(dd_tit(pg), "¡Buen trabajo, equipo!"); pg.click("#ddAcc .btn"); pg.wait_for_timeout(150)
+    r = pg.evaluate("Gioval.dedos.datos().reg"); g, v = r["Giovanni"][0], r["Valentino"][0]
+    rep = {k: pg.evaluate("(k)=>{ KID=k; return reportText(); }", k) for k in ("Giovanni", "Valentino", "Otro")}
+    verificar("DE A DOS (por turnos, en el mismo aparato)" in rep["Giovanni"] and "1 sesión de a dos." in rep["Giovanni"], rep["Giovanni"])
+    verificar("Explicarle a otro no suma nada al dominio." in rep["Giovanni"], "aclara que explicar no suma dominio")
+    pl = lambda n, a, b: "%d %s" % (n, a if n == 1 else b)
+    fila = lambda e, c: "con %s: %s (%d al primer intento), %d min, %s" % (c, pl(e["n"], "respuesta", "respuestas"), e["ok"], round(e["s"] / 60), pl(e["tr"], "turno", "turnos"))
+    verificar(fila(g, "Valentino") in rep["Giovanni"], "fila de Giovanni: " + rep["Giovanni"][-900:])
+    verificar(fila(v, "Giovanni") in rep["Valentino"], "fila de Valentino (con SUS cifras): " + rep["Valentino"][-900:])
+    verificar(g["n"] != v["n"] or g["tr"] != v["tr"] or g["ok"] != v["ok"], "las cifras de cada chico son distintas (si no, la prueba no distingue)")
+    verificar("Le explicó a Valentino (1 vez). No cuenta para el dominio." in rep["Giovanni"] and "Escuchó la explicación de Giovanni (1 vez)." in rep["Valentino"], "explicaciones por chico")
+    verificar("Escuchó" not in rep["Giovanni"] and "Le explicó" not in rep["Valentino"], "cada chico ve solo lo suyo")
+    verificar("DE A DOS" not in rep["Otro"], "quien nunca jugó de a dos no tiene la sección")
+    igual(pg.evaluate("(k)=>(store.log[k]||[]).filter(e=>e.d===1).length", "Giovanni"), g["n"], "eventos de práctica marcados")
+    # lo que respondieron cuenta en su progreso de siempre: la sección de la isla también lo muestra
+    verificar("Contar hasta 10" in rep["Valentino"] and "Contar hasta 10" in rep["Giovanni"], "las habilidades siguen en el informe de siempre")
+    ctx.close()
+
+JS_DD_EXTRA = """(function(){ const W=innerWidth,H=innerHeight,o=[];
+  if(document.body.scrollWidth>document.body.clientWidth+2) o.push('body: desborde horizontal');
+  document.querySelectorAll('.dd-chip,.dd-cell,.dd-quien,.dd-eq,#ddCuadro,.dd-acc,.dd-txt').forEach(e=>{ if(e.closest('.screen:not(.active)')) return; const r=e.getBoundingClientRect(); if(!r.width) return;
+    if(r.right>W+1||r.left<-1) o.push((e.id||e.className)+' fuera de pantalla (horizontal)'); });
+  const a=document.querySelector('.screen.active'); if(a&&a.id==='ddPaso'){ const b=a.querySelector('#ddAcc .btn'); if(b){ const r=b.getBoundingClientRect(); if(r.bottom>H+1||r.top<0) o.push('el botón principal no se ve sin desplazar (arriba='+Math.round(r.top)+', abajo='+Math.round(r.bottom)+', alto de pantalla='+H+')'); } }
+  if(a&&a.id==='ddSetup'){ const b=a.querySelector('#ddIr'); const r=b.getBoundingClientRect(); const p=a.querySelector('#ddSetupBody'); if(r.bottom>H+1&&!(p.scrollHeight>p.clientHeight)) o.push('A jugar fuera de pantalla'); }
+  return o; })()"""
+
+def dd_recorrer(pg, ver, texto=None):
+    """Pasa por TODAS las pantallas de De a dos: armado, entrega, explicar, turno (con la franja del equipo), pausa, tope, celebración, entrega al que sigue y fin."""
+    pg.evaluate("Gioval.dedos.AJ.graciaTopeMs=300")
+    pg.click("[data-modo=dedos]"); pg.wait_for_timeout(150); ver("1_armado")
+    pg.click("#ddIr"); pg.wait_for_timeout(150); ver("2_entrega")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150); ver("3_explicar")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(400); dd_uno(pg); pg.wait_for_timeout(150); ver("4_turno")
+    pg.click("#btnActBack"); pg.wait_for_timeout(150); ver("5_pausa")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(300)
+    pg.evaluate("store.time[KID+'|'+today()]=capBase()+1"); pg.wait_for_function("document.querySelector('.screen.active').id==='ddPaso'", timeout=9000); pg.wait_for_timeout(100); ver("6_tope")
+    pg.click("#ddAcc .btn:not(.alt)"); pg.wait_for_timeout(150); ver("7_celebracion")
+    pg.click("#ddAcc .btn.grande"); pg.wait_for_timeout(150); ver("8_entrega_solo")
+    pg.click("#ddAcc .btn.alt"); pg.wait_for_timeout(150); ver("9_fin")
+
+def dd_sembrado(): return dd_store(practicando=True, limite=15, dedos={"eq": {"Giovanni|Valentino": {"piezas": 6, "cuadros": 0, "total": 6}}, "reg": {}})
+
+@prueba("de a dos: sin desbordes horizontales y con el botón principal a la vista en Pixel 7, 360x700, 740x330 y tableta 820x1180 (es-AR); capturas")
+def t_dd_vistas(C):
+    mal = []
+    for v in ("pixel7", "360x700", "740x330", "820x1180"):
+        ctx, pg = dd_pagina(C, vista=v, st=dd_sembrado(), congelar=True, semilla=62)
+        def ver(n, v=v, pg=pg):
+            pg.wait_for_timeout(120); r = pg.evaluate(JS_DESBORDES) + pg.evaluate(JS_DD_EXTRA)
+            CAPTURAS.append(foto(pg, "%s_90_dedos_%s" % (v, n)))
+            mal.extend("%s %s: %s" % (v, n, x) for x in r)
+        dd_recorrer(pg, ver); ctx.close()
+    verificar(not mal, "desbordes: " + "; ".join(mal[:10]))
+
+@prueba("de a dos con el pseudo-idioma (+40 %, acentos) y en RTL: sin desbordes que no hubiera en es-AR")
+def t_dd_pseudo(C):
+    mal = []
+    for idioma in ("qps-ploc", "qps-plocm"):
+        for v in ("360x700", "740x330", "820x1180"):
+            ctx, pg = dd_pagina(C, vista=v, st=dd_sembrado(), idioma=idioma, congelar=True, semilla=63)
+            def ver(n, v=v, pg=pg, idioma=idioma):
+                pg.wait_for_timeout(120); r = pg.evaluate(JS_DESBORDES) + pg.evaluate(JS_DD_EXTRA)
+                if v != "820x1180": CAPTURAS.append(foto(pg, "%s_%s_91_dedos_%s" % (v, idioma, n)))
+                mal.extend("%s %s %s: %s" % (idioma, v, n, x) for x in r)
+            dd_recorrer(pg, ver)
+            igual(pg.evaluate("[document.documentElement.dir, Gioval.i18n.faltantes.size]"), ["rtl" if idioma == "qps-plocm" else "ltr", 0], "dir/faltantes"); ctx.close()
+    verificar(not mal, "desbordes: " + "; ".join(mal[:12]))
+
+@prueba("de a dos en inglés: todas las pantallas, la voz y el informe sin una palabra en español, sin claves faltantes")
+def t_dd_ingles(C):
+    ctx, pg = dd_pagina(C, st=dd_sembrado(), idioma="en", semilla=64); textos = []
+    dd_recorrer(pg, lambda n: textos.append(dd_texto(pg)))
+    dicho = pg.evaluate("window.__LOG.concat(window.__BUB)"); todo = [l for t in textos for l in t.split("\n") if l.strip()] + dicho
+    verificar(not sin_espanol(todo), "español en inglés: %s" % sin_espanol(todo)[:5])
+    verificar(any("It's Giovanni's turn" in x for x in dicho) and any("You built the “Garden” picture together!" in x for x in textos), "frases en inglés: %s" % textos[:3])
+    rep = pg.evaluate("(()=>{ KID='Giovanni'; return reportText(); })()"); verificar("TOGETHER (in turns, on the same device)" in rep and "with Valentino" in rep, rep[-700:])
+    verificar(not sin_espanol([l for l in rep.split("\n") if "TOGETHER" in l or "with Valentino" in l or "Explained" in l]), "informe en inglés")
+    igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes"); ctx.close()
+
+@prueba("de a dos: el almacén v3 → v4 conserva TODO, crea 'dedos' vacío, deja copia previa exacta, no migra dos veces y un respaldo con 'dedos' se restaura")
+def t_dd_migracion(C):
+    v3 = {"version": 3, "profiles": ["Giovanni", "Valentino"], "stars": {"x": 2}, "sk": {"Giovanni|n1": dd_sk(True, 9), "Valentino|num_c10": dd_sk(False, 3)}, "days": {"Giovanni": ["2026-11-01"]},
+          "time": {"Giovanni|2026-11-01": 300}, "log": {"Giovanni": [{"t": 5, "s": "n1", "o": 1, "f": 1, "g": 0, "k": "learn"}]}, "checks": {"Giovanni": [{"d": "2026-11-02", "n": 4, "ok": 3, "p": "musica"}]},
+          "extra": {"Giovanni|2026-11-01": 900}, "limit": {"Giovanni": 20}, "idioma": {"Valentino": "en"}, "intake": {"Valentino": {"v": 1, "edad": 6, "resp": {}}}, "meta": {"ultimoRespaldo": 5, "guardado": 9, "desde": 7}}
+    txt = json.dumps(v3); ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=txt, errores=err); nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
+    igual(nuevo["version"], 4, "version"); igual(nuevo["dedos"], {}, "dedos vacío")
+    for k in v3:
+        if k not in ("version", "meta"): igual(nuevo[k], v3[k], "campo " + k)
+    igual(nuevo["meta"]["ultimoRespaldo"], 5, "meta conservada")
+    igual(pg.evaluate("localStorage.getItem('gioval_pre_migracion')"), txt, "copia previa exacta (localStorage)")
+    rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v3" in rs[0]["id"] and json.loads(rs[0]["json"]) == v3, "copia previa en IndexedDB: %s" % [r["id"] for r in rs])
+    igual(pg.evaluate("Gioval.almacen.errorMigracion"), None)
+    # jugar de a dos sobre datos migrados, guardar, recargar: sigue todo y no vuelve a migrar ni a copiar
+    pg.evaluate("Gioval.dedos.equipo('Giovanni','Valentino').piezas=3; Gioval.dedos.datos().reg.Giovanni=[{t:1,c:'Valentino',n:2,ok:1,s:60,tr:1,e:0,r:0,p:2}]; save(); Gioval.almacen.guardarYa()")
+    pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("store.version"), 4); igual(pg.evaluate("store.dedos.eq['Giovanni|Valentino'].piezas"), 3, "el dibujo se conserva"); igual(pg.evaluate("store.dedos.reg.Giovanni[0].n"), 2)
+    igual(len(pg.evaluate("Gioval.almacen.respaldos()")), 1, "no vuelve a migrar ni a hacer otra copia")
+    # restaurar un respaldo con 'dedos' (formato de exportar) y otro viejo sin 'dedos' (v3): ambos quedan bien
+    datos = pg.evaluate("JSON.parse(JSON.stringify(store))")
+    pg.evaluate("(d)=>Gioval.almacen.restaurar(d)", datos); igual(pg.evaluate("store.dedos.eq['Giovanni|Valentino'].piezas"), 3, "restaurar conserva dedos")
+    r = pg.evaluate("(async(v3)=>{ const f=new File([JSON.stringify({app:'gioval',formato:1,store:v3})],'r.json'); const o=await Gioval.almacen.leerRespaldo(f); return [o.ok,o.datos&&o.datos.version,o.datos&&JSON.stringify(o.datos.dedos)]; })(%s)" % txt)
+    igual(r, [True, 4, "{}"], "un respaldo viejo (v3) se convierte al leerlo"); verificar(not err, str(err)); ctx.close()
+
+@prueba("de a dos: no cambia nada si no se usa (sesión suelta, tope del motor, informe y mapa de siempre; las islas registradas son las mismas)")
+def t_dd_no_toca(C):
+    ctx, pg = dd_pagina(C, st=dd_store(practicando=False)); entrar(pg, "Giovanni")
+    igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "letras", "misiones", "ritmo"], "De a dos no es una isla de aprendizaje")
+    igual(pg.evaluate("Gioval.modos.map(m=>m.id)"), ["dedos"])
+    abrir_isla(pg, "Números"); tarjeta(pg, "Sesión de hoy"); verificar(jugar(pg, perfecto=True) == "fin", "sesión suelta"); cerrar_fin(pg, "#btnFinOk")
+    igual(pg.evaluate("S.session"), None); igual(pg.evaluate("document.getElementById('ddEquipo').classList.contains('on')"), False, "la franja del equipo no aparece en una sesión suelta")
+    verificar("DE A DOS" not in pg.evaluate("reportText()"), "informe sin sección")
+    pg.evaluate("S.run++; resetFlow(); goMap(); store.time['Giovanni|'+today()]=0"); llegar_al_tope(pg, "Números")
+    verificar(pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "el tope del motor sigue funcionando en una sesión suelta"); ctx.close()
 
 # ================================================================== runner
 class Ctx: pass

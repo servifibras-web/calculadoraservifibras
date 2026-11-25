@@ -1,0 +1,141 @@
+# Arma el APK de Android de Mundo Gioval (firmado con la clave de depuración fija del repo) y lo deja para descargar.
+# Cómo usarlo, paso a paso y en castellano: gioval-dev/docs/ANDROID.md
+name: APK Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      espacio:
+        description: "Qué app armar: normal = la de todos los días; beta = copia de prueba (otra app, otros datos, cinta roja BETA)"
+        type: choice
+        options:
+          - normal
+          - beta
+        default: normal
+  push:
+    branches:
+      - android-envoltorio
+    paths:
+      - "gioval/**"
+      - "gioval-android/**"
+      - ".github/workflows/apk.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-${{ github.ref }}-${{ github.event.inputs.espacio || 'normal' }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      ELEGIDO: ${{ github.event.inputs.espacio || 'normal' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 21 (lo pide Capacitor 8)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: gioval-android/package-lock.json
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
+
+      - name: Gradle (caché)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Datos de esta variante (id de la app, nombre, versión)
+        id: v
+        run: |
+          set -euo pipefail
+          case "$ELEGIDO" in
+            normal) ESPACIO=""; APPID="ar.servifibras.gioval"; NOMBRE="Mundo Gioval"; ARTEFACTO="mundo-gioval-debug" ;;
+            beta)   ESPACIO="beta"; APPID="ar.servifibras.gioval.beta"; NOMBRE="Mundo Gioval BETA"; ARTEFACTO="mundo-gioval-beta-debug" ;;
+            *) echo "::error::Valor de 'espacio' no válido: $ELEGIDO (tiene que ser normal o beta)"; exit 1 ;;
+          esac
+          VERSION="$(python3 gioval-android/preparar_web.py --version)"
+          {
+            echo "espacio=$ESPACIO"
+            echo "appid=$APPID"
+            echo "nombre=$NOMBRE"
+            echo "artefacto=$ARTEFACTO"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
+          echo "Variante: $ELEGIDO | id: $APPID | nombre: $NOMBRE | versión web: $VERSION | número de compilación: ${{ github.run_number }}"
+
+      - name: Copiar la app web a gioval-android/www (falla si la app cambió de forma inesperada)
+        working-directory: gioval-android
+        run: python3 preparar_web.py --espacio "${{ steps.v.outputs.espacio }}"
+
+      - name: Íconos de la variante beta (cinta roja BETA)
+        if: steps.v.outputs.espacio == 'beta'
+        working-directory: gioval-android
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 generar_iconos.py --beta
+
+      - name: Instalar dependencias de Capacitor
+        working-directory: gioval-android
+        run: npm ci
+
+      - name: Sincronizar Capacitor con Android
+        working-directory: gioval-android
+        run: npx cap sync android
+
+      - name: Compilar el APK
+        working-directory: gioval-android/android
+        run: >
+          ./gradlew assembleDebug --stacktrace
+          -PgiovalAppId="${{ steps.v.outputs.appid }}"
+          -PgiovalNombre="${{ steps.v.outputs.nombre }}"
+          -PgiovalVersionCode="${{ github.run_number }}"
+          -PgiovalVersionName="${{ steps.v.outputs.version }}"
+
+      - name: Verificar el APK (id de la app y permisos) y ponerle nombre
+        id: apk
+        run: |
+          set -euo pipefail
+          ORIGEN="gioval-android/android/app/build/outputs/apk/debug/app-debug.apk"
+          test -f "$ORIGEN" || { echo "::error::No se generó $ORIGEN"; exit 1; }
+          AAPT2="$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
+          "$AAPT2" dump badging "$ORIGEN" > badging.txt
+          head -1 badging.txt
+          grep -q "package: name='${{ steps.v.outputs.appid }}'" badging.txt || { echo "::error::El APK NO tiene el id esperado ${{ steps.v.outputs.appid }}"; exit 1; }
+          for P in RECORD_AUDIO POST_NOTIFICATIONS USE_EXACT_ALARM RECEIVE_BOOT_COMPLETED FOREGROUND_SERVICE_MEDIA_PLAYBACK; do
+            grep -q "uses-permission: name='android.permission.$P'" badging.txt || { echo "::error::Al APK le falta el permiso $P"; exit 1; }
+          done
+          DESTINO="mundo-gioval-${{ steps.v.outputs.version }}-${{ env.ELEGIDO }}-debug.apk"
+          mkdir -p salida && cp "$ORIGEN" "salida/$DESTINO"
+          echo "archivo=salida/$DESTINO" >> "$GITHUB_OUTPUT"
+          ls -l salida
+
+      - name: Subir el APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.v.outputs.artefacto }}
+          path: ${{ steps.apk.outputs.archivo }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Resumen
+        run: |
+          {
+            echo "### APK listo: ${{ steps.v.outputs.nombre }} (versión ${{ steps.v.outputs.version }}, compilación ${{ github.run_number }})"
+            echo ""
+            echo "Bajalo de la sección **Artifacts** al final de esta página: **${{ steps.v.outputs.artefacto }}** (viene dentro de un .zip: descomprimilo y copiá el .apk al teléfono)."
+            echo ""
+            echo "Guía completa: \`gioval-dev/docs/ANDROID.md\`"
+          } >> "$GITHUB_STEP_SUMMARY"

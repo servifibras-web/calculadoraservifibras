@@ -20,16 +20,20 @@ Gioval.on("idioma",d=>{
   if($("panel").classList.contains("show")) renderParent();
   if(Gioval.voz) Gioval.voz.configurar();
 });
+/* modos de juego que no son una isla (Gioval.modos.push({id,visible(),em,nombre,sub,go(),informe?(kid)})): aparecen en el mapa y en "¿Quién juega?" */
+function modosVisibles(){ return (Gioval.modos||[]).filter(m=>!m.visible||m.visible()); }
 function renderMap(){
   $("mapTitle").textContent=t("app.mapa_titulo",{nombre:KID});
   const box=$("islands"); box.innerHTML="";
   const islas=[
     ...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMenuIsla(); speak(p.hablaMenu?p.hablaMenu():t("app.isla_entrada",{isla:p.name})); }})),
+    ...modosVisibles().map(m=>({name:m.nombre,emoji:m.em,sub:m.sub,on:true,go:()=>m.go(),modo:m.id})),   /* gancho genérico: modos que no son una isla (p. ej. De a dos) */
     ...(Gioval.datos.proximas||[]).map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:false})),
   ];
   islas.forEach(is=>{
     const b=document.createElement("button"); b.className="island"+(is.on?"":" off");
     b.innerHTML=`<div class="em">${is.on?is.emoji:"🔒"}</div>${is.name}<small>${is.sub}</small>`;
+    if(is.modo) b.dataset.modo=is.modo;
     if(is.on) b.onclick=()=>{ ensureCtx(); is.go(); }
     box.appendChild(b);
   });
@@ -41,6 +45,7 @@ function renderWho(){
     const b=document.createElement("button"); b.className="song"; b.innerHTML=`<div style="font-size:48px">🦊</div>${n}`;
     b.onclick=()=>{ ensureCtx(); KID=n; usarIdiomaDeJugador(); goMap(); speak(t("app.hola_entrada",{nombre:KID})); }; box.appendChild(b);
   });
+  modosVisibles().forEach(m=>{ const b=document.createElement("button"); b.className="song"; b.dataset.modo=m.id; b.innerHTML=`<div style="font-size:48px">${m.em}</div>${m.nombre}`; b.onclick=()=>{ ensureCtx(); m.go(); }; box.appendChild(b); });
   const nb=document.createElement("button"); nb.className="song"; nb.innerHTML=`<div style="font-size:48px">➕</div>${t("app.nuevo_jugador")}`;
   nb.onclick=()=>{ $("nameBox").classList.add("show"); $("nameIn").value=""; setTimeout(()=>$("nameIn").focus(),50); }; box.appendChild(nb);
 }

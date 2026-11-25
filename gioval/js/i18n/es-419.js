@@ -38,6 +38,17 @@ Gioval.i18n.registrar("es-419", {
     "musica.echo_vos": "¡Ahora tú! 🎹",
     "musica.tarjeta_sub": "Toca tus favoritas",
     "musica.panel.tip": "Tip: pon la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.",
+    "musica.otra_octava": "¡Es el {nota}, pero de otra octava! Prueba con el {nota} que está cerca del medio 😊",
+    "musica.motivo.silenciado": "Ignoré un sonido porque la app estaba hablando o tocando. Espera a que termine y toca de nuevo.",
+    "musica.motivo.bajo": "Ignoré un sonido porque es muy suave. Toca más fuerte o sube la sensibilidad.",
+    "musica.motivo.suena_anterior": "Ignoré un sonido porque todavía sonaba la nota anterior. Espera a que se apague o toca un poco más fuerte.",
+    "musica.motivo.sin_nota": "Escuché un sonido pero no pude saber qué nota era (¿varias teclas juntas o mucho ruido?). Prueba con una sola tecla.",
+    "musica.vivo.estado.apagado": "🎤 El micrófono está apagado: toca el 🎤 de arriba.",
+    "musica.afin.btn_la": "🎵 Toca un La",
+    "musica.afin.esperando": "Toca un La ahora (una sola tecla, bien clara)… te escucho.",
+    "musica.afin.no_es_la": "Eso no sonó como un La (escuché {nota}). Prueba de nuevo con el La.",
+    "musica.afin.sin_nota": "No pude medir la nota. Toca un La solo, bien fuerte, y deja que suene.",
+    "musica.afin.tiempo": "No escuché ningún La. Aprieta el botón y toca de nuevo.",
     "numeros.objetos": {
       "manzana": {
         "one": "manzana",
