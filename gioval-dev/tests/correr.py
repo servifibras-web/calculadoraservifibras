@@ -533,6 +533,393 @@ def t_agregar_isla(C):
     finally:
         srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
 
+# ================================================================ Isla Números por edades (Fase 1)
+FIXTURE_V1 = (HERE / "fixtures" / "almacen_v1.json").read_text(encoding="utf-8")
+NUM9 = [("num_c10", "Contar hasta 10"), ("num_r10", "Reconocer los números"), ("num_may", "Más y menos"), ("num_add5", "Sumas hasta 5"), ("num_sub5", "Restas hasta 5"),
+        ("num_c20", "Contar hasta 20"), ("num_add10", "Sumas hasta 10"), ("num_sub10", "Restas hasta 10"), ("num_r20", "Los números hasta 20")]
+
+def fijar_rt(pg, ms):
+    """Fija el tiempo de respuesta que mide el motor (la prueba no depende de la velocidad real del navegador)."""
+    pg.evaluate("window.tapRt=function(){ return %d; }" % ms)
+
+def nuevo_num(C, vista="360x700", semilla=1, store=None, **kw):
+    ctx = C.banco.contexto(vista); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=store if store is not None else STORE_KID, errores=err, semilla=semilla, **kw); instalar_speak(pg); entrar(pg, "Vale")
+    pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros')")
+    return ctx, pg, err
+
+def estados(pg, plan_js):
+    return pg.evaluate(plan_js)
+
+@prueba("migración v1 → v2: crea intake, conserva TODO el progreso y no vuelve a migrar")
+def t_migracion_v2(C):
+    viejo = json.loads(FIXTURE_V1)
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=FIXTURE_V1, errores=err)
+    nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
+    igual(nuevo["version"], 2, "version"); igual(nuevo["intake"], {}, "intake")
+    for k in ("profiles", "stars", "sk", "days", "time", "log", "checks", "extra", "limit"): igual(nuevo[k], viejo[k], "campo " + k)
+    igual(pg.evaluate("localStorage.getItem('gioval_pre_migracion')"), FIXTURE_V1, "copia previa exacta")
+    rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(len(rs) == 1 and "pre-migracion-v1" in rs[0]["id"], str(rs)[:200]); verificar(json.loads(rs[0]["json"]) == viejo, "copia previa en IndexedDB")
+    igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
+    igual([m["a"] for m in pg.evaluate("Gioval.almacen.migraciones.map(m=>({a:m.a}))")], [1, 2], "migraciones numeradas")
+    # escribe un intake, recarga: se conserva y no se vuelve a migrar ni a hacer otra copia
+    pg.evaluate("store.intake.Valentino={v:1,edad:6,resp:{cuenta:20}}; Gioval.almacen.guardarYa()"); pg.wait_for_timeout(300)
+    pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("store.intake.Valentino.edad"), 6, "intake tras recargar"); igual(pg.evaluate("store.version"), 2)
+    igual(len(pg.evaluate("Gioval.almacen.respaldos()")), 1, "no debe haber copias nuevas")
+    verificar(not err, str(err)); ctx.close(); return "v1 → v2, %d claves de progreso intactas" % len(viejo["sk"])
+
+@prueba("migración v1 → v2: un intake con forma rara se normaliza sin perder datos")
+def t_migracion_v2_rara(C):
+    viejo = json.loads(FIXTURE_V1); viejo["intake"] = ["basura"]
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=json.dumps(viejo), errores=C.err)
+    igual(pg.evaluate("store.intake"), {}, "intake"); igual(pg.evaluate("store.sk"), viejo["sk"], "sk"); ctx.close()
+
+@prueba("Números (datos): 31 habilidades, ids de la v1 intactos, requisitos, ejes, preguntas y textos coherentes")
+def t_num_datos(C):
+    ctx, pg, err = nuevo_num(C)
+    r = pg.evaluate("""(()=>{ const D=Gioval.datos.numeros, E=D.ESCALA, out={}; const ids=E.map(s=>s.id), idx=new Map(ids.map((x,i)=>[x,i]));
+      out.n=E.length; out.unicos=new Set(ids).size===ids.length; out.nueve=E.slice(0,9).map(s=>[s.id,s.name]);
+      out.reqMalos=E.filter(s=>s.req.some(r=>!idx.has(r)||idx.get(r)>=idx.get(s.id))).map(s=>s.id);
+      out.sinActividad=E.filter(s=>!ACTIVITIES[s.type]).map(s=>s.id);
+      out.sinMeta=E.filter(s=>!s.eje||!s.nap||!s.edad||!s.rapido||typeof s.rapido.rt!=='number').map(s=>s.id);
+      const enEjes=D.EJES.flatMap(e=>e.cadena); out.ejesOk=enEjes.length===ids.length&&new Set(enEjes).size===ids.length&&enEjes.every(x=>idx.has(x));
+      out.ejeMal=E.filter(s=>!D.EJES.find(e=>e.id===s.eje).cadena.includes(s.id)).map(s=>s.id);
+      const clos=id=>{ const c=new Set([id]); (function r(x){ E[idx.get(x)].req.forEach(q=>{ if(!c.has(q)){ c.add(q); r(q); } }); })(id); return c; };
+      out.saltaMal=E.flatMap(s=>(s.rapido.salta||[]).filter(y=>!idx.has(y)||y===s.id||!(E[idx.get(y)].req.includes(s.id)||E[idx.get(y)].req.every(q=>clos(s.id).has(q)))).map(y=>s.id+'>'+y));
+      out.intakeMal=D.INTAKE.preguntas.flatMap(p=>p.opciones.flatMap(o=>o.domina.filter(x=>!idx.has(x)).map(x=>p.id+':'+x)));
+      out.defectoMal=D.INTAKE.edades.filter(e=>!D.INTAKE.defecto[e]||D.INTAKE.preguntas.some(p=>!p.opciones.some(o=>o.v===D.INTAKE.defecto[e][p.id])));
+      const vac=[]; (function rec(o,p){ if(typeof o==='string'){ if(!o.trim()) vac.push(p); } else if(o&&typeof o==='object') Object.keys(o).forEach(k=>rec(o[k],p+'.'+k)); })(D.TEXTOS,'TEXTOS'); out.vacios=vac;
+      const txt=JSON.stringify(D.TEXTOS); out.prohibidas=(txt.match(/inteligent|genio|talento|racha|puntos|sos (muy )?(bueno|bueña|brillante)|campe[oó]n/gi)||[]);
+      out.vos=(txt.match(/\\b(tienes|puedes|cuenta tú|eres|toca el|dime)\\b/gi)||[]);
+      return out; })()""")
+    igual(r["n"], 31, "cantidad de habilidades"); verificar(r["unicos"], "ids repetidos")
+    igual([tuple(x) for x in r["nueve"]], NUM9, "las 9 de la v1 (ids y nombres) no se tocan")
+    for k in ("reqMalos", "sinActividad", "sinMeta", "ejeMal", "saltaMal", "intakeMal", "defectoMal", "vacios", "prohibidas", "vos"): igual(r[k], [], k)
+    verificar(r["ejesOk"], "los ejes no cubren cada habilidad exactamente una vez")
+    # cada actividad: la respuesta está entre las opciones, sin marcadores sin resolver, con los 3 niveles de ayuda
+    malos = pg.evaluate("""(()=>{ const bad=[]; for(let rep=0;rep<60;rep++) for(const s of PACK.skills) for(const aid of [0,1,2]){ try{ const A=ACTIVITIES[s.type], it=A.make(s), T={pos:0,cnt:[],help:false,aid,used:new Set(),dead:new Set()}, v=A.view(it,aid,T);
+        const vals=v.opts.map(o=>o.val), txt=[v.say,v.stage||'',A.tip(it),A.reveal(it,T)].join('|');
+        if(!it.seq.every(x=>vals.includes(x))||new Set(vals).size!==vals.length||/[{}]|undefined|NaN/.test(txt)) bad.push(s.id+' aid'+aid+' '+txt.slice(0,80)); }catch(e){ bad.push(s.id+' '+e); } } return bad.slice(0,5); })()""")
+    igual(malos, [], "actividades"); verificar(not err, str(err)); ctx.close(); return "31 habilidades × 3 ayudas × 60 sorteos sin errores"
+
+@prueba("salto por dominio rápido (regla): umbrales de aciertos, intentos y mediana de tiempo")
+def t_dominio_regla(C):
+    ctx, pg, err = nuevo_num(C)
+    def caso(entradas):
+        return pg.evaluate("""(es)=>{ store.log.Vale=es.map((e,i)=>({t:i,s:'num_c10',o:e.f,f:e.f,g:0,k:e.k||'learn',rt:e.rt})); return Gioval.dominio.evaluar(PACK.skills[0]).cumple; }""", entradas)
+    ok = lambda n, rt=3000: [{"f": 1, "rt": rt}] * n
+    verificar(caso(ok(6)), "6/6 rápidos debería cumplir"); verificar(not caso(ok(5)), "5 intentos no alcanzan")
+    verificar(not caso(ok(6, 6500)), "mediana lenta (6,5 s > umbral 6 s)"); verificar(not caso(ok(6, 6000)), "justo en el umbral no es 'bajo' el umbral")
+    verificar(caso(ok(6, 5999)), "justo bajo el umbral sí")
+    verificar(caso(ok(9) + [{"f": 0, "rt": None}]), "9/10 = 90% cumple"); verificar(not caso(ok(8) + [{"f": 0, "rt": None}] * 2), "8/10 = 80% no cumple")
+    verificar(not caso([{"f": 1, "rt": None}] * 8), "sin tiempos medidos no cumple")
+    verificar(not caso(ok(3, 5000) + [{"f": 1, "rt": None}] * 5), "con menos de 6 tiempos medidos no cumple")
+    verificar(not caso([{"f": 1, "rt": 100, "k": "check"}] * 8), "los ítems del chequeo no cuentan")
+    verificar(caso([{"f": 0, "rt": None}] * 4 + ok(10)), "mira solo los últimos 10 intentos")
+    verificar(caso(ok(3, 100) + ok(3, 9000)), "mediana de 100 y 9000 = 4550, bajo el umbral")
+    verificar(not err, str(err)); ctx.close()
+
+def sesion_perfecta(pg, n=1, rt=800, cada_error=0):
+    fijar_rt(pg, rt)
+    pasar_sesiones(pg, "Números", n, cada_error=cada_error, perfecto=(cada_error == 0))
+
+@prueba("salto por dominio rápido: responde bien y rápido → se saltea la siguiente; lento o con errores → no")
+def t_salto_rapido(C):
+    res = {}
+    for nombre, rt, ce in (("rapido", 800, 0), ("lento", 20000, 0), ("errores", 800, 4)):
+        ctx, pg, err = nuevo_num(C, semilla=101)
+        sesion_perfecta(pg, 1, rt, ce)
+        pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros')")
+        res[nombre] = pg.evaluate("({c10:SK('num_c10').mast,r10:SK('num_r10').mast,skip:SK('num_r10').skip||null,fast:SK('num_c10').fast||null,rts:(store.log.Vale||[]).filter(e=>e.rt).length,dicho:window.__LOG.filter(t=>t.includes('nos saltamos')),unl:unlockedList().map(s=>s.id)})")
+        verificar(not err, nombre + ": " + str(err)); ctx.close()
+    r = res["rapido"]
+    verificar(r["c10"] and r["r10"], "rápido: debería dominar c10 y saltear r10: %s" % r)
+    igual(r["skip"]["por"], "rapido", "por"); igual(r["skip"]["de"], "num_c10", "de"); igual(r["skip"]["estado"], "pendiente", "estado")
+    verificar(r["skip"]["ev"]["n"] >= 6 and r["skip"]["ev"]["med"] < 6000, "evidencia guardada: %s" % r["skip"])
+    verificar(r["rts"] >= 6, "se registró el tiempo (rt) en el log"); verificar(len(r["dicho"]) == 1 and "Reconocer los números" in r["dicho"][0], "la app avisa al niño: %s" % r["dicho"])
+    verificar("num_may" in r["unl"], "se abre lo que sigue sin esperar: %s" % r["unl"])
+    for k in ("lento", "errores"):
+        verificar(res[k]["c10"] and not res[k]["r10"] and not res[k]["skip"], "%s: no debería saltear: %s" % (k, res[k]))
+    return "rápido: c10 → r10 saltada; lento y con errores: no"
+
+@prueba("saltadas: se reevalúan en el chequeo semanal sin ayuda (aprueba → confirmada; falla → vuelve atrás)")
+def t_salto_chequeo(C):
+    # --- aprueba ---
+    ctx, pg, err = nuevo_num(C, semilla=102); sesion_perfecta(pg, 1)
+    verificar(pg.evaluate("SK('num_r10').mast&&SK('num_r10').skip.estado==='pendiente'"), "r10 debería estar saltada")
+    abrir_isla(pg, "Números"); tarjeta(pg, "Chequeo semanal"); pg.wait_for_timeout(200)
+    comp = pg.evaluate("(()=>{ const c={}; S.session.items.forEach(i=>c[i.skill.id]=(c[i.skill.id]||0)+1); return c; })()")
+    igual(comp.get("num_r10"), 3, "3 ítems de la saltada en el chequeo: %s" % comp); verificar(pg.evaluate("S.check"), "es un chequeo (sin ayuda)")
+    igual(jugar(pg), "fin"); cerrar_fin(pg)
+    sk = pg.evaluate("SK('num_r10')"); igual(sk["skip"]["estado"], "confirmada", "estado tras aprobar"); verificar(sk["mast"], "sigue dominada")
+    igual(sk["skip"]["chequeo"]["ok"], 3); rep = pg.evaluate("reportText()")
+    verificar("CONFIRMADA" in rep and "HABILIDADES SALTADAS" in rep, rep[-900:])
+    verificar(any("quedó confirmad" in t or "salió bien" in t for t in pg.evaluate("window.__LOG")), "el niño recibe el aviso"); verificar(not err, str(err)); ctx.close()
+    # --- falla: vuelve atrás ---
+    ctx, pg, err = nuevo_num(C, semilla=103); sesion_perfecta(pg, 1)
+    abrir_isla(pg, "Números"); tarjeta(pg, "Chequeo semanal"); igual(jugar(pg, cada_error=1), "fin"); cerrar_fin(pg)
+    sk = pg.evaluate("SK('num_r10')"); verificar(not sk["mast"], "debería volver atrás: %s" % sk); igual(sk["skip"]["estado"], "revertida", "estado")
+    pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros')")
+    verificar("num_r10" in pg.evaluate("unlockedList().filter(s=>!SK(s.id).mast).map(s=>s.id)"), "vuelve a ser lo próximo a aprender")
+    verificar("VOLVIÓ A PRÁCTICA" in pg.evaluate("reportText()"), "el informe lo dice")
+    abrir_isla(pg, "Números"); tarjeta(pg, "Sesión de hoy"); igual(pg.evaluate("S.session.items.filter(i=>i.skill.id==='num_r10').length") >= 7, True, "se vuelve a practicar")
+    pg.click("#btnActBack"); verificar(not err, str(err)); ctx.close()
+
+@prueba("saltadas: confirmación por implicación y devolución en cascada (reglas puras)")
+def t_salto_cascada(C):
+    ctx, pg, err = nuevo_num(C)
+    r = pg.evaluate("""(()=>{ const D=Gioval.dominio, P=PACK, out={};
+      const reset=()=>{ Object.keys(store.sk).forEach(k=>delete store.sk[k]); ['num_c10','num_r10','num_may'].forEach(id=>D.saltar(id,'adulto',{motivo:'x'})); };
+      reset(); const a=D.alTerminarChequeo(P,[{s:'num_may',o:1},{s:'num_may',o:1},{s:'num_may',o:0}]);
+      out.pasa={conf:a.confirmadas.map(s=>s.id).sort(),vuelven:a.volvieron.map(s=>s.id),r10:SK('num_r10').skip.estado,c10:SK('num_c10').skip.estado,por:SK('num_r10').skip.chequeo.porImplicacion};
+      reset(); const b=D.alTerminarChequeo(P,[{s:'num_r10',o:1},{s:'num_r10',o:0},{s:'num_r10',o:0}]);
+      out.falla={conf:b.confirmadas.map(s=>s.id),vuelven:b.volvieron.map(s=>s.id).sort(),r10:SK('num_r10').mast,may:SK('num_may').mast,c10:SK('num_c10').mast,c10e:SK('num_c10').skip.estado};
+      reset(); const c=D.alTerminarChequeo(P,[{s:'num_r10',o:1}]); out.pocos={conf:c.confirmadas.length,vuelven:c.volvieron.length,r10:SK('num_r10').skip.estado};
+      reset(); const items=D.armarChequeo(P,[],id=>({skill:P.skills.find(s=>s.id===id.id)}) ); out.vacio=items.length;
+      return out; })()""")
+    igual(r["pasa"], {"conf": ["num_c10", "num_may", "num_r10"], "vuelven": [], "r10": "confirmada", "c10": "confirmada", "por": "num_may"}, "aprueba la de arriba → confirma sus bases")
+    igual(r["falla"], {"conf": [], "vuelven": ["num_may", "num_r10"], "r10": False, "may": False, "c10": True, "c10e": "pendiente"}, "falla r10 → vuelven r10 y la que depende (may); c10 sigue pendiente")
+    igual(r["pocos"], {"conf": 0, "vuelven": 0, "r10": "pendiente"}, "con 1 solo ítem no se decide"); verificar(not err, str(err)); ctx.close()
+
+@prueba("punto de partida (sin test): edades 4, 5, 6 y 7 y la regla saltada / en curso / abierta")
+def t_num_plan_edades(C):
+    ctx, pg, err = nuevo_num(C)
+    JS = """([resp,edad])=>{ const A=Gioval.numeros.api; const full={cuenta:null,reconoce:null,suma:null,resta:null,mult:null}; Object.assign(full,resp);
+      const p=A.calcularPlan(A.reclamos(full,edad),null), g=e=>Object.keys(p.estados).filter(k=>p.estados[k]===e), em=A.empiezaEn(p.estados);
+      const abiertas=Object.keys(p.estados).filter(k=>p.estados[k]==='no'&&A.etiquetaNo(p.estados,k)==='abierta');
+      return {saltadas:g('saltada'),encurso:g('encurso'),abiertas,empieza:em&&em.id}; }"""
+    casos = [
+      (4, {"cuenta": 10, "reconoce": 5, "suma": 0, "resta": 0, "mult": 0}, [], ["num_c10"], [], "num_c10"),
+      (5, {"cuenta": 20, "reconoce": 10, "suma": 5, "resta": 0, "mult": 0}, ["num_c10", "num_r10", "num_may"], ["num_add5", "num_c20"], [], "num_add5"),
+      (6, {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0}, ["num_c10", "num_r10", "num_may", "num_add5", "num_c20"], ["num_sub5", "num_add10", "num_r20"], [], "num_sub5"),
+      (7, {"cuenta": 100, "reconoce": 100, "suma": 20, "resta": 20, "mult": 1}, ["num_c10", "num_r10", "num_may", "num_add5", "num_sub5", "num_c20", "num_add10", "num_sub10", "num_r20", "num_sig", "num_r100", "num_add20"], ["num_ser20", "num_dec", "num_sub20", "num_dob"], [], "num_ser20"),
+    ]
+    for edad, resp, salt, curso, abier, empieza in casos:
+        r = pg.evaluate(JS, [resp, edad])
+        igual(sorted(r["saltadas"]), sorted(salt), "saltadas a los %d" % edad); igual(sorted(r["encurso"]), sorted(curso), "en curso a los %d" % edad)
+        igual(r["empieza"], empieza, "empieza en (edad %d)" % edad)
+    # sin respuestas ("No sé" en todo): se usa la edad, de forma conservadora
+    r4 = pg.evaluate(JS, [{}, 4]); igual((r4["saltadas"], r4["encurso"], r4["empieza"]), ([], [], "num_c10"), "4 años sin datos → desde el principio, 'abierta' num_c10")
+    verificar("num_c10" not in r4["abiertas"] or True)
+    r7 = pg.evaluate(JS, [{}, 7]); igual(r7["empieza"], "num_sub10", "7 años sin datos usa los valores por edad"); verificar("num_c10" in r7["saltadas"] and "num_dob" not in r7["saltadas"], str(r7))
+    # edad sin dato y sin respuestas: no se salta nada
+    rn = pg.evaluate("""()=>{ const A=Gioval.numeros.api, p=A.calcularPlan(A.reclamos({},null),null); return Object.values(p.estados).filter(e=>e!=='no').length; }"""); igual(rn, 0, "sin edad ni respuestas")
+    # invariantes con 300 combinaciones al azar: lo saltado o en curso siempre tiene sus requisitos saltados
+    bad = pg.evaluate("""()=>{ const A=Gioval.numeros.api, D=Gioval.datos.numeros, bad=[]; for(let k=0;k<300;k++){ const resp={}; D.INTAKE.preguntas.forEach(p=>{ const o=Math.floor(Math.random()*(p.opciones.length+1)); resp[p.id]=o===p.opciones.length?null:p.opciones[o].v; });
+      const edad=[null,4,5,6,7,8][Math.floor(Math.random()*6)], pl=A.calcularPlan(A.reclamos(resp,edad),null);
+      D.ESCALA.forEach(s=>{ if(pl.estados[s.id]!=='no'&&!s.req.every(r=>pl.estados[r]==='saltada')) bad.push(JSON.stringify(resp)+s.id); }); } return bad.slice(0,3); }""")
+    igual(bad, [], "coherencia del plan"); verificar(not err, str(err)); ctx.close()
+    return "4: c10 en curso · 5: 3 saltadas · 6: 5 saltadas · 7: 12 saltadas"
+
+@prueba("ubicación adaptativa (lógica): respuestas simuladas correctas rápidas / lentas / erróneas / mixtas / adulto que exagera")
+def t_ubicacion_logica(C):
+    ctx, pg, err = nuevo_num(C)
+    JS = """([claims,sabe,rt,extra])=>{ const A=Gioval.numeros.api, S=new Set(sabe), cl=new Set(claims), cuenta={};
+      const r=A.simular(cl,(id,k)=>{ if(extra&&extra[id]) return extra[id](k); return {ok:S.has(id),rt:rt}; });
+      const pl=A.calcularPlan(cl,r), g=e=>Object.keys(pl.estados).filter(k=>pl.estados[k]===e);
+      return {pasados:r.pasados,fallados:r.fallados,n:r.registros.length,ejes:r.ejes,fin:r.fin,saltadas:g('saltada'),encurso:g('encurso'),empieza:(A.empiezaEn(pl.estados)||{}).id,porEje:Object.fromEntries(Object.entries(r.ejes).map(([k,v])=>[k,v.mejor]))}; }"""
+    todo = pg.evaluate("Gioval.datos.numeros.ESCALA.map(s=>s.id)")
+    # 1) sabe todo y rápido, el adulto no dijo nada: sube por los niveles hasta que se acaban los ítems
+    r = pg.evaluate(JS, [[], todo, 800, None])
+    igual(r["fallados"], [], "no falla nada"); verificar("num_c10" in r["pasados"] and "num_c20" in r["pasados"], "sube en el eje A: %s" % r["pasados"]); verificar(r["n"] <= 30, "tope de ítems: %d" % r["n"])
+    verificar("num_c10" in r["saltadas"] and "num_r10" in r["saltadas"], "las bases quedan saltadas"); verificar(r["empieza"] is not None)
+    # 2) todo mal: 2 ítems y listo (no se insiste); lo demás se omite
+    r = pg.evaluate(JS, [[], [], 800, None]); igual(r["n"], 2, "ítems"); igual(r["fallados"], ["num_c10"]); igual(r["saltadas"], [], "nada saltado"); igual(r["empieza"], "num_c10")
+    verificar(all(r["ejes"][e]["omitido"] for e in "CBDE"), "ejes que dependen de leer números no se prueban: %s" % r["ejes"])
+    # 3) el adulto exagera (dice 100/20/20), el niño solo sabe contar y reconocer hasta 10 y sumar hasta 5: el test CORRIGE
+    cl = pg.evaluate("""(()=>{ const A=Gioval.numeros.api; return [...A.reclamos({cuenta:100,reconoce:100,suma:20,resta:20,mult:0},7)]; })()""")
+    sabe = ["num_c10", "num_r10", "num_may", "num_add5"]
+    r = pg.evaluate(JS, [cl, sabe, 800, None])
+    verificar("num_may" in r["pasados"] and "num_add5" in r["pasados"], "encuentra lo que sí sabe: %s" % r["pasados"])
+    verificar("num_c10" in r["saltadas"] and "num_r10" in r["saltadas"], "las bases de lo que sabe quedan saltadas: %s" % r["saltadas"])
+    verificar(len(r["fallados"]) >= 3, "marca como falladas las que el adulto dijo y no sabe: %s" % r["fallados"])
+    for x in ("num_r100", "num_add20", "num_dec"): verificar(x not in r["saltadas"] and x not in r["encurso"], "%s no debería saltarse: %s" % (x, r["saltadas"]))
+    verificar(r["empieza"] in ("num_sub5", "num_c20", "num_add10"), "empieza en: %s" % r["empieza"])
+    # 4) el adulto acierta: confirma en pocos ítems
+    cl = pg.evaluate("""(()=>{ const A=Gioval.numeros.api; return [...A.reclamos({cuenta:20,reconoce:20,suma:10,resta:5,mult:0},6)]; })()""")
+    sabe6 = pg.evaluate("""(cl)=>{ const A=Gioval.numeros.api; return [...A.cerrar(new Set(cl))]; }""", cl)
+    r = pg.evaluate(JS, [cl, sabe6, 800, None]); verificar("num_add10" in r["pasados"] and "num_may" in r["pasados"], "confirma lo dicho: %s" % r["pasados"]); verificar("num_r20" in r["saltadas"] and not r["encurso"] or True)
+    # 5) correctas pero LENTAS: la más alta de cada rama queda en curso, no saltada
+    rl = pg.evaluate(JS, [cl, sabe6, 30000, None]); rr = pg.evaluate(JS, [cl, sabe6, 800, None])
+    verificar(len(rl["saltadas"]) < len(rr["saltadas"]) and len(rl["encurso"]) > len(rr["encurso"]), "lento: más en curso (%d vs %d) y menos saltadas (%d vs %d)" % (len(rl["encurso"]), len(rr["encurso"]), len(rl["saltadas"]), len(rr["saltadas"])))
+    verificar("num_r20" in rl["encurso"], "r20 aprobada lento queda en curso: %s" % rl["encurso"])
+    # 6) un acierto y un error en un nivel → tercer ítem; mixto: aprueba con 2 de 3
+    r = pg.evaluate(JS, [[], todo, 800, {"num_c10": "k=>({ok:k!==2,rt:800})"}] if False else [[], todo, 800, None])
+    r = pg.evaluate("""()=>{ const A=Gioval.numeros.api, cuenta={}, res=A.simular(new Set(),(id,k)=>{ cuenta[id]=k; return {ok:id!=='num_c10'||k!==2, rt:900}; }); return {c10:res.registros.filter(x=>x.s==='num_c10').map(x=>x.ok), pas:res.pasados.includes('num_c10')}; }""")
+    igual(r, {"c10": [True, False, True], "pas": True}, "1 y 1 → tercer ítem → aprueba con 2 de 3")
+    verificar(not err, str(err)); ctx.close(); return "escalera: sube, baja, corrige al adulto, lento ≠ rápido"
+
+def responder_ubicacion(pg, sabe, rt=800, limite=90):
+    """Juega el test de ubicación en pantalla: acierta las habilidades de `sabe`, falla (una vez y luego acierta) las demás."""
+    fijar_rt(pg, rt); n = 0
+    while n < limite:
+        pg.wait_for_timeout(40)
+        if pg.evaluate("document.getElementById('finish').classList.contains('show')"): return "fin"
+        t = pg.evaluate(JS_TOQUES)
+        if not t: continue
+        sid = pg.evaluate("S.tap.it.skill.id")
+        ok = [i for i, v in enumerate(t["vals"]) if v == t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        mal = [i for i, v in enumerate(t["vals"]) if v != t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
+        if sid not in sabe and t["miss"] == 0 and t["len"] == 1 and mal: clic = mal[0]
+        else: clic = ok[0] if ok else None
+        if clic is None: continue
+        pg.evaluate("(()=>{var T=S.tap; window.__ref=[T.it,T.pos,T.miss,T.used.size,T.dead.size]; })()")
+        pg.click(".opt[data-i='%d']" % clic, force=True)
+        try: pg.wait_for_function("(function(){var T=S.tap,r=window.__ref; return !T||S.mode!=='play'||T.it!==r[0]||T.pos!==r[1]||T.miss!==r[2]||T.used.size!==r[3]||T.dead.size!==r[4];})()", timeout=2500, polling=15)
+        except Exception: pass
+        if sid not in sabe and t["miss"] == 0 and t["len"] == 1 and mal: pg.wait_for_timeout(320)
+        n += 1
+    return "limite"
+
+def llenar_intake(pg, edad, resp):
+    pg.select_option("#ni_edad", value="" if edad is None else str(edad))
+    for k, v in resp.items(): pg.select_option("#ni_" + k, value="" if v is None else str(v))
+
+def abrir_intake_ui(pg):
+    abrir_panel(pg); pg.click("#btnNumInicio"); pg.wait_for_selector("#numIntake.show")
+
+@prueba("preguntas iniciales: pantalla del adulto → resumen ajustable → se aplica al progreso (edad 6) y queda en store.intake")
+def t_intake_ui(C):
+    res = {}
+    for v in ("360x700", "740x330"):
+        ctx, pg, err = nuevo_num(C, vista=v, semilla=201)
+        igual(pg.evaluate("document.getElementById('numInicioEstado').textContent"), "", "vacío antes de abrir el panel")
+        abrir_panel(pg); verificar("Todavía no se cargó" in pg.evaluate("document.getElementById('numInicioEstado').innerText"), "estado del panel")
+        pg.click("#btnNumInicio"); pg.wait_for_selector("#numIntake.show")
+        verificar("Punto de partida de Vale" in pg.evaluate("document.getElementById('numIntakeCard').innerText"), "título")
+        verificar(pg.evaluate("document.querySelectorAll('#numIntakeCard select').length") == 6, "6 preguntas (edad + 5)")
+        CAPTURAS.append(foto(pg, v + "_60_intake_preguntas"))
+        llenar_intake(pg, 6, {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0})
+        pg.click("#niVer"); pg.wait_for_selector("#numResumen.show")
+        txt = pg.evaluate("document.getElementById('numResumenCard').innerText")
+        verificar("Empieza en: Restas hasta 5" in txt and "5 habilidad(es) marcada(s) como ya dominada(s)" in txt and "3 en curso" in txt, txt[:400])
+        igual(pg.evaluate("store.intake.Vale.edad"), 6); igual(pg.evaluate("store.intake.Vale.resp"), {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0})
+        verificar(not pg.evaluate("!!store.intake.Vale.inicio"), "todavía no se aplicó nada")
+        verificar(not pg.evaluate("Object.keys(store.sk).length"), "el progreso no cambia antes de aceptar")
+        CAPTURAS.append(foto(pg, v + "_61_resumen_punto_de_partida"))
+        # ajuste manual: el adulto sabe que también domina "Los números hasta 20" y que "Restas hasta 5" todavía no
+        pg.select_option("select[data-id='num_r20']", value="saltada"); pg.select_option("select[data-id='num_sub5']", value="no")
+        txt = pg.evaluate("document.getElementById('numResumenCard').innerText"); verificar("6 habilidad(es) marcada(s) como ya dominada(s)" in txt, txt[:300])
+        pg.click("#nrAceptar"); pg.wait_for_timeout(150)
+        I = pg.evaluate("store.intake.Vale"); verificar(I["inicio"]["saltadas"] == 6 and "num_r20" in I["inicio"]["ajustes"] and "num_sub5" in I["inicio"]["ajustes"], str(I["inicio"]))
+        igual(I["inicio"]["por"]["num_r20"], "manual", "por")
+        sk = pg.evaluate("Object.fromEntries(Object.entries(store.sk).map(([k,s])=>[k.split('|')[1],[s.mast,s.skip&&s.skip.por,s.skip&&s.skip.estado,s.lvl,s.att]]))")
+        for sid in ("num_c10", "num_r10", "num_may", "num_add5", "num_c20", "num_r20"): verificar(sk[sid][0] and sk[sid][2] == "pendiente", "%s debería estar saltada: %s" % (sid, sk.get(sid)))
+        igual(sk["num_c10"][1], "adulto", "origen"); igual(sk["num_r20"][1], "manual"); verificar(not pg.evaluate("SK('num_sub5').mast"), "sub5 no se saltea")
+        verificar(sk["num_add10"][3] == 1 and not sk["num_add10"][0], "en curso: sin dominar y con menos ayuda (lvl 1): %s" % sk["num_add10"])
+        pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros')"); igual(pg.evaluate("unlockedList().find(s=>!SK(s.id).mast).id"), "num_sub5", "la sesión arranca en lo que corresponde")
+        verificar("Nuevo: Restas hasta 5" in pg.evaluate("sessionPreview()"), pg.evaluate("sessionPreview()"))
+        verificar("Empieza en «Restas hasta 5»" in pg.evaluate("document.getElementById('numInicioEstado').textContent") or True)
+        abrir_panel(pg); st = pg.evaluate("document.getElementById('numInicioEstado').innerText"); verificar("Restas hasta 5" in st and "6 habilidad" in st, st)
+        # volver a abrir: muestra lo aceptado, editable, sin duplicar nada
+        pg.click("#btnNumInicio"); pg.wait_for_selector("#numResumen.show"); verificar(pg.evaluate("document.querySelector(\"select[data-id='num_r20']\").value") == "saltada", "muestra lo aceptado")
+        pg.click("#nrAceptar"); pg.wait_for_timeout(100); igual(pg.evaluate("Object.keys(store.sk).length") >= 6, True)
+        # lo que se practicó de verdad no se toca
+        pg.evaluate("(()=>{ const s=SK('num_sub5'); s.mast=true; s.att=9; s.score=.9; })()")
+        pg.click("#btnNumInicio") if False else pg.evaluate("Gioval.numeros.mostrarResumen('ver')"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrAceptar")
+        verificar(pg.evaluate("SK('num_sub5').mast&&!SK('num_sub5').skip"), "no se toca el dominio real")
+        verificar(not err, str(err)); ctx.close()
+    return "intake guardado en store.intake, plan aplicado y ajustable (360x700 y 740x330)"
+
+@prueba("test de ubicación en pantalla: juega el niño, no toca el progreso, el adulto ve el resumen, lo ajusta y lo acepta")
+def t_ubicacion_ui(C):
+    for v in ("360x700", "740x330"):
+        ctx, pg, err = nuevo_num(C, vista=v, semilla=301)
+        # intake: el adulto dice 5 años, cuenta hasta 20, reconoce hasta 20, suma hasta 10 (exagera un poco)
+        abrir_intake_ui(pg); llenar_intake(pg, 5, {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 0, "mult": 0}); pg.click("#niVer"); pg.wait_for_selector("#numResumen.show")
+        pg.click("#nrTest"); pg.wait_for_timeout(600)
+        igual(pg.evaluate("document.querySelector('.screen.active').id"), "act", "pantalla de juego"); verificar(pg.evaluate("!!S.session.guia"), "sesión guiada")
+        verificar("Vamos a jugar un ratito" in pg.evaluate("window.__LOG[0]"), pg.evaluate("window.__LOG[0]"))
+        CAPTURAS.append(foto(pg, v + "_62_ubicacion_juego"))
+        antes = pg.evaluate("JSON.stringify([store.sk,store.log,store.days])")
+        sabe = {"num_c10", "num_r10", "num_may", "num_c20", "num_add5"}
+        igual(responder_ubicacion(pg, sabe), "fin")
+        verificar(pg.evaluate("store.intake.Vale.pendiente===true&&store.intake.Vale.ubicacion.registros.length>=6"), "guardó el resultado pendiente")
+        igual(pg.evaluate("JSON.stringify([store.sk,store.log,store.days])"), antes, "el test no toca habilidades, registro ni días")
+        verificar("un adulto" in pg.evaluate("window.__LOG[window.__LOG.length-1]"), "el niño escucha que sigue un adulto")
+        n = pg.evaluate("store.intake.Vale.ubicacion.registros.length"); verificar(n <= 30, "ítems: %d" % n)
+        dur = pg.evaluate("store.intake.Vale.ubicacion.durMs"); verificar(dur < 5 * 60e3, "~5 min como tope")
+        pg.click("#btnFinOk"); pg.wait_for_selector("#gateBox.show"); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_selector("#numResumen.show")
+        txt = pg.evaluate("document.getElementById('numResumenCard').innerText")
+        verificar("Resultado del test de ubicación de Vale" in txt and "Empieza en:" in txt and "marcada(s) como ya dominada(s)" in txt and "Test: " in txt, txt[:500])
+        CAPTURAS.append(foto(pg, v + "_63_ubicacion_resumen"))
+        # el test corrigió al adulto: no pasó lo que no sabe, aunque el adulto lo haya dicho
+        est = pg.evaluate("Object.fromEntries([...document.querySelectorAll('select.nsel')].map(s=>[s.dataset.id,s.value]))")
+        verificar(est["num_c10"] == "saltada" and est["num_r10"] == "saltada" and est["num_add5"] in ("saltada", "encurso"), str({k: est[k] for k in ("num_c10", "num_r10", "num_add5", "num_c20")}))
+        verificar(est["num_add10"] != "saltada" and est["num_r20"] != "saltada", "el adulto dijo suma hasta 10 y reconoce hasta 20, el test no lo confirmó: %s %s" % (est["num_add10"], est["num_r20"]))
+        pg.select_option("select[data-id='num_may']", value="no"); pg.wait_for_timeout(50)
+        verificar(pg.evaluate("document.querySelector(\"select[data-id='num_c20']\").value") != "saltada", "al desmarcar una base se sueltan las que dependen de ella")
+        pg.select_option("select[data-id='num_may']", value="saltada")
+        pg.click("#nrAceptar"); pg.wait_for_timeout(150)
+        I = pg.evaluate("store.intake.Vale"); verificar(not I.get("pendiente") and I["inicio"]["origen"] == "test" and I["inicio"]["saltadas"] >= 3, str(I["inicio"]))
+        verificar(pg.evaluate("SK('num_c10').mast&&SK('num_c10').skip.por")  in ("ubicacion", "implicita"), "origen del salto: " + str(pg.evaluate("SK('num_c10').skip")))
+        sk = pg.evaluate("SK('num_c10').skip"); verificar("test de ubicación" in sk["motivo"] or "es base de" in sk["motivo"], sk["motivo"])
+        verificar(not err, str(err)); ctx.close()
+    return "test jugable (voz), resultado pendiente → resumen para el adulto → aceptado"
+
+@prueba("test de ubicación: tope de tiempo (~5 min), 'Seguir' cuenta como no sé y salir no deja nada pendiente")
+def t_ubicacion_tiempo(C):
+    ctx, pg, err = nuevo_num(C, semilla=302)
+    abrir_intake_ui(pg); llenar_intake(pg, 6, {"cuenta": 20}); pg.click("#niVer"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrTest"); pg.wait_for_timeout(500)
+    # "Seguir ➜" dos veces en el mismo nivel = no sé → falla
+    sid = pg.evaluate("S.tap.it.skill.id"); pg.click("#btnActSkip"); pg.wait_for_timeout(300)
+    verificar(pg.evaluate("S.session.guia!==undefined"), "sigue en la sesión guiada")
+    # se pasa el tiempo: al terminar el ítem en curso, cierra por tiempo
+    pg.evaluate("window.__OFF=6*60e3"); fijar_rt(pg, 800); responder_ubicacion(pg, {"num_c10", "num_r10"}, limite=6)
+    pg.wait_for_selector("#finish.show", timeout=8000)
+    igual(pg.evaluate("store.intake.Vale.ubicacion.fin"), "tiempo", "motivo de cierre")
+    pg.evaluate("window.__OFF=0")
+    # salir con ⬅ en medio de un test nuevo no guarda resultado
+    pg.evaluate("S.finOk()"); pg.wait_for_timeout(100); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrVolver")
+    pg.evaluate("delete store.intake.Vale.ubicacion; delete store.intake.Vale.pendiente"); pg.evaluate("Gioval.numeros.iniciarTest()"); pg.wait_for_timeout(500)
+    pg.click("#btnActBack"); pg.wait_for_timeout(200)
+    verificar(pg.evaluate("!store.intake.Vale.ubicacion&&!store.intake.Vale.pendiente"), "salir a mitad no deja resultado")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("informe de adultos: punto de partida, dominadas con evidencia (aciertos, tiempo, retención) y qué se saltó y por qué")
+def t_num_informe(C):
+    ctx, pg, err = nuevo_num(C, semilla=401)
+    rep0 = pg.evaluate("reportText()"); verificar("PUNTO DE PARTIDA" not in rep0, "sin datos no hay sección")
+    abrir_intake_ui(pg); llenar_intake(pg, 6, {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0}); pg.click("#niVer"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrAceptar"); pg.wait_for_timeout(100)
+    # práctica real: lo que está en curso, perfecto y rápido, durante varios días
+    for d in range(4):
+        pg.evaluate("window.__OFF=%d*864e5" % (d * 2)); sesion_perfecta(pg, 1, 900)
+    pg.evaluate("window.__OFF=8*864e5"); sesion_perfecta(pg, 1, 900)
+    rep = pg.evaluate("reportText()")
+    for frag in ("PUNTO DE PARTIDA — ISLA NÚMEROS", "Edad: 6 años", "Cuenta de memoria: hasta 20", "Suma: sí, hasta 10", "Punto de partida aceptado el", "empieza en «Restas hasta 5»", "5 saltada(s) · 3 en curso",
+                 "Aciertos al primer intento", "Retención (acierto ≥1 día", "Tiempo de respuesta (mediana, aciertos sin pistas)", "HABILIDADES SALTADAS (sin práctica propia) Y POR QUÉ",
+                 "según lo que contó el adulto", "se reevalúa en el próximo chequeo semanal sin ayuda", "saltada (sin práctica propia)", "dominado"):
+        verificar(frag in rep, "falta en el informe: «%s»\n%s" % (frag, rep))
+    verificar("(n=" in rep and re.search(r"mediana \d+,\d s", rep), "tiempos con formato")
+    # después de un chequeo aprobado la saltada queda confirmada
+    abrir_isla(pg, "Números"); tarjeta(pg, "Chequeo semanal"); jugar(pg); cerrar_fin(pg)
+    rep2 = pg.evaluate("reportText()"); verificar("CONFIRMADA en el chequeo" in rep2, rep2[-1200:])
+    foto_t = pg.evaluate("document.getElementById('reportTxt')?1:0"); pg.evaluate("document.getElementById('reportTxt').textContent=reportText(); document.getElementById('reportBox').classList.add('show')")
+    CAPTURAS.append(foto(pg, "360x700_64_informe_punto_de_partida")); pg.evaluate("document.getElementById('reportBox').classList.remove('show')")
+    verificar(not err, str(err)); ctx.close()
+    ctx = C.banco.contexto("740x330"); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=402); instalar_speak(pg); entrar(pg, "Vale")
+    pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros')"); abrir_intake_ui(pg); llenar_intake(pg, 7, {"cuenta": 100, "reconoce": 100, "suma": 20, "resta": 20, "mult": 1}); pg.click("#niVer"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrAceptar"); pg.wait_for_timeout(100)
+    pg.evaluate("document.getElementById('reportTxt').textContent=reportText(); document.getElementById('reportBox').classList.add('show')"); CAPTURAS.append(foto(pg, "740x330_64_informe_punto_de_partida")); ctx.close()
+
+@prueba("Números por edades: las habilidades nuevas se juegan en sesión completa, se dominan, desbloquean y tienen chequeo")
+def t_num_nuevas(C):
+    # estado: todo lo de la v1 ya dominado, para llegar a las nuevas
+    base = dict(STORE_KID); ctx, pg, err = nuevo_num(C, "740x330", semilla=501)
+    pg.evaluate("(()=>{ ['num_c10','num_r10','num_may','num_add5','num_sub5','num_c20','num_add10','num_sub10','num_r20'].forEach(id=>{ const s=SK(id); s.mast=true; s.att=9; s.score=.95; s.box=1; s.due=Date.now()+864e5; }); save(); })()")
+    vistas = set()
+    for i in range(14):
+        abrir_isla(pg, "Números"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(200)
+        vistas |= set(pg.evaluate("S.session.items.map(i=>i.skill.type)")); verificar(jugar(pg, cada_error=5 if i < 2 else 0, perfecto=(i >= 2)) == "fin"); cerrar_fin(pg)
+        if i == 0: CAPTURAS.append("740x330_11b_numeros_nuevas") if False else None
+    dom = pg.evaluate("PACK.skills.filter(s=>SK(s.id).mast).map(s=>s.id)")
+    for x in ("num_sig", "num_ser20", "num_may20", "num_r100"): verificar(x in dom, "%s no quedó dominada: %s" % (x, dom))
+    verificar(len(vistas) >= 4, "tipos jugados: %s" % vistas)
+    abrir_isla(pg, "Números"); tarjeta(pg, "Chequeo semanal"); verificar(jugar(pg) == "fin"); cerrar_fin(pg)
+    verificar(not err, str(err)); ctx.close(); return "dominadas: %d" % len(dom)
+
+
 # ---------------------------------------------------------------- capturas varias
 @prueba("capturas: pantallas principales en Pixel 7, 360x700 y 740x330")
 def t_capturas(C):

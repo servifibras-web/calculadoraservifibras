@@ -252,16 +252,18 @@ Gioval.datos.numeros = (function () {
       nap: "sumas hasta 20 (pasar la decena), cálculo mental: NAP 1.º", rapido: { rt: 6000, salta: [] } },
     { id: "num_sub20", name: "Restas hasta 20", icon: "➖2️⃣0️⃣", type: "sub", min: 11, max: 20, req: ["num_sub10", "num_add20"], eje: "C", edad: 6,
       nap: "restas hasta 20: NAP 1.º", rapido: { rt: 6500, salta: [] } },
-    { id: "num_add100", name: "Sumas hasta 100 (sin llevar)", icon: "➕💯", type: "sumg", max: 100, req: ["num_add20", "num_dyu"], eje: "C", edad: 7,
-      nap: "sumas con decenas enteras y números de dos cifras: NAP 1.º-2.º (decenas enteras, cálculo mental)", rapido: { rt: 9000, salta: [] } },
-    { id: "num_sub100", name: "Restas hasta 100 (sin llevar)", icon: "➖💯", type: "restag", max: 99, req: ["num_sub20", "num_add100"], eje: "C", edad: 7,
-      nap: "restas con decenas enteras y números de dos cifras: NAP 1.º-2.º", rapido: { rt: 9500, salta: [] } },
 
-    /* ---- nuevas: eje D (valor posicional) ---- */
+    /* ---- nuevas: eje D (valor posicional); va antes de las sumas hasta 100 porque estas lo necesitan ---- */
     { id: "num_dyu", name: "Decenas y unidades", icon: "🧱", type: "dyu", min: 11, max: 99, req: ["num_r100"], eje: "D", edad: 6,
       nap: "valor posicional (decenas y unidades): NAP 1.º; Progresiones Nivel II-III", rapido: { rt: 5000, salta: [] } },
     { id: "num_cen", name: "Las centenas", icon: "🟦", type: "cen", min: 100, max: 599, req: ["num_dyu", "num_may100"], eje: "D", edad: 7,
       nap: "números de tres cifras y valor posicional: NAP 2.º; Progresiones Nivel III (hasta ~1000)", rapido: { rt: 6000, salta: [] } },
+
+    /* ---- nuevas: eje C (continuación: sumas y restas hasta 100) ---- */
+    { id: "num_add100", name: "Sumas hasta 100 (sin llevar)", icon: "➕💯", type: "sumg", max: 100, req: ["num_add20", "num_dyu"], eje: "C", edad: 7,
+      nap: "sumas con decenas enteras y números de dos cifras: NAP 1.º-2.º (decenas enteras, cálculo mental)", rapido: { rt: 9000, salta: [] } },
+    { id: "num_sub100", name: "Restas hasta 100 (sin llevar)", icon: "➖💯", type: "restag", max: 99, req: ["num_sub20", "num_add100"], eje: "C", edad: 7,
+      nap: "restas con decenas enteras y números de dos cifras: NAP 1.º-2.º", rapido: { rt: 9500, salta: [] } },
 
     /* ---- nuevas: eje E (dobles, grupos y repartos) — la parte de multiplicar y dividir es nivel avanzado ---- */
     { id: "num_dob", name: "Los dobles", icon: "👯", type: "dob", max: 10, req: ["num_add10"], eje: "E", edad: 5,
@@ -341,7 +343,7 @@ Gioval.datos.numeros = (function () {
   const UBICACION = {
     ayuda: 1,              // nivel de ayuda visual con que se muestran los ítems (0 más ayuda … 2 sin ayuda)
     itemsPorNivel: 2,      // un nivel se aprueba con 2 aciertos al primer intento (si hay 1 y 1, se agrega un 3.er ítem)
-    maxItemsPorEje: 8,
+    maxItemsPorEje: 10,
     maxItems: 30,
     maxMs: 5 * 60e3,       // ~5 minutos de juego
   };
