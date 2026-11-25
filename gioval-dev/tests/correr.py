@@ -596,16 +596,17 @@ def t_entradas(C):
         verificar(pg.evaluate(firma) != antes, "el evento '%s' no hizo avanzar el juego" % tipo)
     verificar(not err, str(err)); ctx.close()
 
-@prueba("entradas: YIN del micrófono igual al de la versión anterior (mismas frecuencias, mismos umbrales)")
+@prueba("entradas: YIN del micrófono da las mismas notas que la versión anterior (170–1200 Hz) y más cerca de la frecuencia real")
 def t_yin(C):
     ctxn = C.banco.contexto("360x700"); ctxl = C.banco.contexto("360x700")
     pn = abrir(ctxn, C.url + "/index.html", errores=C.err); pl = abrir(ctxl, C.url + "/legacy/index.html", esperar=True)
     js = """(fn)=>{ const out=[]; for(const f of [196,220,261.63,329.63,440,523.25,659.25]){ const sr=48000, b=new Float32Array(4096); for(let i=0;i<4096;i++) b[i]=.4*Math.sin(2*Math.PI*f*i/sr)+.1*Math.sin(2*Math.PI*2*f*i/sr);
       const y=fn(b,sr); out.push([f,y,y?Math.round(69+12*Math.log2(y/440)):null]); } const nada=fn(new Float32Array(4096),48000); out.push(['silencio',nada,null]); return out; }"""
     a = pn.evaluate("(%s)(Gioval.entrada.proveedores.microfono.yin)" % js); b = pl.evaluate("(%s)(yin)" % js)
-    igual(a, b, "YIN nuevo vs anterior")
-    for f, y, m in a[:-1]: verificar(abs(y - f) / f < .01, "YIN %s Hz dio %s" % (f, y))
-    ctxn.close(); ctxl.close(); return "7 frecuencias idénticas"
+    igual([x[2] for x in a], [x[2] for x in b], "notas del YIN nuevo vs anterior"); igual([x[1] for x in a[-1:]], [None], "el silencio no da nota")
+    for (f, y, m), (_, y0, _) in zip(a[:-1], b[:-1]):
+        verificar(abs(y - f) / f < .003, "YIN nuevo %s Hz dio %s (error mayor a 5 cents)" % (f, y)); verificar(abs(y - f) <= abs(y0 - f) + 1e-6, "el nuevo debería estar igual o más cerca de la frecuencia real: %s -> %s (antes %s)" % (f, y, y0))
+    ctxn.close(); ctxl.close(); return "7 frecuencias: mismas notas, error < 5 cents"
 
 @prueba("sonido: instrumentos intercambiables y muestras por demanda; tone() usa el activo")
 def t_sonido(C):
@@ -632,6 +633,217 @@ def t_mic_real(C):
         verificar(not pg.evaluate("Gioval.entrada.proveedores.microfono.activo"), "no se detuvo")
         verificar(not err, str(err)); ctx.close(); return "notas emitidas por el tono falso: %d" % n
     finally: b.cerrar()
+
+# ---------------------------------------------------------------- micrófono de Música: piano real (simulado) con el micrófono falso de Chrome
+NAT_PRUEBA = [60, 62, 64, 65, 67, 69, 71, 72, 52, 64, 76]     # los 7 naturales Do4–Do5 y además Mi3, Mi4 y Mi5
+NOMBRES_NOTA = {0: "Do", 2: "Re", 4: "Mi", 5: "Fa", 7: "Sol", 9: "La", 11: "Si"}
+TIMBRES = ("piano", "fundamental_debil", "electrico")
+
+def mic_wav(C, x, sr_ctx=None, umbral=0.008, antes="", esperar_extra=0.8, pagina=None, url=None, store=None):
+    """Toca el audio `x` por el micrófono falso de Chrome y devuelve las notas que emitió el proveedor:
+    [{t (ms desde que se encendió), midi, cents, hz, midiFloat, afinacion}] y la frecuencia de muestreo del contexto de audio."""
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x, SALIDA / ("mic_%d.wav" % os.getpid())); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"])
+        init = ""
+        if sr_ctx: init = "(function(){ var AC=window.AudioContext; window.AudioContext=function(o){ return new AC(Object.assign({},o,{sampleRate:%d})); }; window.AudioContext.prototype=AC.prototype; })();" % sr_ctx
+        pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False, extra_init=init or None, store=store)
+        if pagina: pagina(pg)
+        r = pg.evaluate("""async(a)=>{ window.__n=[]; const M=Gioval.entrada.proveedores.microfono; Gioval.entrada.suscribir('nota',e=>window.__n.push({t:Math.round(performance.now()-window.__t0),midi:e.midi,cents:e.cents,hz:e.hz,midiFloat:e.midiFloat,afinacion:e.afinacion}));
+          %s
+          window.__t0=performance.now(); await M.iniciar({umbral:()=>a}); return ctx.sampleRate; }""" % antes, umbral)
+        pg.wait_for_timeout(int(len(x) / SR_AUDIO * 1000 + esperar_extra * 1000))
+        ev = pg.evaluate("window.__n"); verificar(not err, str(err)); ctx.close()
+        return ev, r
+    finally: b.cerrar()
+
+def nombre_nota(m): return "%s%d" % (NOMBRES_NOTA.get(m % 12, "#%d" % (m % 12)), m // 12 - 1)
+
+@prueba("micrófono: los 7 naturales Do4–Do5 y Mi3/Mi4/Mi5 se reconocen en 3 timbres, con el piano afinado y desafinado −30 y +30 cents")
+def t_mic_notas(C):
+    resumen = []
+    for timbre in TIMBRES:
+        for cents in (0, -30, 30):
+            x, _ = senal_notas(NAT_PRUEBA, timbre=timbre, cents=cents, paso=1.3, dur=1.2, suelta=0.7)
+            ev, sr = mic_wav(C, x); got = [e["midi"] for e in ev]
+            if timbre == "fundamental_debil":
+                # el micrófono de un celular casi no capta el primer parcial grave: puede dar la octava de arriba (la nota es la misma; con "cualquier octava" alcanza)
+                igual([m % 12 for m in got], [m % 12 for m in NAT_PRUEBA], "%s %+d cents: notas (sin octava) %s" % (timbre, cents, [nombre_nota(m) for m in got]))
+                verificar(all(g in (m, m + 12) for g, m in zip(got, NAT_PRUEBA)), "%s %+d cents: octavas %s" % (timbre, cents, [nombre_nota(m) for m in got]))
+            else:
+                igual(got, NAT_PRUEBA, "%s %+d cents: %s" % (timbre, cents, [nombre_nota(m) for m in got]))
+            resumen.append("%s%+d:%d" % (timbre[:4], cents, len(got)))
+    return "11 notas × 9 casos OK (" + " ".join(resumen) + ")"
+
+@prueba("micrófono: piano muy desafinado (−50 cents): la afinación se aprende sola y 'pedido Mi → tocar Mi = acierto; tocar Do = error'")
+def t_mic_desafinado(C):
+    seq = [60, 62, 64, 65, 67, 69, 71, 72, 64, 62, 60, 67, 64, 76, 64]
+    x, _ = senal_notas(seq, timbre="piano", cents=-50, paso=1.3, dur=1.2, suelta=0.7)
+    ev, sr = mic_wav(C, x); verificar(len(ev) == len(seq), "eventos %d de %d" % (len(ev), len(seq)))
+    for e, m in zip(ev, seq):     # la regla que usa el juego (musica.js): a menos de 0,62 semitonos de la nota pedida, con la afinación aplicada
+        aj = e["midiFloat"] - e["afinacion"] / 100; verificar(abs(aj - m) <= 0.62, "%s se leyó %.2f (afinación %.1f)" % (nombre_nota(m), aj, e["afinacion"]))
+    verificar(ev[-1]["afinacion"] <= -25, "la afinación debería haber bajado a ≈ −40 y quedó en %s" % ev[-1]["afinacion"])
+    verificar(all(e["midi"] == m for e, m in zip(ev[-5:], seq[-5:])), "ya aprendida, las últimas notas tienen que ser exactas: %s" % [nombre_nota(e["midi"]) for e in ev[-5:]])
+    # juego de verdad: el niño tiene que tocar Mi y Mi; toca Mi (acierto) y después Do (error). Piano −50: Mi llega "entre Re# y Mi"
+    x2, _ = senal_notas([64, 60], timbre="piano", cents=-50, tiempos=[2.0, 4.0], dur=1.2, suelta=0.7)
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x2, SALIDA / "mic_juego.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, rapido=False); instalar_speak(pg)
+        entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(500)
+        pg.evaluate("S.chunks=[[{midi:64,beats:1},{midi:64,beats:1}]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.lastWrong=0; S.mode='play'; muteUntil=0; document.getElementById('anyOctave').checked=false")
+        pg.click("#btnMic"); pg.wait_for_function("S.ni>=1", timeout=6000)
+        igual(pg.evaluate("[S.ni,S.missPhrase]"), [1, 0], "tocar Mi cuando se pide Mi = acierto, sin error")
+        pg.wait_for_function("S.missPhrase>=1", timeout=6000)
+        igual(pg.evaluate("[S.ni,S.missPhrase]"), [1, 1], "tocar Do cuando se pide Mi = error y no avanza")
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    return "afinación aprendida %.0f cents; juego OK" % ev[-1]["afinacion"]
+
+@prueba("micrófono: dos frecuencias de muestreo (44,1 y 48 kHz) dan las mismas notas")
+def t_mic_muestreo(C):
+    for sr in (44100, 48000):
+        x, _ = senal_notas(NAT_PRUEBA[:8] + [52, 76], timbre="piano", cents=-20, paso=1.3, dur=1.2, suelta=0.7)
+        ev, real = mic_wav(C, x, sr_ctx=sr); igual(real, sr, "el contexto de audio no tomó la frecuencia pedida")
+        igual([e["midi"] for e in ev], NAT_PRUEBA[:8] + [52, 76], "a %d Hz" % sr)
+    return "44100 y 48000 OK"
+
+@prueba("micrófono: rango de 80 a 1200 Hz (Do3, Re3, Mi3 y Do6 se reconocen; la versión anterior leía Mi3 como Fa3) y el ruido no da notas")
+def t_mic_rango(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    js = """({notas, sr, timbre})=>{ const M=Gioval.entrada.proveedores.microfono, out=[];
+      for(const m of notas){ const f0=440*Math.pow(2,(m-69)/12), b=new Float32Array(4096); const hs=timbre==='debil'?[[1,.1],[2,1],[3,.8],[4,.4],[5,.3]]:[[1,1],[2,.5],[3,.3],[4,.2]];
+        for(let i=0;i<4096;i++){ let v=0; for(const [h,a] of hs) if(f0*h<sr/2) v+=a*Math.sin(2*Math.PI*f0*h*i/sr); b[i]=.2*v; }
+        const f=M.yin(b,sr); out.push([m, f?Math.round(69+12*Math.log2(f/440)):null, f?Math.round(1200*Math.log2(f/f0)):null]); } return out; }"""
+    for sr in (44100, 48000):
+        r = pg.evaluate("(%s)" % js, dict(notas=[48, 50, 52, 53, 55, 57, 59, 60, 64, 72, 84], sr=sr, timbre="piano"))
+        for m, got, dc in r: verificar(got == m and abs(dc) <= 8, "a %d Hz: %s se leyó %s (%s cents)" % (sr, nombre_nota(m), got, dc))
+        r = pg.evaluate("(%s)" % js, dict(notas=[48, 50, 52, 55, 60], sr=sr, timbre="debil"))
+        for m, got, dc in r: verificar(got is not None and (got - m) % 12 == 0, "fundamental débil a %d Hz: %s se leyó %s" % (sr, nombre_nota(m), got))
+    # ruido y silencio: ninguna nota
+    r = pg.evaluate("""()=>{ const M=Gioval.entrada.proveedores.microfono; let a=1; const rnd=()=>((a=(a*1664525+1013904223)>>>0)/4294967296-.5); const out=[];
+      for(const amp of [.01,.05,.2]){ const b=new Float32Array(4096); for(let i=0;i<4096;i++) b[i]=amp*rnd(); out.push(M.yin(b,48000)); } out.push(M.yin(new Float32Array(4096),48000)); return out; }""")
+    igual(r, [None] * 4, "ruido blanco y silencio no deberían dar nota")
+    ctx.close(); return "Do3–Do6 OK a 44,1 y 48 kHz; ruido y silencio sin nota"
+
+@prueba("micrófono: afinación del piano (estimación automática con guardas, calibración 'Tocá un La', reinicio y persistencia)")
+def t_mic_afinacion(C):
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", errores=err)
+    seq = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 60, 64, 67, 71]
+    sim = """({desvio, notas, negras})=>{ const M=Gioval.entrada.proveedores.microfono; M.reiniciarAfinacion(); let max=0;
+      notas.forEach((m,i)=>{ M.aportarAfinacion(m+desvio/100+((i*7)%5-2)/100); max=Math.max(max,Math.abs(M.afinacion())); });
+      return [M.afinacion(), max, M.muestrasAfinacion().length]; }"""
+    for d, esperado in ((-40, -40), (-25, -25), (30, 30), (0, 0), (-12, -12)):
+        a, mx, n = pg.evaluate("(%s)" % sim, dict(desvio=d, notas=seq * 3, negras=0))
+        verificar(abs(a - esperado) <= 12 and abs(a) <= 50, "desvío %+d: la afinación quedó en %.1f" % (d, a))
+    # teclas negras y notas sueltas NO mueven la afinación; no se mueve por menos de 8 cents; tope ±50; con 2 notas solamente no decide
+    a, _, _ = pg.evaluate("(%s)" % sim, dict(desvio=0, notas=[61, 63, 66, 68, 70, 61, 63, 66, 68, 70, 61, 63], negras=1)); igual(a, 0, "teclas negras")
+    a, _, _ = pg.evaluate("(%s)" % sim, dict(desvio=5, notas=seq * 3, negras=0)); igual(a, 0, "5 cents: dentro de la banda muerta")
+    a, _, _ = pg.evaluate("(%s)" % sim, dict(desvio=-45, notas=[64, 71] * 12, negras=0)); igual(a, 0, "solo Mi y Si (junto a Fa y Do): no alcanza para decidir")
+    # lenta: un solo cambio de ≤ 8 cents por muestra
+    pasos = pg.evaluate("""()=>{ const M=Gioval.entrada.proveedores.microfono; M.reiniciarAfinacion(); const out=[]; let prev=0; const seq=[60,62,64,65,67,69,71,72,60,62,64,65,67,69,71,72];
+      seq.forEach(m=>{ M.aportarAfinacion(m-.4); out.push(Math.abs(M.afinacion()-prev)); prev=M.afinacion(); }); return Math.max(...out); }""")
+    verificar(pasos <= 8.01, "un paso movió %.1f cents" % pasos)
+    # persistencia: se guarda en este aparato (localStorage, no en el progreso) y se recupera al recargar
+    pg.evaluate("Gioval.entrada.proveedores.microfono.fijarAfinacion(-33, true)"); pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("[Gioval.entrada.proveedores.microfono.afinacion(), Gioval.entrada.proveedores.microfono.afinacionManual()]"), [-33, True], "persistencia tras recargar")
+    verificar("afinacion" not in json.dumps(pg.evaluate("store")), "la afinación no debe ir en el progreso de los chicos (store)")
+    pg.evaluate("Gioval.entrada.proveedores.microfono.reiniciarAfinacion()"); igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacion()"), 0, "reinicio")
+    pg.evaluate("Gioval.entrada.proveedores.microfono.fijarAfinacion(99)"); igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacion()"), 50, "tope ±50")
+    pg.evaluate("Gioval.entrada.proveedores.microfono.reiniciarAfinacion()")
+    verificar(not err, str(err)); ctx.close()
+    # calibración a mano con un La desafinado −35 cents, tocado por el micrófono falso: se mide, se guarda y la nota NO llega al juego
+    x, _ = senal_notas([69], timbre="piano", cents=-35, tiempos=[1.5], dur=1.5, suelta=1.0)
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x, SALIDA / "mic_cal.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+        r = pg.evaluate("""async()=>{ const M=Gioval.entrada.proveedores.microfono; await M.iniciar({umbral:()=>.008}); return await M.calibrarLa(); }""")
+        verificar(r["ok"] and abs(r["afinacion"] + 28) <= 12, "calibración con La −35: %s" % r)   # el timbre simulado suma ≈ +7 de estiramiento
+        igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacionManual()"), True)
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    # si no es un La: se avisa y no se cambia nada
+    x, _ = senal_notas([60], timbre="piano", tiempos=[1.5], dur=1.5, suelta=1.0); wav = a_wav(x, SALIDA / "mic_cal2.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+        r = pg.evaluate("""async()=>{ const M=Gioval.entrada.proveedores.microfono; await M.iniciar({umbral:()=>.008}); return await M.calibrarLa(); }""")
+        verificar(not r["ok"] and r["motivo"] == "no_es_la", "un Do no es un La: %s" % r); igual(pg.evaluate("Gioval.entrada.proveedores.microfono.afinacion()"), 0)
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    return "automática, guardas, persistencia, calibración con La y rechazo de otra nota"
+
+@prueba("micrófono: notas repetidas y sostenidas (una nota larga cuenta UNA vez; la misma nota tocada seguido cuenta todas)")
+def t_mic_repetidas(C):
+    casos = [("seis notas sueltas, cada una sostenida 1,5 s", [60, 62, 64, 65, 67, 69], [1 + 1.8 * i for i in range(6)], 1.5),
+             ("Do 6 veces cada 0,45 s", [60] * 6, [1 + 0.45 * i for i in range(6)], 0.3),
+             ("Do 6 veces cada 0,30 s", [60] * 6, [1 + 0.30 * i for i in range(6)], 0.18),
+             ("Do-Re alternados cada 0,30 s", [60, 62] * 4, [1 + 0.30 * i for i in range(8)], 0.2),
+             ("Do Re Mi Fa Sol cada 0,6 s", [60, 62, 64, 65, 67], [1 + 0.6 * i for i in range(5)], 0.45)]
+    for nom, notas, ts, hold in casos:
+        for amp in (0.3, 0.08):
+            x, _ = senal_notas(notas, tiempos=ts, dur=1.6, amp=amp, suelta=hold); ev, _ = mic_wav(C, x)
+            got = [e["midi"] for e in ev]; etq = "%s (volumen %s)" % (nom, "normal" if amp > 0.1 else "suave")
+            if "0,30" in nom:   # 3 notas por segundo: es el límite; se tolera perder UNA (nunca sobrar: no hay dobles)
+                it = iter(notas); verificar(len(got) >= len(notas) - 1 and len(got) <= len(notas) and all(g in it for g in got), "%s: %s" % (etq, got))
+            else: igual(got, notas, etq)
+    return "5 casos × 2 volúmenes: sin dobles; sin pérdidas salvo (a veces, una) a 3 notas por segundo"
+
+@prueba("micrófono: lectura en vivo del panel de adultos (nota, Hz, cents, octava, volumen) y motivos de los sonidos ignorados + señal 'te escucho'")
+def t_mic_lectura(C):
+    # E4 normal · E4 muy suave · E4 mientras la app habla · dos notas juntas (no se sabe cuál) · Do2 (demasiado grave)
+    x1, _ = senal_notas([64], tiempos=[1.5], dur=1.2, suelta=0.8, amp=0.3)
+    x2, _ = senal_notas([64], tiempos=[3.5], dur=1.2, suelta=0.8, amp=0.011)
+    x3, _ = senal_notas([64], tiempos=[5.5], dur=1.2, suelta=0.8, amp=0.3)
+    x4a, _ = senal_notas([60], tiempos=[7.5], dur=1.2, suelta=0.8, amp=0.3); x4b, _ = senal_notas([66], tiempos=[7.5], dur=1.2, suelta=0.8, amp=0.3, semilla=9)
+    x5, _ = senal_notas([36], tiempos=[9.5], dur=1.2, suelta=0.8, amp=0.3)
+    n = max(len(x1), len(x2), len(x3), len(x4a), len(x5)); np = __import__("numpy"); x = np.zeros(n, dtype=np.float32)
+    for y in (x1, x2, x3, x4a, x4b, x5): x[:len(y)] += y
+    x = np.clip(x, -1, 1).astype(np.float32)
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(x, SALIDA / "mic_lectura.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, rapido=False); instalar_speak(pg)
+        entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(500)
+        pg.evaluate("S.mode='play'; muteUntil=0; document.getElementById('panel').classList.add('show'); window.__lect=[]; window.__motivos=[]; window.__cue=[];")
+        pg.evaluate("""()=>{ const M=Gioval.entrada.proveedores.microfono; window.__t0=performance.now();
+          setInterval(()=>{ const v=M.vivo; if(v.motivo&&!window.__motivos.includes(v.motivo)) window.__motivos.push(v.motivo);
+            if(M.activo&&v.midi!=null&&document.getElementById('micVivoNota').textContent!=='–') window.__lect.push([document.getElementById('micVivoNota').textContent,document.getElementById('micVivoDet').textContent,document.getElementById('dbgLevelTxt').textContent]);
+            window.__cue.push([Math.round(performance.now()-window.__t0),document.getElementById('micCue').classList.contains('on'),v.silenciado]); },100);
+          setTimeout(()=>{ muteUntil=performance.now()+1700; }, 5200); }""")
+        pg.click("#btnMic"); pg.wait_for_timeout(int(len(x) / SR_AUDIO * 1000 + 500))
+        lect = pg.evaluate("window.__lect"); mot = pg.evaluate("window.__motivos"); cue = pg.evaluate("window.__cue")
+        verificar(any(l[0] == "Mi 4" and re.search(r"\b3(29|30|31),\d Hz", l[1]) and "octava 4" in l[1] and ("cents" in l[1] or "afinada" in l[1]) for l in lect), "la lectura en vivo no mostró Mi 4 / 329 Hz / octava 4: %s" % lect[:3])
+        verificar(any("Volumen" in l[2] and "mínimo 8" in l[2] for l in lect), "volumen contra el mínimo: %s" % lect[:1])
+        for m in ("bajo", "silenciado", "fuera_rango"): verificar(m in mot, "no apareció el motivo '%s' (aparecieron %s)" % (m, mot))
+        textos = pg.evaluate("""()=>({bajo:t('musica.motivo.bajo'),sil:t('musica.motivo.silenciado'),fr:t('musica.motivo.fuera_rango',{hz:65}),sn:t('musica.motivo.sin_nota')})""")
+        verificar(all(textos.values()) and all("musica." not in v for v in textos.values()), "textos de motivos: %s" % textos)
+        # señal "te escucho": prendida mientras escucha y la app no habla; apagada mientras la app está silenciada
+        verificar(any(c[1] for c in cue), "nunca se prendió el 'te escucho'"); verificar(any((not c[1]) and c[2] for c in cue), "tendría que apagarse mientras la app habla")
+        verificar(not any(c[1] and c[2] for c in cue), "'te escucho' prendido con la app hablando")
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+    return "motivos vistos: %s" % mot
+
+@prueba("voz: sin voz (apagada o sin voces en el aparato) el micrófono NO se silencia; con voz sí")
+def t_voz_mute(C):
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+    r = pg.evaluate("""()=>{ const out={}; const ahora=()=>performance.now(); Gioval.voz.nivel='texto'; muteUntil=0; speak('Tocá el Mi'); out.texto=muteUntil<=ahora();
+      Gioval.voz.nivel='tts'; muteUntil=0; speak('Tocá el Mi'); out.tts=muteUntil>ahora()+500; return out; }""")
+    igual(r, {"texto": True, "tts": True}, "silencio del micrófono según haya o no voz"); verificar(not err, str(err)); ctx.close()
+
+@prueba("Música: con 'cualquier octava' apagado, la nota correcta en otra octava no es un error (solo se avisa); con tolerancia de afinación")
+def t_mic_octavas(C):
+    ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=71); instalar_speak(pg)
+    entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(400)
+    preparar = "S.chunks=[[{midi:64,beats:1},{midi:62,beats:1}]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.lastWrong=0; S.mode='play'; muteUntil=0;"
+    emit = lambda m, f=None, a=0: pg.evaluate("Gioval.entrada.emitir({tipo:'nota',midi:%d,midiFloat:%s,afinacion:%s,fuerza:.7})" % (m, f if f is not None else m, a)); estado = lambda: pg.evaluate("[S.ni,S.missPhrase,S.missNote]")
+    pg.evaluate(preparar + "document.getElementById('anyOctave').checked=false")
+    emit(52); pg.wait_for_timeout(100); igual(estado(), [0, 0, 0], "Mi3 pedido Mi4 (octava estricta): no avanza pero tampoco es error")
+    verificar("octava" in pg.evaluate("document.getElementById('bubble').textContent"), "tendría que avisar que es otra octava: %s" % pg.evaluate("document.getElementById('bubble').textContent"))
+    pg.wait_for_timeout(350); emit(60); pg.wait_for_timeout(100); igual(estado(), [0, 1, 1], "Do4 pedido Mi4 = error")
+    pg.evaluate(preparar); pg.evaluate("document.getElementById('anyOctave').checked=true"); emit(76); pg.wait_for_timeout(100); igual(estado(), [1, 0, 0], "Mi5 pedido Mi4 con 'cualquier octava' = acierto")
+    pg.evaluate(preparar + "document.getElementById('anyOctave').checked=false")
+    emit(63, 63.55, 0); pg.wait_for_timeout(100); igual(estado(), [1, 0, 0], "Mi leído 45 cents abajo (Re# + 55 cents): lo cuenta como Mi (tolerancia de afinación)")
+    pg.evaluate(preparar); emit(65, 65.1, 0); pg.wait_for_timeout(100); igual(estado(), [0, 1, 1], "Fa claro pedido Mi = error")
+    verificar(not err, str(err)); ctx.close()
 
 # ---------------------------------------------------------------- regresión contra la versión publicada
 def guion(pg, esperar=True):
