@@ -1933,12 +1933,12 @@ def t_ay_no_toca(C):
     res = {}
     for nombre, ruta in (("anterior", "/legacy/index.html"), ("nueva", "/index.html")):
         ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + ruta, store=STORE_KID, errores=C.err if nombre == "nueva" else None, semilla=5); instalar_speak(pg); entrar(pg, "Vale")
-        r = {"mapa": ay_texto(pg, "#islands").replace("🧭\nIsla Misiones\n¡Cosas de verdad!\n", "")}   # la isla Misiones (otra rama) es lo único que se suma al mapa
+        r = {"mapa": ay_texto(pg, "#islands").replace("🧭\nIsla Misiones\n¡Cosas de verdad!\n", "").replace("🥁\nIsla Ritmo\n¡A marcar el ritmo!\n", "")}   # Misiones y Ritmo (otras ramas) son lo único que se suma al mapa
         for isla in ("Música", "Números"): abrir_isla(pg, isla); r["menu " + isla] = ay_texto(pg, "#musicMenu,#menuIslaItems")
         res[nombre] = r; ctx.close()
     igual(res["nueva"], res["anterior"], "textos del mapa y de los menús")
-    ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "misiones"], "Ayudantes no es una isla de aprendizaje (Misiones es la otra isla sin habilidades)")
-    igual(pg.evaluate("Gioval.islas.habilidades().length"), 16, "habilidades (Música 7 + Números 9)")
+    ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "misiones", "ritmo"], "Ayudantes no es una isla de aprendizaje (Misiones es la otra isla sin habilidades)")
+    igual(pg.evaluate("Gioval.islas.habilidades().filter(s=>!s.id.startsWith('rit_')).length"), 16, "habilidades (Música 7 + Números 9; Ritmo suma las suyas)")
     for isla in ("Música", "Números"):    # al llegar al tope en cualquier isla, el flujo anterior sigue igual: "¡Chau, zorro!" cierra y vuelve al menú
         llegar_al_tope(pg, isla); pg.click("#capOk"); pg.wait_for_timeout(120)
         igual(pg.evaluate("document.querySelector('.screen.active').id"), "menuIsla", isla)
