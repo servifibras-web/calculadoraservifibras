@@ -35,7 +35,6 @@ Gioval.i18n.agregar("es-AR", {
   "letras.isla.bienvenida": "¡Isla Letras! Empezamos con la sesión de hoy, o elegí otra cosa.",
   "letras.isla.outro": "Ahora, ¡buscá letras en carteles, envases y libros!",
   "letras.isla.cap_tail": "Ahora, a mirar libros y carteles de verdad. ¡Mañana seguimos con las letras!",
-  "letras.isla.nota_informe": "En Letras, \"saltada\" significa que se marcó como sabida sin practicarla (por dominio rápido, por las preguntas iniciales o por el juego de ubicación) y se vuelve a comprobar sin ayuda en el chequeo semanal; si no sale, vuelve a práctica. Los tiempos son de respuesta al primer intento, sin contar lo que tarda la voz.",
 
   /* ---- nombres de las letras (cómo se dicen) ---- */
   "letras.nombres_letras": {"A":"a", "B":"be larga", "C":"ce", "D":"de", "E":"e", "F":"efe", "G":"ge", "H":"hache", "I":"i", "J":"jota", "K":"ka", "L":"ele", "M":"eme", "N":"ene", "Ñ":"eñe", "O":"o", "P":"pe", "Q":"cu", "R":"erre", "S":"ese", "T":"te", "U":"u", "V":"ve corta", "W":"doble ve", "X":"equis", "Y":"i griega", "Z":"zeta"},

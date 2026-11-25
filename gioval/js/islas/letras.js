@@ -627,7 +627,7 @@ Gioval.islas.registrar({
   id: "letras", get name() { return TX.isla.nombre; }, emoji: "🔤", get sub() { return TX.isla.sub; }, skills: SKILLS, tap: true, plain: true,
   instrumento: null, entradas: ["toque"], actividades: Object.assign({}, ACT, ACTS_UBIC),
   dom: DOM, iniciar, tarjetas,
-  get outro() { return TX.isla.outro; }, get capTail() { return TX.isla.capTail; }, get notaInforme() { return TX.isla.notaInforme; }
+  get outro() { return TX.isla.outro; }, get capTail() { return TX.isla.capTail; }, get notaInforme() { return t("dominio.nota"); }
 });
 /* para las pruebas y las herramientas de depuración */
 Gioval.letras = { WORDS, SKILLS, intakeDe, nivelDe, arranqueUbic, aplicarInicio, evaluarTramo, resultadoUbic, informeTexto, particiones };

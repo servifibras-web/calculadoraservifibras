@@ -28,7 +28,8 @@ Gioval.dominio = (function () {
     "dominio.estado_confirmada": "Comprobada sin ayuda el {fecha}: ¡se mantiene!",
     "dominio.estado_revertida": "Se comprobó el {fecha} y no salió: volvió a práctica.",
     "dominio.estado_anulada": "Se anuló el {fecha} al cambiar el punto de partida.",
-    "dominio.ya_sabias": "⭐ Ya lo sabías (se repasa pronto)"
+    "dominio.ya_sabias": "⭐ Ya lo sabías (se repasa pronto)",
+    "dominio.nota": "\"Saltada\" significa que se marcó como sabida sin practicarla (por dominio rápido, por las preguntas iniciales o por el juego de ubicación) y se vuelve a comprobar sin ayuda en el chequeo semanal; si no sale, vuelve a práctica. Los tiempos son de respuesta al primer intento, sin contar lo que tarda la voz."
   });
   Gioval.i18n.agregar("en", {
     "dominio.tiempo": "   Typical response time: {seg} s (median of {n} first-try correct answers)",
@@ -41,7 +42,8 @@ Gioval.dominio = (function () {
     "dominio.estado_confirmada": "Checked without help on {fecha}: it holds!",
     "dominio.estado_revertida": "Checked on {fecha} and it did not come out: back to practice.",
     "dominio.estado_anulada": "Cancelled on {fecha} when the starting point was changed.",
-    "dominio.ya_sabias": "⭐ Already knew it (will be reviewed soon)"
+    "dominio.ya_sabias": "⭐ Already knew it (will be reviewed soon)",
+    "dominio.nota": "\"Skipped\" means it was marked as known without practicing it (by quick mastery, the initial questions or the placement game) and it is checked again without help in the weekly check; if it does not come out, it goes back to practice. Times are first-try response times, not counting how long the voice takes."
   });
   const fechaDe = ts => Gioval.i18n.fecha(new Date(ts));
   const mediana = a => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
