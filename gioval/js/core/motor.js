@@ -81,8 +81,8 @@ function checkInfo(){
   return days>=7?{ok:true,sub:t("menu.chequeo_abierto")}:{ok:false,sub:t("menu.chequeo_dias",{n:7-days})};
 }
 function renderProg(){
-  ["prog","prog2"].forEach(id=>{
-    const box=$(id); box.innerHTML="";
+  document.querySelectorAll(".prog").forEach(box=>{   /* todas las barras de progreso (cada pantalla de juego tiene la suya) */
+    box.innerHTML="";
     if(!S.session){ box.style.display="none"; return; }
     box.style.display="flex";
     S.session.items.forEach((_,i)=>{ const d=document.createElement("i"); const r=S.session.log[i];

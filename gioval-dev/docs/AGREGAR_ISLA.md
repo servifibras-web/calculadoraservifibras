@@ -29,7 +29,7 @@ contenido pedagógico. No hay paso de compilación.
 | `plain: true` | Sin rachas ni puntos adictivos (el criterio de la casa). |
 | `instrumento`, `entradas` | `instrumento:"piano"` o `null`; `entradas:["toque"]`, `["nota","toque"]`, etc. Ver `ENTRADAS_Y_SONIDO.md`. |
 | `outro`, `capTail` | Frase de cierre de la sesión y del tope diario. |
-| Opcionales | `dom` (pantallas/botones propios), `iniciar`, `entrar(title)`, `antesDeSesion`, `fin`, `tarjetas(done)`, `notaInforme`. Música los usa porque tiene piano propio. |
+| Opcionales | `dom` (pantallas/botones propios), `iniciar`, `entrar(title)`, `antesDeSesion`, `fin`, `tarjetas(done)`, `informe(kid)`, `notaInforme`. Si la isla trae su propia pantalla de juego, la barra de progreso lleva la clase `prog` (el motor redibuja todas). Música los usa porque tiene piano propio. |
 
 ### Una actividad por toque (`tap: true`)
 
@@ -46,6 +46,12 @@ contenido pedagógico. No hay paso de compilación.
   cae a es-AR. Las frases son COMPLETAS con huecos con nombre, nunca pedazos pegados (el orden, el género y los plurales cambian
   de un idioma a otro): ver `docs/AGREGAR_IDIOMA.md`. El nombre de cada habilidad sale de la tabla con un getter; su `id` no se traduce.
 - Voz: todo lo que se dice sale por `speak()` (audio grabado → voz del aparato en el idioma elegido → solo texto).
+
+### Informe propio de la isla (opcional)
+
+Una isla puede declarar `informe(kid)`: devuelve una lista de líneas de texto que el informe para adultos agrega antes de
+"CHEQUEOS SIN AYUDA" (Ritmo lo usa para la regularidad en milisegundos). El motor no sabe nada de lo que contiene. Los textos de ese
+bloque también van en la tabla del idioma.
 
 ### Isla sin sesiones (como Misiones)
 

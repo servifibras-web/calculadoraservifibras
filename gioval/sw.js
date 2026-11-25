@@ -35,12 +35,14 @@ const F=["./","index.html","manifest.json","apple-touch-icon.png","icon-192.png"
   "js/datos/letras.js",
   "js/datos/numeros.js",
   "js/datos/misiones.js",
+  "js/datos/ritmo.js",
   "js/islas/musica.js",
   "js/islas/numeros_ubicacion.js",
   "js/islas/numeros.js",
   "js/islas/letras.js",
   "js/islas/ayudantes.js",
-  "js/islas/misiones.js"];
+  "js/islas/misiones.js",
+  "js/islas/ritmo.js"];
 /* instalar: precargar todo SIN activarse solo; la página avisa "hay una versión nueva" y al tocar Actualizar manda {tipo:"saltar"} */
 self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x.startsWith(P)&&x!==C&&!x.startsWith(CA)).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
