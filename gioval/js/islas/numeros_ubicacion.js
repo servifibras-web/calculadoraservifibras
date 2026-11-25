@@ -93,7 +93,7 @@ Gioval.numeros = (function () {
   function crearEscalera(reclamados) {
     const D = cerrar(reclamados);
     const ejes = EJES.map(e => { let top = -1; e.cadena.forEach((id, i) => { if (D.has(id)) top = i; });
-      return { id: e.id, cadena: e.cadena, necesita: e.necesita, idx: Math.max(0, top), tally: {}, mejor: -1, techo: Infinity, items: 0, fin: false, omitido: false }; });
+      return { id: e.id, cadena: e.cadena, necesita: e.necesita, idx: Math.max(0, top), tally: {}, mejor: -1, techo: Infinity, fallosSeguidos: 0, items: 0, fin: false, omitido: false }; });
     return { D, ejes, nItems: 0, registros: [], pasados: new Set(), fallados: new Set(), t0: Date.now() };
   }
   /* ¿se puede dar por sabida esta habilidad para habilitar un eje? (aprobada o ancestro de una aprobada, o dicha por el adulto y no refutada) */
@@ -114,20 +114,22 @@ Gioval.numeros = (function () {
     return null;
   }
   /* un nivel se aprueba con 2 aciertos al primer intento; con 2 errores se falla; con 1 y 1 se pide un 3.er ítem.
-     Si aprueba: sube un nivel. Si falla: baja un nivel (hasta encontrar uno aprobado o llegar al piso). */
+     Si aprueba: sube un nivel (hasta el primer nivel fallado). Si falla: baja, y cada fallo seguido baja un nivel más
+     (1, 2, 3…) para encontrar rápido dónde sí puede, hasta un nivel aprobado o el piso; los niveles de en medio se prueban después. */
   function registrar(U, e, id, ok, rt) {
     U.registros.push({ s: id, ok: !!ok, rt: typeof rt === "number" ? rt : null });
     U.nItems++; e.items++;
     const L = e.tally[e.idx] || (e.tally[e.idx] = []); L.push(!!ok);
     const bien = L.filter(Boolean).length, mal = L.length - bien;
     if (bien >= UB.itemsPorNivel) {
-      e.mejor = Math.max(e.mejor, e.idx); U.pasados.add(id);
+      e.mejor = Math.max(e.mejor, e.idx); U.pasados.add(id); e.fallosSeguidos = 0;
       const nx = e.idx + 1;
       if (nx >= e.cadena.length || nx >= e.techo || e.items >= UB.maxItemsPorEje) e.fin = true; else e.idx = nx;
     } else if (mal >= UB.itemsPorNivel) {
-      e.techo = Math.min(e.techo, e.idx); U.fallados.add(id);
-      const nx = e.idx - 1;
-      if (nx < 0 || nx <= e.mejor || e.tally[nx] || e.items >= UB.maxItemsPorEje) e.fin = true; else e.idx = nx;
+      e.techo = Math.min(e.techo, e.idx); U.fallados.add(id); e.fallosSeguidos++;
+      let nx = Math.max(0, e.idx - e.fallosSeguidos);
+      while (nx < e.idx && e.tally[nx]) nx++;
+      if (nx >= e.idx || nx <= e.mejor || e.items >= UB.maxItemsPorEje) e.fin = true; else e.idx = nx;
     } else if (e.items >= UB.maxItemsPorEje) e.fin = true;
   }
   function resultado(U, fin) {

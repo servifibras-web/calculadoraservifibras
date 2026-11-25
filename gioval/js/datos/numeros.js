@@ -341,8 +341,8 @@ Gioval.datos.numeros = (function () {
   const UBICACION = {
     ayuda: 1,              // nivel de ayuda visual con que se muestran los ítems (0 más ayuda … 2 sin ayuda)
     itemsPorNivel: 2,      // un nivel se aprueba con 2 aciertos al primer intento (si hay 1 y 1, se agrega un 3.er ítem)
-    maxItemsPorEje: 6,
-    maxItems: 26,
+    maxItemsPorEje: 8,
+    maxItems: 30,
     maxMs: 5 * 60e3,       // ~5 minutos de juego
   };
 
