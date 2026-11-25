@@ -2091,7 +2091,7 @@ def t_ay_no_toca(C):
         res[nombre] = r; ctx.close()
     igual(res["nueva"], res["anterior"], "textos del mapa y de los menús")
     ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "misiones"], "Ayudantes no es una isla de aprendizaje (Misiones es la otra isla sin habilidades)")
-    igual(pg.evaluate("Gioval.islas.habilidades().length"), 16, "habilidades (Música 7 + Números 9)")
+    igual(pg.evaluate("Gioval.islas.habilidades().length"), 38, "habilidades (Música 7 + Números 31 desde Números por edades)")
     for isla in ("Música", "Números"):    # al llegar al tope en cualquier isla, el flujo anterior sigue igual: "¡Chau, zorro!" cierra y vuelve al menú
         llegar_al_tope(pg, isla); pg.click("#capOk"); pg.wait_for_timeout(120)
         igual(pg.evaluate("document.querySelector('.screen.active').id"), "menuIsla", isla)
