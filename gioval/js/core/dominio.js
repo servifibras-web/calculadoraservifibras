@@ -29,8 +29,10 @@ Gioval.dominio = (function () {
   const P = { minIntentos: 6, minAciertos: 0.9, ventana: 10, itemsChequeoSalto: 3, maxSaltadasPorChequeo: 4, topeChequeo: 12, minChequeo: 2 };
   const habilidad = id => (PACK ? PACK.skills : Gioval.islas.habilidades()).find(s => s.id === id) || Gioval.islas.habilidades().find(s => s.id === id);
   const mediana = a => { if (!a.length) return null; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : Math.round((b[m - 1] + b[m]) / 2); };
-  const seg = ms => (ms / 1000).toFixed(1).replace(".", ",") + " s";
-  const fecha = t => new Date(t).toLocaleDateString("es-AR");
+  /* formatos según el idioma activo (los textos viven en las tablas de js/i18n; acá no hay español escrito) */
+  const seg = ms => t("informe.salto.seg", { s: Gioval.i18n.num(+(ms / 1000).toFixed(1)) });
+  const fecha = ms => Gioval.i18n.fecha(new Date(ms));
+  const lista = nombres => { try { return new Intl.ListFormat(Gioval.i18n.meta().locale, { type: "conjunction" }).format(nombres); } catch (e) { return nombres.join(", "); } };
   const pct = (a, n) => n ? Math.round(100 * a / n) + "%" : "–";
 
   /* últimos intentos de aprender/repasar (no del chequeo) de una habilidad */
@@ -81,7 +83,7 @@ Gioval.dominio = (function () {
     return out;
   }
   function mensajeSaltos(arr) {
-    return "¡Respondiste con mucha seguridad! Por eso nos saltamos " + arr.map(s => "«" + s.name + "»").join(" y ") + " y vamos a lo que sigue.";
+    return t("motor.salto.aviso", { lista: lista(arr.map(s => "«" + s.name + "»")) });
   }
 
   /* chequeo semanal: las saltadas pendientes van primero (con más ítems) */
@@ -115,8 +117,7 @@ Gioval.dominio = (function () {
     return out;
   }
   function mensajeChequeo(rev) {
-    if (rev.volvieron.length) return "Algunas cosas que nos habíamos saltado las vamos a practicar un poquito: ¡es parte de aprender!";
-    return "Lo que nos habíamos saltado salió bien: ¡queda confirmado!";
+    return t(rev.volvieron.length ? "motor.salto.chequeo_vuelven" : "motor.salto.chequeo_ok");
   }
 
   /* ---- informe para adultos ---- */
@@ -124,23 +125,26 @@ Gioval.dominio = (function () {
     const k = st.skip; if (!k) return "";
     if (k.por === "rapido") {
       const de = habilidad(k.de), e = k.ev || {};
-      return "por dominio rápido de «" + (de ? de.name : k.de) + "» (" + e.aciertos + " de " + e.n + " al primer intento, mediana " + (e.med != null ? seg(e.med) : "–") + ", umbral " + seg(e.umbral) + ")";
+      return t("informe.salto.motivo_rapido", { de: de ? de.name : k.de, aciertos: e.aciertos, n: e.n, med: e.med != null ? seg(e.med) : "–", umbral: seg(e.umbral) });
     }
-    return k.motivo || ("origen: " + k.por);
+    /* `motivo` es { k: clave de texto, p: datos } y se escribe en el idioma de quien lee el informe; "de" es el id de una habilidad */
+    const m = k.motivo;
+    if (m && typeof m === "object") { const p = Object.assign({}, m.p); if (p.de) { const d = habilidad(p.de); p.de = d ? d.name : p.de; } if ("mediana" in p) p.mediana = p.mediana != null ? seg(p.mediana) : "–"; return t(m.k, p); }
+    return m || t("informe.salto.motivo_otro", { por: k.por });
   }
   function estadoSalto(st) {
     const k = st.skip, c = k.chequeo;
-    if (k.estado === "pendiente") return "se reevalúa en el próximo chequeo semanal sin ayuda";
-    if (k.estado === "confirmada") return "CONFIRMADA en el chequeo del " + fecha(c.t) + (c.porImplicacion ? " (porque aprobó otra más avanzada que la necesita)" : " (" + c.ok + "/" + c.n + ")");
-    if (k.estado === "revertida") return "VOLVIÓ A PRÁCTICA" + (c && c.porDependencia ? " (depende de otra que falló)" : c ? " tras el chequeo del " + fecha(c.t) + " (" + c.ok + "/" + c.n + ")" : "");
+    if (k.estado === "pendiente") return t("informe.salto.est_pendiente");
+    if (k.estado === "confirmada") return c.porImplicacion ? t("informe.salto.est_confirmada_impl", { fecha: fecha(c.t) }) : t("informe.salto.est_confirmada", { fecha: fecha(c.t), ok: c.ok, n: c.n });
+    if (k.estado === "revertida") return c && c.porDependencia ? t("informe.salto.est_revertida_dep") : c ? t("informe.salto.est_revertida", { fecha: fecha(c.t), ok: c.ok, n: c.n }) : t("informe.salto.est_revertida_sola");
     return k.estado;
   }
   /* líneas extra de una habilidad dentro del informe (tiempos y saltos) */
   function lineasInforme(s, st, ev) {
     const out = [];
     const rts = ev.filter(e => e.f === 1 && typeof e.rt === "number").map(e => e.rt);
-    if (rts.length >= 3) out.push("   Tiempo de respuesta (mediana, aciertos sin pistas): " + seg(mediana(rts)) + " (n=" + rts.length + ")");
-    if (st.skip) out.push("   Saltada " + motivo(s, st) + " → " + estadoSalto(st));
+    if (rts.length >= 3) out.push(t("informe.salto.tiempo", { seg: seg(mediana(rts)), n: rts.length }));
+    if (st.skip) out.push(t("informe.salto.linea", { motivo: motivo(s, st), estado: estadoSalto(st) }));
     return out;
   }
   /* sección "qué se saltó y por qué" */
@@ -148,8 +152,8 @@ Gioval.dominio = (function () {
     const filas = [];
     packs.forEach(p => p.skills.forEach(s => { const st = SK(s.id); if (st.skip) filas.push({ s, st }); }));
     if (!filas.length) return [];
-    const out = ["HABILIDADES SALTADAS (sin práctica propia) Y POR QUÉ"];
-    filas.sort((a, b) => a.st.skip.t - b.st.skip.t).forEach(({ s, st }) => out.push("• " + s.name + " — " + motivo(s, st) + " (" + fecha(st.skip.t) + "). " + estadoSalto(st) + "."));
+    const out = [t("informe.salto.titulo")];
+    filas.sort((a, b) => a.st.skip.t - b.st.skip.t).forEach(({ s, st }) => out.push(t("informe.salto.fila", { nombre: s.name, motivo: motivo(s, st), fecha: fecha(st.skip.t), estado: estadoSalto(st) })));
     return out;
   }
 

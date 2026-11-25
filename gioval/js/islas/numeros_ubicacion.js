@@ -1,7 +1,7 @@
 "use strict";
 /* ============ ISLA NÚMEROS: preguntas iniciales, test de ubicación y punto de partida ============
    Se carga ANTES de js/islas/numeros.js (que registra la isla y le pasa a Gioval.islas los ganchos de acá).
-   Los datos y los textos están en js/datos/numeros.js; la regla completa, explicada para personas, en
+   Los datos y los textos (tablas de idiomas, claves numeros.ed.*) están en js/datos/numeros.js; la regla completa, explicada para personas, en
    gioval-dev/docs/NUMEROS_EDADES.md. Todo esto lo maneja un ADULTO desde el panel ⚙️ (detrás del candado),
    salvo el test de ubicación, que juega el niño con voz y sin presión.
 
@@ -19,10 +19,9 @@
      la más alta aprobada de cada rama, si se respondió con lentitud (mediana sobre el umbral `rapido.rt`), queda en curso y no saltada;
      lo que no se probó sigue la regla anterior. */
 Gioval.numeros = (function () {
-  const DN = Gioval.datos.numeros, TX = DN.TEXTOS, ESCALA = DN.ESCALA, EJES = DN.EJES, IN = DN.INTAKE, UB = DN.UBICACION;
+  const DN = Gioval.datos.numeros, ESCALA = DN.ESCALA, EJES = DN.EJES, IN = DN.INTAKE, UB = DN.UBICACION;
   const POR = new Map(ESCALA.map(s => [s.id, s]));
   const ORDEN = new Map(ESCALA.map((s, i) => [s.id, i]));
-  const fmt = (t, v) => t.replace(/\{(\w+)\}/g, (m, k) => (v && v[k] != null) ? v[k] : m);
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const sk = id => POR.get(id);
 
@@ -148,10 +147,11 @@ Gioval.numeros = (function () {
   function limpiarSalto(id) {
     const st = SK(id); if (st.skip && st.skip.estado === "pendiente") { st.mast = false; st.box = 0; st.due = 0; delete st.skip; }
   }
+  /* el motivo se guarda como { k: clave, p: datos } y se escribe en el idioma de quien lee el informe (ver Gioval.dominio.motivo) */
   function motivoTexto(id, por, de, ev) {
-    if (por === "ubicacion") { const e = ev || {}; return fmt(TX.motivos.ubicacion, { ok: e.ok != null ? e.ok : "?", n: e.n != null ? e.n : "?", mediana: e.med != null ? Gioval.dominio.seg(e.med) : "–" }); }
-    if (por === "implicita") return fmt(TX.motivos.implicita, { de: de && sk(de) ? sk(de).name : "?" });
-    return TX.motivos[por] || por;
+    if (por === "ubicacion") { const e = ev || {}; return { k: "numeros.ed.motivos.ubicacion", p: { ok: e.ok != null ? e.ok : "?", n: e.n != null ? e.n : "?", mediana: e.med != null ? e.med : null } }; }
+    if (por === "implicita") return { k: "numeros.ed.motivos.implicita", p: { de: de || "?" } };
+    return { k: "numeros.ed.motivos." + por, p: {} };
   }
   function aplicar(estados, por, de, ev) {
     ESCALA.forEach(s => {
@@ -170,10 +170,11 @@ Gioval.numeros = (function () {
   function intakeHTML(I) {
     const edad = I ? I.edad : null, resp = I ? I.resp : {};
     const sel = (id, opts, val) => `<select id="${id}">${opts.map(o => `<option value="${o.v == null ? "" : o.v}"${(o.v == null ? val == null : o.v === val) ? " selected" : ""}>${esc(o.t)}</option>`).join("")}</select>`;
-    let h = `<h3>${esc(fmt(TX.intake.titulo, { nombre: KID }))}</h3><p>${esc(TX.intake.intro)}</p>`;
-    h += `<div class="nfila"><label for="ni_edad"><b>${esc(TX.intake.edad)}</b></label>${sel("ni_edad", [{ v: null, t: TX.intake.noSe }].concat(IN.edades.map(e => ({ v: e, t: TX.intake.edades[e] }))), edad)}</div>`;
-    IN.preguntas.forEach(p => { h += `<div class="nfila"><label for="ni_${p.id}"><b>${esc(p.texto)}</b></label>${sel("ni_" + p.id, [{ v: null, t: TX.intake.noSe }].concat(p.opciones.map(o => ({ v: o.v, t: o.t }))), resp ? resp[p.id] : null)}</div>`; });
-    h += `<p class="note-hint">${esc(TX.intake.aviso)}</p><div class="nbtns"><button class="btn" id="niVer">${esc(TX.intake.ver)}</button><button class="btn alt" id="niCancelar">${esc(TX.intake.cancelar)}</button></div>`;
+    const T = (c, p) => esc(t("numeros.ed.intake." + c, p)), noSe = { v: null, t: t("numeros.ed.intake.no_se") };
+    let h = `<h3>${T("titulo", { nombre: KID })}</h3><p>${T("intro")}</p>`;
+    h += `<div class="nfila"><label for="ni_edad"><b>${T("edad")}</b></label>${sel("ni_edad", [noSe].concat(IN.edades.map(e => ({ v: e, t: t("numeros.ed.intake.edades." + e) }))), edad)}</div>`;
+    IN.preguntas.forEach(p => { h += `<div class="nfila"><label for="ni_${p.id}"><b>${T(p.id + ".texto")}</b></label>${sel("ni_" + p.id, [noSe].concat(p.opciones.map(o => ({ v: o.v, t: t("numeros.ed.intake." + p.id + ".o" + o.v) }))), resp ? resp[p.id] : null)}</div>`; });
+    h += `<p class="note-hint">${T("aviso")}</p><div class="nbtns"><button class="btn" id="niVer">${T("ver")}</button><button class="btn alt" id="niCancelar">${T("cancelar")}</button></div>`;
     return h;
   }
   function abrirIntake() {
@@ -206,24 +207,24 @@ Gioval.numeros = (function () {
   function dibujarResumen() {
     const V = VISTA, E = V.estados, I = guardado();
     const ini = empiezaEn(E), nS = contar(E, "saltada"), nC = contar(E, "encurso");
-    const r = TX.resumen;
-    let h = `<h3>${esc(fmt(V.origen === "test" ? r.tituloTest : r.tituloIntake, { nombre: KID }))}</h3>`;
-    h += `<p class="nbig">${ini ? fmt(r.empieza, { inicio: esc(ini.name) }) : esc(r.empiezaTodo)}<br>${esc(fmt(r.saltadas, { n: nS }))}<br>${esc(fmt(r.encurso, { n: nC }))}</p>`;
+    const R = (c, p) => t("numeros.ed.resumen." + c, p), Re = (c, p) => esc(R(c, p));
+    let h = `<h3>${Re(V.origen === "test" ? "titulo_test" : "titulo_intake", { nombre: KID })}</h3>`;
+    h += `<p class="nbig">${ini ? R("empieza", { inicio: esc(ini.name) }) : Re("empieza_todo")}<br>${Re("saltadas", { n: nS })}<br>${Re("encurso", { n: nC })}</p>`;
     if (V.test) {
       const reg = V.test.registros, ok = reg.filter(x => x.ok), med = mediana(ok.filter(x => typeof x.rt === "number").map(x => x.rt));
-      h += `<p>${esc(fmt(r.test, { ok: ok.length, n: reg.length, mediana: med != null ? Gioval.dominio.seg(med) : "–" }))}` + (V.test.fin !== "completo" ? " " + esc(fmt(r.testCorto, { motivo: V.test.fin === "tiempo" ? r.motivoTiempo : r.motivoItems })) : "") + `</p>`;
+      h += `<p>${Re("test", { ok: ok.length, n: reg.length, mediana: med != null ? Gioval.dominio.seg(med) : "–" })}` + (V.test.fin !== "completo" ? " " + Re("test_corto", { motivo: R(V.test.fin === "tiempo" ? "motivo_tiempo" : "motivo_items") }) : "") + `</p>`;
     }
-    h += `<p class="note-hint">${esc(r.explica)}</p>`;
+    h += `<p class="note-hint">${Re("explica")}</p>`;
     EJES.forEach(eje => {
-      h += `<div class="neje">${esc(TX.ejes[eje.id])}</div>`;
+      h += `<div class="neje">${esc(t("numeros.ed.ejes." + eje.id.toLowerCase()))}</div>`;
       ESCALA.filter(s => s.eje === eje.id).forEach(s => {
-        const e = E[s.id], extra = e === "no" ? r.etiqueta[etiquetaNo(E, s.id)] : (V.por[s.id] ? r.origen[V.por[s.id]] : "");
-        h += `<div class="nrow"><div class="nn"><span class="ni">${s.icon}</span> ${esc(s.name)}<small>${esc(extra || "")}</small></div><select data-id="${s.id}" class="nsel e-${e}">${["saltada", "encurso", "no"].map(o => `<option value="${o}"${o === e ? " selected" : ""}>${esc(r.estados[o])}</option>`).join("")}</select></div>`;
+        const e = E[s.id], extra = e === "no" ? R("etiqueta." + etiquetaNo(E, s.id)) : (V.por[s.id] ? R("origen." + V.por[s.id]) : "");
+        h += `<div class="nrow"><div class="nn"><span class="ni">${s.icon}</span> ${esc(s.name)}<small>${esc(extra || "")}</small></div><select data-id="${s.id}" class="nsel e-${e}">${["saltada", "encurso", "no"].map(o => `<option value="${o}"${o === e ? " selected" : ""}>${Re("estados." + o)}</option>`).join("")}</select></div>`;
       });
     });
-    h += `<div class="nbtns"><button class="btn" id="nrAceptar">${esc(r.aceptar)}</button>`;
-    if (V.origen === "intake" || V.origen === "ver") h += `<button class="btn alt" id="nrTest">${esc(fmt(r.hacerTest, { nombre: KID }))}</button><button class="btn alt" id="nrResp">${esc(r.cambiarResp)}</button>`;
-    h += `<button class="btn alt" id="nrVolver">${esc(r.volver)}</button></div>`;
+    h += `<div class="nbtns"><button class="btn" id="nrAceptar">${Re("aceptar")}</button>`;
+    if (V.origen === "intake" || V.origen === "ver") h += `<button class="btn alt" id="nrTest">${Re("hacer_test", { nombre: KID })}</button><button class="btn alt" id="nrResp">${Re("cambiar_resp")}</button>`;
+    h += `<button class="btn alt" id="nrVolver">${Re("volver")}</button></div>`;
     O("numResumenCard").innerHTML = h;
     O("numResumenCard").querySelectorAll("select.nsel").forEach(sel => { sel.onchange = () => { cambiar(V.estados, sel.dataset.id, sel.value); V.por[sel.dataset.id] = "manual"; dibujarResumen(); }; });
     O("nrVolver").onclick = () => cerrarOverlay("numResumen");
@@ -240,7 +241,7 @@ Gioval.numeros = (function () {
       saltadas: contar(V.estados, "saltada"), encurso: contar(V.estados, "encurso"), origen: V.origen };
     delete I.pendiente; save();
     cerrarOverlay("numResumen"); actualizarPanel();
-    setBubble(fmt(TX.resumen.aceptado, { nombre: KID }));
+    setBubble(t("numeros.ed.resumen.aceptado", { nombre: KID }));
   }
 
   /* ---------- 6) el test de ubicación que juega el niño ---------- */
@@ -261,49 +262,50 @@ Gioval.numeros = (function () {
       async respuesta(run, it, res) {
         const p = pend; pend = null; if (!p) return;
         const ok = res.miss === 0; registrar(U, p.eje, p.id, ok, res.rt); Gioval.dominio.marcar(ok);
-        setBubble(rnd(TX.ubic.siguientes)); await sleep(450); if (run !== S.run) return; guia.siguiente(run);
+        setBubble(rnd(tl("numeros.ed.ubic.siguientes"))); await sleep(450); if (run !== S.run) return; guia.siguiente(run);
       },
     };
-    Gioval.dominio.iniciarGuiada({ titulo: TX.ubic.titulo, saludo: fmt(TX.ubic.saludo, { nombre: kid }), guia });
+    Gioval.dominio.iniciarGuiada({ titulo: t("numeros.ed.ubic.titulo"), saludo: t("numeros.ed.ubic.saludo", { nombre: kid }), guia });
   }
   async function terminar(run, U, kid, motivo) {
     S.mode = "done"; S.onDone = null;
     const test = resultado(U, motivo), I = store.intake[kid]; I.ubicacion = test; I.pendiente = true; save();
-    S.finMode = "ubic"; $("finStars").textContent = "🌱"; $("finTitle").textContent = TX.ubic.finTitulo;
-    $("btnFinOk").textContent = TX.ubic.botonAdulto; $("btnFinHome").textContent = TX.ubic.botonMapa;
+    S.finMode = "ubic"; $("finStars").textContent = "🌱"; $("finTitle").textContent = t("numeros.ed.ubic.fin_titulo");
+    $("btnFinOk").textContent = t("numeros.ed.ubic.boton_adulto"); $("btnFinHome").textContent = t("numeros.ed.ubic.boton_mapa");
     S.finOk = () => { resetFlow(); goMenuIsla(); gate(() => mostrarResumen("test")); };
     S.finHome = () => { resetFlow(); goMap(); };
     $("finish").classList.add("show"); actualizarPanel();
-    await speak(fmt(TX.ubic.finVoz, { nombre: kid }));
+    await speak(t("numeros.ed.ubic.fin_voz", { nombre: kid }));
   }
 
   /* ---------- 7) panel de adultos e informe ---------- */
   function estadoPanel(kid) {
-    const I = kid ? store.intake[kid] : null, T = TX.panel;
-    if (!I) return fmt(T.sin, { nombre: kid || "el niño" });
-    if (I.pendiente) return T.pendiente;
-    if (!I.inicio) return T.respuestas;
+    const I = kid ? store.intake[kid] : null, P = (c, p) => t("numeros.ed.panel." + c, p);
+    if (!I) return P("sin", { nombre: kid || "…" });
+    if (I.pendiente) return P("pendiente");
+    if (!I.inicio) return P("respuestas");
     const ini = I.inicio.empiezaEn ? sk(I.inicio.empiezaEn) : null;
-    return ini ? fmt(T.aceptado, { inicio: ini.name, saltadas: I.inicio.saltadas, encurso: I.inicio.encurso }) : T.completo;
+    return ini ? P("aceptado", { inicio: ini.name, saltadas: I.inicio.saltadas, encurso: I.inicio.encurso }) : P("completo");
   }
   function actualizarPanel() { const el = O("numInicioEstado"); if (el) el.textContent = estadoPanel(KID); }
   function informeInicio(kid) {
-    const I = store.intake[kid], T = TX.informe, out = [];
-    const tieneProgreso = ESCALA.some(s => store.sk[kid + "|" + s.id]);
-    if (!I) return tieneProgreso ? [T.titulo, T.sin] : [];
-    out.push(T.titulo, I.edad ? fmt(T.edad, { edad: I.edad }) : T.edadNoSe);
-    const lista = IN.preguntas.map(p => { const o = p.opciones.find(x => x.v === (I.resp || {})[p.id]); return fmt(T.respItem, { corto: p.corto, t: o ? o.t.charAt(0).toLowerCase() + o.t.slice(1) : T.noSe }); });
-    out.push(fmt(T.resp, { lista: lista.join("; ") }));
+    const I = store.intake[kid], N = (c, p) => t("numeros.ed.informe." + c, p), out = [];
+    const tieneProgreso = ESCALA.some(s => { const x = store.sk[kid + "|" + s.id]; return x && (x.att || x.mast); });
+    if (!I) return tieneProgreso ? [N("titulo"), N("sin")] : [];
+    const loc = Gioval.i18n.meta().locale, minus = x => x.charAt(0).toLocaleLowerCase(loc) + x.slice(1);
+    out.push(N("titulo"), I.edad ? N("edad", { edad: I.edad }) : N("edad_no_se"));
+    const lista = IN.preguntas.map(p => { const v = (I.resp || {})[p.id], o = p.opciones.find(x => x.v === v); return N("resp_item", { corto: t("numeros.ed.intake." + p.id + ".corto"), t: o ? minus(t("numeros.ed.intake." + p.id + ".o" + o.v)) : N("no_se") }); });
+    out.push(N("resp", { lista: lista.join("; ") }));
     if (I.ubicacion) {
       const u = I.ubicacion, ok = u.registros.filter(x => x.ok), med = mediana(ok.filter(x => typeof x.rt === "number").map(x => x.rt));
-      out.push(fmt(T.test, { fecha: Gioval.dominio.fecha(u.t), n: u.registros.length, ok: ok.length, pct: Gioval.dominio.pct(ok.length, u.registros.length), mediana: med != null ? Gioval.dominio.seg(med) : "–" }));
-      const ejes = EJES.map(e => { const x = u.ejes[e.id], nombre = TX.ejes[e.id]; return !x || x.omitido ? fmt(T.testEjeOmitido, { eje: nombre }) : x.mejor ? fmt(T.testEje, { eje: nombre, skill: nombreHab(x.mejor) }) : fmt(T.testEjeNada, { eje: nombre }); });
-      out.push(fmt(T.testEjes, { lista: ejes.join("; ") }));
+      out.push(N("test", { fecha: Gioval.dominio.fecha(u.t), n: u.registros.length, ok: ok.length, pct: Gioval.dominio.pct(ok.length, u.registros.length), mediana: med != null ? Gioval.dominio.seg(med) : "–" }));
+      const ejes = EJES.map(e => { const x = u.ejes[e.id], nombre = t("numeros.ed.ejes." + e.id.toLowerCase()); return !x || x.omitido ? N("test_eje_omitido", { eje: nombre }) : x.mejor ? N("test_eje", { eje: nombre, skill: nombreHab(x.mejor) }) : N("test_eje_nada", { eje: nombre }); });
+      out.push(N("test_ejes", { lista: ejes.join("; ") }));
     }
     if (I.inicio) {
       const ini = I.inicio.empiezaEn ? nombreHab(I.inicio.empiezaEn) : "—";
-      out.push(fmt(T.inicio, { fecha: Gioval.dominio.fecha(I.inicio.t), inicio: ini, saltadas: I.inicio.saltadas, encurso: I.inicio.encurso }));
-      if (I.inicio.ajustes && I.inicio.ajustes.length) out.push(fmt(T.ajustes, { n: I.inicio.ajustes.length }));
+      out.push(N("inicio", { fecha: Gioval.dominio.fecha(I.inicio.t), inicio: ini, saltadas: I.inicio.saltadas, encurso: I.inicio.encurso }));
+      if (I.inicio.ajustes && I.inicio.ajustes.length) out.push(N("ajustes", { n: I.inicio.ajustes.length }));
     }
     return out;
   }
@@ -311,7 +313,7 @@ Gioval.numeros = (function () {
   /* ---------- 8) piezas que se enchufan en la isla ---------- */
   const dom = {
     pantallas: `<div class="big" id="numIntake"><div class="ncard" id="numIntakeCard"></div></div><div class="big" id="numResumen"><div class="ncard" id="numResumenCard"></div></div>`,
-    panelPie: `<div style="margin-top:8px"><button class="btn alt" id="btnNumInicio" style="padding:6px 14px;font-size:16px">${TX.panel.boton}</button><div class="psum" id="numInicioEstado"></div></div>`,
+    panelPie: `<div style="margin-top:8px"><button class="btn alt" id="btnNumInicio" style="padding:6px 14px;font-size:16px" data-i18n="numeros.ed.panel.boton">🔢 Números: punto de partida</button><div class="psum" id="numInicioEstado"></div></div>`,
   };
   function iniciar() {
     O("btnNumInicio").onclick = () => { if (!KID) return; const I = guardado(); if (!I) abrirIntake(); else mostrarResumen(I.pendiente ? "test" : (I.inicio ? "ver" : "intake")); $("panel").classList.remove("show"); };

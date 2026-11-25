@@ -62,13 +62,13 @@ async function tapPick(i){
   S.lastWrong=now; T.miss++;
   if(S.check){ S.mode="between"; btn.classList.add("near"); await sleep(380); if(run!==S.run) return; S.onDone({miss:1,rt:null,aid:T.aid}); return; }
   btn.classList.add("near"); setTimeout(()=>btn.classList.remove("near"),450);
-  if(T.miss===1){ setBubble(rnd(["Mmm, probá distinto 🤔","Fijate de nuevo, despacito.","¡Casi! Probá de otra manera."])); }
+  if(T.miss===1){ setBubble(rnd(tl("tap.fallo1"))); }
   else if(T.miss===2){
     T.help=true;
     if(it.seq.length===1){ const wr=v.opts.filter(x=>x.val!==want&&!T.dead.has(x.val)); if(wr.length>1) T.dead.add(rnd(wr).val); }
-    tapRender(); await speak(A.tip?A.tip(it):"Fijate bien. Te saqué una opción.");
+    tapRender(); await speak(A.tip?A.tip(it):t("tap.tip"));
   } else if(T.miss>=3&&!T.reveal){
-    T.reveal=true; T.revealed=true; tapRender(); await speak(A.reveal?A.reveal(it,T):"Mirá, es este.");
+    T.reveal=true; T.revealed=true; tapRender(); await speak(A.reveal?A.reveal(it,T):t("tap.reveal"));
   }
 }
 $("btnActHear").onclick=()=>{ if(S.tap&&S.tap.v) speak(S.tap.v.say); };

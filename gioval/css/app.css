@@ -5,14 +5,14 @@ html,body{margin:0;height:100%;font-family:"Trebuchet MS","Segoe UI",system-ui,s
 .mascot{font-size:64px;line-height:1;animation:bob 2.4s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-6px) rotate(-3deg)}}
 .bubble{flex:1;background:#fff;border-radius:22px;padding:14px 18px;font-size:clamp(20px,3.2vw,30px);font-weight:700;box-shadow:0 4px 0 rgba(0,0,0,.12);position:relative;min-height:70px;display:flex;align-items:center}
-.bubble:before{content:"";position:absolute;left:-12px;top:50%;margin-top:-10px;border:10px solid transparent;border-right-color:#fff;border-left:0}
+.bubble:before{content:"";position:absolute;inset-inline-start:-12px;top:50%;margin-top:-10px;border:10px solid transparent;border-inline-end-color:#fff;border-inline-start:0}
 .iconbtn{border:0;background:#fff;border-radius:16px;font-size:26px;width:52px;height:52px;box-shadow:0 3px 0 rgba(0,0,0,.15)}
 .iconbtn.on{background:#4cc86a;color:#fff}
 .screen{flex:1;display:none;flex-direction:column;min-height:0;margin-top:12px}
 .screen.active{display:flex}
 h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;overflow:auto;padding-bottom:10px}
-.song{background:#fff;border:0;border-radius:26px;padding:20px;text-align:left;font-size:clamp(22px,3vw,28px);font-weight:800;color:#2b2350;box-shadow:0 6px 0 rgba(0,0,0,.14);display:flex;flex-direction:column;gap:6px}
+.song{background:#fff;border:0;border-radius:26px;padding:20px;text-align:start;font-size:clamp(22px,3vw,28px);font-weight:800;color:#2b2350;box-shadow:0 6px 0 rgba(0,0,0,.14);display:flex;flex-direction:column;gap:6px}
 .song:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.14)}
 .song small{font-size:18px;font-weight:600;opacity:.7}
 .song .st{font-size:26px;letter-spacing:2px}
@@ -46,7 +46,8 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .big h1{margin:0;font-size:clamp(30px,6vw,56px)}
 .panel{display:none;background:#fff;border-radius:20px;padding:14px 18px;margin-top:10px;font-size:18px}
 .panel.show{display:block}
-.panel label{display:flex;gap:10px;align-items:center;margin-top:8px}
+.panel label{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.panel select{max-width:100%;min-width:0;text-overflow:ellipsis}
 .meter{height:12px;background:#eee;border-radius:6px;overflow:hidden;flex:1}
 .meter i{display:block;height:100%;width:0;background:#4cc86a}
 .islands{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;overflow:auto;padding:6px 2px 12px}
@@ -120,7 +121,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .og{display:flex;flex-direction:column;align-items:center;justify-content:center}
 .or{display:flex;justify-content:center}
 .ob{position:relative;font-size:var(--es,24px);line-height:1.2;width:1.25em;text-align:center;font-weight:400}
-.ob b{position:absolute;right:-.05em;bottom:-.05em;font-size:.5em;line-height:1;background:#7c4dff;color:#fff;border-radius:50%;min-width:1.2em;height:1.2em;display:flex;align-items:center;justify-content:center}
+.ob b{position:absolute;inset-inline-end:-.05em;bottom:-.05em;font-size:.5em;line-height:1;background:#7c4dff;color:#fff;border-radius:50%;min-width:1.2em;height:1.2em;display:flex;align-items:center;justify-content:center}
 .ob.x{opacity:.3;filter:grayscale(1)}
 .ob.x:after{content:"✖";position:absolute;left:0;right:0;top:.1em;font-size:.9em;color:#ff5a5f;opacity:1}
 .ocap{font-size:calc(var(--es,24px)*1.1);font-weight:900;color:#7c4dff;line-height:1.1}
@@ -149,8 +150,18 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
   .opt.syl{font-size:clamp(20px,9vh,34px)}
 }
 
-.aviso{position:fixed;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:none;align-items:center;gap:10px;background:#fff;color:#2b2350;border-radius:16px;padding:6px 8px 6px 14px;font-size:15px;font-weight:700;box-shadow:0 3px 0 rgba(0,0,0,.18);z-index:15;white-space:nowrap}
+.aviso{position:fixed;left:50%;bottom:max(8px,env(safe-area-inset-bottom));transform:translateX(-50%);display:none;align-items:center;gap:10px;background:#fff;color:#2b2350;border-radius:16px;padding-block:6px;padding-inline:14px 8px;font-size:15px;font-weight:700;box-shadow:0 3px 0 rgba(0,0,0,.18);z-index:15;white-space:nowrap}
 .aviso.show{display:flex}
+
+/* ---- soporte de idiomas de derecha a izquierda (RTL) ----
+   Se usan propiedades lógicas (inicio/fin) para que la interfaz se espeje sola con dir="rtl".
+   Lo que NO se espeja: el teclado del piano y la fila de notas (la música se lee siempre de izquierda a derecha),
+   las cuentas y los dibujos de objetos, y los números. */
+#kb,#dots,.eq,.eqt,.og,.bq,.slots,.bignum,.opt .bignum{direction:ltr;unicode-bidi:isolate}
+.arr{display:inline-block}
+html[dir=rtl] .arr{transform:scaleX(-1)}
+html[dir=rtl] .bubble:before{transform:none}
+
 
 /* ---- bloques de base 10 (Isla Números: valor posicional, sumas de dos cifras) ---- */
 .bq{display:flex;align-items:flex-end;justify-content:center;gap:.5em;flex-wrap:wrap;font-size:var(--es,24px);line-height:1}
