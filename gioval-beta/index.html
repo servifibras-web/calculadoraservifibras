@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Mundo Gioval BETA</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#7c4dff">
+<meta name="apple-mobile-web-app-title" content="Gioval BETA">
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="mascot" id="mascot">🦊</div>
+    <div class="bubble" id="bubble">¡Mundo Gioval, a jugar! 🦊</div>
+    <div class="tools">
+      <button class="iconbtn" id="btnVoice" title="Voz">🔊</button>
+      <button class="iconbtn" id="btnGear" title="Para papá">⚙️</button>
+    </div>
+  </div>
+  <div class="panel" id="panel">
+    <b>Para papá</b><span id="panelTexto"></span>
+    <div id="panelArriba"></div>
+    <div class="psum" id="parentSum"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px">📄 Informe</button></div>
+    <label>Tiempo por día: <select id="limSel" style="font-size:16px;padding:6px;border-radius:10px"><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option></select></label>
+    <label>Ya sabe hasta: <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px">Marcar</button></label>
+    <div class="psum" id="respaldoInfo"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn" id="btnExport" style="padding:6px 14px;font-size:16px">⬇ Exportar respaldo</button><button class="btn alt" id="btnRestore" style="padding:6px 14px;font-size:16px">⬆ Restaurar</button></div>
+    <input type="file" id="fileRestore" accept="application/json,.json" style="display:none">
+    <div id="panelPie"></div>
+  </div>
+
+  <div class="screen active" id="who">
+    <div style="text-align:center;font-size:clamp(30px,6vw,56px);font-weight:900;color:#7c4dff;text-shadow:0 3px 0 #fff">Mundo Gioval<br><span style="color:#ff5a5f;font-size:.6em">¡A jugar!</span></div>
+    <h2>¿Quién juega?</h2>
+    <div class="songs" id="profiles"></div>
+  </div>
+
+  <div class="screen" id="map">
+    <div class="bar"><h2 id="mapTitle" style="margin:0"></h2><button class="btn alt" id="btnWho">👤 Cambiar</button></div>
+    <div class="islands" id="islands"></div>
+  </div>
+
+  <div class="screen" id="menuIsla">
+    <div class="bar"><button class="btn alt" id="btnMenuBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0" id="menuIslaTitle"></h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
+    <div class="islands" id="menuIslaItems"></div>
+  </div>
+
+  <div class="screen" id="logros">
+    <div class="bar"><button class="btn alt" id="btnLogrosBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🌟 Mis logros</h2><span style="width:90px"></span></div>
+    <div class="songs" id="skillList" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
+  </div>
+
+  <div class="screen juego" id="act">
+    <div class="bar">
+      <button class="btn alt" id="btnActBack">⬅<span class="lbl"> Volver</span></button>
+      <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="actTitle"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn alt" id="btnActHear">🔊<span class="lbl"> Escuchar</span></button>
+        <button class="btn" id="btnActSkip">Seguir ➜</button>
+      </div>
+    </div>
+    <div class="prog" id="prog2"></div>
+    <div class="actBody"><div class="actStage" id="actStage"></div><div class="actOpts" id="actOpts"></div></div>
+  </div>
+</div>
+
+<div class="big nameBox" id="nameBox">
+  <h1>¿Cómo te llamás?</h1>
+  <input id="nameIn" maxlength="14" placeholder="Tu nombre" autocomplete="off">
+  <button class="btn" id="nameOk">¡Listo!</button>
+</div>
+
+<div class="big nameBox" id="gateBox">
+  <h1 id="gateQ">Pregunta para adultos</h1>
+  <input id="gateIn" type="number" inputmode="numeric" placeholder="Respuesta">
+  <div style="display:flex;gap:10px"><button class="btn" id="gateOk">Entrar</button><button class="btn alt" id="gateNo">Cancelar</button></div>
+</div>
+
+<div class="big" id="capBox">
+  <div class="stars">🌙</div>
+  <h1>¡Terminamos por hoy!</h1>
+  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0">Ya jugaste <span id="capMin">15</span> minutos. <span id="capTail">Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</span></p>
+  <button class="btn" id="capOk">¡Chau, zorro! 👋</button>
+</div>
+
+<div class="big" id="reportBox">
+  <pre id="reportTxt" style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:62vh;overflow:auto;font-size:15px;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:0;font-family:inherit"></pre>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="repCopy">Copiar</button><button class="btn" id="repWa">WhatsApp</button><button class="btn alt" id="repClose">Cerrar</button></div>
+</div>
+
+<div class="big" id="finish">
+  <div class="stars" id="finStars">⭐⭐⭐</div>
+  <h1 id="finTitle">¡Lo lograste!</h1>
+  <button class="btn" id="btnFinOk">¡Otra vez!</button>
+  <button class="btn alt" id="btnFinHome">Elegir otra canción</button>
+</div>
+
+<div class="big" id="restoreBox">
+  <div style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:70vh;overflow:auto;font-size:16px;line-height:1.5;user-select:text;-webkit-user-select:text" id="restoreTxt"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="restoreOk">Restaurar</button><button class="btn alt" id="restoreNo">Cancelar</button></div>
+</div>
+
+<div class="aviso" id="avisoVersion"><span>Hay una versión nueva</span> <button class="btn" id="btnActualizar" style="padding:4px 12px;font-size:15px">Actualizar</button></div>
+<script src="js/version.js"></script>
+<script src="js/core/util.js"></script>
+<script src="js/core/voz.js"></script>
+<script src="js/core/audio.js"></script>
+<script src="js/core/sonido.js"></script>
+<script src="js/core/almacen.js"></script>
+<script src="js/core/alarma.js"></script>
+<script src="js/core/entrada/entrada.js"></script>
+<script src="js/core/entrada/toque.js"></script>
+<script src="js/core/entrada/microfono.js"></script>
+<script src="js/core/entrada/golpes.js"></script>
+<script src="js/core/entrada/acordes.js"></script>
+<script src="js/core/entrada/midi.js"></script>
+<script src="js/core/actividades.js"></script>
+<script src="js/core/motor.js"></script>
+<script src="js/core/ui.js"></script>
+<script src="js/core/adultos.js"></script>
+<script src="js/datos/proximas.js"></script>
+<script src="js/datos/tareas.js"></script>
+<script src="js/islas/musica.js"></script>
+<script src="js/islas/numeros.js"></script>
+<script>Gioval.arrancar();</script>
+<div style="position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#d32f2f;color:#fff;font:700 11px sans-serif;text-align:center;padding:2px;pointer-events:none">BETA · versión de prueba · no es la app de todos los días</div>
+</body>
+</html>
