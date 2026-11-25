@@ -12,10 +12,10 @@ const ESC = (typeof window.__RITMO_ESCALA === "number" && window.__RITMO_ESCALA 
 const ms = x => x / ESC;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 /* textos: todo sale de la tabla del idioma (js/datos/ritmo.js, claves "ritmo.*"). tx(clave, huecos): una frase; si la clave es una lista de variantes, elige una al azar */
-function tx(path, v) { const k = "ritmo." + path; return Array.isArray(Gioval.i18n.dato(k)) ? rnd(tl(k, v)) : t(k, v); }
+function tx(k, v) { return Array.isArray(Gioval.i18n.dato(k)) ? rnd(tl(k, v)) : t(k, v); }
 const ord = i => { const o = Gioval.i18n.dato("ritmo.ui.ordinales") || []; return o[Math.min(i, o.length - 1)]; };
 const SILABA = { T: "ta", TT: "ti_ti", H: "ta_a", S: "shh" };
-const intro = (k, fb) => tx("voz.intro." + (Gioval.i18n.tiene("ritmo.voz.intro." + k) ? k : fb));
+const intro = (k, fb) => tx("ritmo.voz.intro." + (Gioval.i18n.tiene("ritmo.voz.intro." + k) ? k : fb));
 
 /* ============ PATRONES ============ T = ta (1 pulso), TT = ti-ti (2 golpes en 1 pulso), H = ta-a (1 golpe, dura 2), S = shh (silencio de 1) */
 const DUR = { T: 1, TT: 1, S: 1, H: 2 };
@@ -184,9 +184,9 @@ const DOM = {
   <style>${CSS}</style>
   <div class="screen juego" id="rit">
     <div class="bar">
-      <button class="btn alt" id="rtBack">⬅<span class="lbl" data-i18n="ritmo.ui.volver">${tx("ui.volver")}</span></button>
+      <button class="btn alt" id="rtBack">⬅<span class="lbl" data-i18n="ritmo.ui.volver">${tx("ritmo.ui.volver")}</span></button>
       <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="rtTitle"></div>
-      <div style="display:flex;gap:8px"><button class="btn alt" id="rtHear">🔊<span class="lbl" data-i18n="ritmo.ui.escuchar">${tx("ui.escuchar")}</span></button><button class="btn" id="rtSkip" data-i18n="ritmo.ui.seguir">${tx("ui.seguir")}</button></div>
+      <div style="display:flex;gap:8px"><button class="btn alt" id="rtHear">🔊<span class="lbl" data-i18n="ritmo.ui.escuchar">${tx("ritmo.ui.escuchar")}</span></button><button class="btn" id="rtSkip" data-i18n="ritmo.ui.seguir">${tx("ritmo.ui.seguir")}</button></div>
     </div>
     <div class="prog" id="prog3"></div>
     <div class="rtBody">
@@ -197,24 +197,24 @@ const DOM = {
         <div class="rtPal" id="rtPal"></div>
       </div>
       <div class="rtInput">
-        <button class="rtPad" id="rtPad" data-i18n-title="ritmo.ui.pad_alt" title="${tx("ui.pad_alt")}">🥁<small data-i18n="ritmo.ui.pad">${tx("ui.pad")}</small></button>
-        <div class="rtMic" id="rtMic"><div class="big1">🎤</div><div data-i18n="ritmo.ui.mic_escucho">${tx("ui.mic_escucho")}</div><div class="meter"><i id="rtMicNivel"></i></div><button class="btn alt" id="rtMicOff" style="padding:6px 14px;font-size:16px" data-i18n="ritmo.ui.mic_pantalla">${tx("ui.mic_pantalla")}</button></div>
+        <button class="rtPad" id="rtPad" data-i18n-title="ritmo.ui.pad_alt" title="${tx("ritmo.ui.pad_alt")}">🥁<small data-i18n="ritmo.ui.pad">${tx("ritmo.ui.pad")}</small></button>
+        <div class="rtMic" id="rtMic"><div class="big1">🎤</div><div data-i18n="ritmo.ui.mic_escucho">${tx("ritmo.ui.mic_escucho")}</div><div class="meter"><i id="rtMicNivel"></i></div><button class="btn alt" id="rtMicOff" style="padding:6px 14px;font-size:16px" data-i18n="ritmo.ui.mic_pantalla">${tx("ritmo.ui.mic_pantalla")}</button></div>
       </div>
     </div>
   </div>
-  <div class="big" id="rtCal"><div class="box"><div class="em" id="rtCalEm">🤫</div><h1 id="rtCalT"></h1><div id="rtCalS" style="font-size:18px;font-weight:700"></div><div class="meter" style="width:100%"><i id="rtCalBar"></i></div><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="rtCalOk" data-i18n="ritmo.ui.cerrar">${tx("ui.cerrar")}</button><button class="btn alt" id="rtCalPant" data-i18n="ritmo.ui.usar_pantalla">${tx("ui.usar_pantalla")}</button></div></div></div>`,
-  panelArriba: `<div id="rtPanel" style="display:none"><label><span data-i18n="ritmo.panel.estado">${tx("panel.estado")}</span> <b id="rtPanelEstado"></b></label>
-    <label><span data-i18n="ritmo.panel.nivel">${tx("panel.nivel")}</span> <div class="meter"><i id="rtLevel"></i></div></label>
-    <label><span data-i18n="ritmo.panel.sens">${tx("panel.sens")}</span> <input type="range" id="rtSens" min="25" max="400" value="100" style="flex:1"> <span id="rtSensVal">1.0×</span></label>
-    <div style="display:flex;gap:8px;margin-top:6px"><button class="btn alt" id="rtRecal" style="padding:6px 14px;font-size:16px" data-i18n="ritmo.panel.recalibrar">${tx("panel.recalibrar")}</button></div>
-    <div class="note-hint" data-i18n="ritmo.panel.pie">${tx("panel.pie")}</div></div>`,
+  <div class="big" id="rtCal"><div class="box"><div class="em" id="rtCalEm">🤫</div><h1 id="rtCalT"></h1><div id="rtCalS" style="font-size:18px;font-weight:700"></div><div class="meter" style="width:100%"><i id="rtCalBar"></i></div><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="rtCalOk" data-i18n="ritmo.ui.cerrar">${tx("ritmo.ui.cerrar")}</button><button class="btn alt" id="rtCalPant" data-i18n="ritmo.ui.usar_pantalla">${tx("ritmo.ui.usar_pantalla")}</button></div></div></div>`,
+  panelArriba: `<div id="rtPanel" style="display:none"><label><span data-i18n="ritmo.panel.estado">${tx("ritmo.panel.estado")}</span> <b id="rtPanelEstado"></b></label>
+    <label><span data-i18n="ritmo.panel.nivel">${tx("ritmo.panel.nivel")}</span> <div class="meter"><i id="rtLevel"></i></div></label>
+    <label><span data-i18n="ritmo.panel.sens">${tx("ritmo.panel.sens")}</span> <input type="range" id="rtSens" min="25" max="400" value="100" style="flex:1"> <span id="rtSensVal">1.0×</span></label>
+    <div style="display:flex;gap:8px;margin-top:6px"><button class="btn alt" id="rtRecal" style="padding:6px 14px;font-size:16px" data-i18n="ritmo.panel.recalibrar">${tx("ritmo.panel.recalibrar")}</button></div>
+    <div class="note-hint" data-i18n="ritmo.panel.pie">${tx("ritmo.panel.pie")}</div></div>`,
 };
 
 /* tarjetas de ritmo (colores y dibujos) */
 const carta = (t, i, oculta) => {
   const k = t.k, em = k === "S" ? "🤫" : "🥁";
   if (oculta) return `<div class="rc q${k === "H" ? " h" : ""}" data-i="${i}"><div class="rcd"><b>?</b></div></div>`;
-  return `<div class="rc ${k.toLowerCase()}" data-i="${i}"><div class="rcd">${k === "TT" ? `<b>${em}</b><b>${em}</b>` : `<b>${em}</b>`}</div><span>${tx("tarjeta." + SILABA[k])}</span></div>`;
+  return `<div class="rc ${k.toLowerCase()}" data-i="${i}"><div class="rcd">${k === "TT" ? `<b>${em}</b><b>${em}</b>` : `<b>${em}</b>`}</div><span>${tx("ritmo.tarjeta." + SILABA[k])}</span></div>`;
 };
 const UI = {
   msg(em, t) { $("rtMsg").innerHTML = (em ? `<b>${em}</b>` : "") + (t || ""); },
@@ -246,29 +246,29 @@ function captura(run, cfg) {
 }
 function panelEstado() {
   const st = G.estado(), e = $("rtPanelEstado"); if (!e) return;
-  e.textContent = (G.activo && G.fuente === "mic") ? tx("panel.estado_ok", { piso: st.piso.toFixed(4), umbral: st.umbral.toFixed(4) }) : tx("panel.estado_apagado");
+  e.textContent = (G.activo && G.fuente === "mic") ? tx("ritmo.panel.estado_ok", { piso: st.piso.toFixed(4), umbral: st.umbral.toFixed(4) }) : tx("ritmo.panel.estado_apagado");
 }
 const MIC_OPTS = {
   nivel: r => { const w = Math.min(100, r * 600) + "%"; $("rtMicNivel").style.width = w; $("rtLevel").style.width = w; },
   alGolpe: () => UI.pad(),
-  alCalibrando: f => { $("rtCalBar").style.width = Math.round(f * 100) + "%"; $("rtCalS").textContent = tx("ui.calibrando_sub", { s: Math.max(0, Math.ceil((1 - f) * G.PARAMS.calibracionMs / 1000)) }); },
+  alCalibrando: f => { $("rtCalBar").style.width = Math.round(f * 100) + "%"; $("rtCalS").textContent = tx("ritmo.ui.calibrando_sub", { s: Math.max(0, Math.ceil((1 - f) * G.PARAMS.calibracionMs / 1000)) }); },
   alApagar: () => { UI.modo(); panelEstado(); },
 };
 async function encenderMic() {
-  ensureCtx(); $("rtCal").classList.add("show"); $("rtCalEm").textContent = "🤫"; $("rtCalT").textContent = tx("ui.calibrando"); $("rtCalBar").style.width = "0%"; $("rtCalS").textContent = "";
-  await speak(tx("voz.mic_pedir"));
+  ensureCtx(); $("rtCal").classList.add("show"); $("rtCalEm").textContent = "🤫"; $("rtCalT").textContent = tx("ritmo.ui.calibrando"); $("rtCalBar").style.width = "0%"; $("rtCalS").textContent = "";
+  await speak(tx("ritmo.voz.mic_pedir"));
   let fallo = false;
   const fuente = await G.iniciar(Object.assign({}, MIC_OPTS, { fuente: "mic", alError: () => { fallo = true; } }));
-  if (fuente !== "mic") { $("rtCal").classList.remove("show"); UI.modo(); panelEstado(); await speak(tx("voz.mic_error")); renderMenuIsla(); return; }
+  if (fuente !== "mic") { $("rtCal").classList.remove("show"); UI.modo(); panelEstado(); await speak(tx("ritmo.voz.mic_error")); renderMenuIsla(); return; }
   UI.modo();
   const info = await G.calibrar();
   if (!info) { $("rtCal").classList.remove("show"); return; }
   const nivel = info.umbral > 0.06 ? "alto" : (info.umbral > 0.025 ? "medio" : "bajo");
-  $("rtCalEm").textContent = nivel === "alto" ? "🔊" : "🎤"; $("rtCalT").textContent = tx("ui.calibrado"); $("rtCalS").textContent = tx("ui.ruido_" + nivel); $("rtCalBar").style.width = "100%";
+  $("rtCalEm").textContent = nivel === "alto" ? "🔊" : "🎤"; $("rtCalT").textContent = tx("ritmo.ui.calibrado"); $("rtCalS").textContent = tx("ritmo.ui.ruido_" + nivel); $("rtCalBar").style.width = "100%";
   panelEstado();
-  const baja = Gioval.entrada.suscribir("golpe", ev => { if (ev.fuente !== "mic") return; baja(); $("rtCalEm").textContent = "👏"; $("rtCalT").textContent = tx("ui.oi"); speak(tx("voz.mic_oyo")); setTimeout(() => $("rtCal").classList.remove("show"), 1100); renderMenuIsla(); });
+  const baja = Gioval.entrada.suscribir("golpe", ev => { if (ev.fuente !== "mic") return; baja(); $("rtCalEm").textContent = "👏"; $("rtCalT").textContent = tx("ritmo.ui.oi"); speak(tx("ritmo.voz.mic_oyo")); setTimeout(() => $("rtCal").classList.remove("show"), 1100); renderMenuIsla(); });
   R.calBaja = baja;
-  speak(nivel === "alto" ? tx("voz.mic_mucho") : tx("voz.mic_listo"));
+  speak(nivel === "alto" ? tx("ritmo.voz.mic_mucho") : tx("ritmo.voz.mic_listo"));
   renderMenuIsla();
 }
 function apagarMic() { if (R.calBaja) { R.calBaja(); R.calBaja = null; } if (G.activo) G.detener(); $("rtCal").classList.remove("show"); UI.modo(); panelEstado(); }
@@ -296,11 +296,11 @@ const tipoFamilia = t => ({ eco: "eco", tempo: "eco", base: "grid", solo: "grid"
 
 function mensajeFalla(r, P) {
   const e = (r.etiquetas || []).find(x => x.estado === "adelantado" || x.estado === "atrasado");
-  if (r.extraSilencio) return tx("voz.sobra_silencio");
-  if ((r.etiquetas || []).some(x => x.estado === "falta")) return tx("voz.faltan");
-  if ((r.extra || []).length) return tx("voz.sobra");
-  if (e) return tx(e.estado === "adelantado" ? "voz.adelantado" : "voz.atrasado", { ord: ord(e.i) });
-  return tx("voz.casi");
+  if (r.extraSilencio) return tx("ritmo.voz.sobra_silencio");
+  if ((r.etiquetas || []).some(x => x.estado === "falta")) return tx("ritmo.voz.faltan");
+  if ((r.extra || []).length) return tx("ritmo.voz.sobra");
+  if (e) return tx(e.estado === "adelantado" ? "ritmo.voz.adelantado" : "ritmo.voz.atrasado", { ord: ord(e.i) });
+  return tx("ritmo.voz.casi");
 }
 function pintaResultado(P, r) {
   if (!P || !r.etiquetas) return;
@@ -312,15 +312,15 @@ async function intentoEco(run, it, ss, ctxI) {
   const P = it.P, aid = ctxI.aid, fallos = ctxI.fallos;
   const bpmReal = it.bpm * ESC * (fallos >= 2 ? AJ.bajaTempoAyuda : 1), beatMs = 60000 / bpmReal, W = ventana(ctxI.lvl, beatMs);
   const ver = aid === 0 || fallos >= 1;
-  UI.limpiaMarcas("ok"); UI.limpiaMarcas("ko"); UI.latidos(false); UI.cartas(ver ? P : null); UI.msg("👂", tx("tarjeta.mudo_ayuda"));
+  UI.limpiaMarcas("ok"); UI.limpiaMarcas("ko"); UI.latidos(false); UI.cartas(ver ? P : null); UI.msg("👂", tx("ritmo.tarjeta.mudo_ayuda"));
   R.fase = "modelo"; R.turno = null;
-  await speak(ctxI.primera ? intro(it.intro || it.skill.type, "eco") : tx("voz.escucha")); if (run !== S.run) return { cancelado: true };
-  if (it.tempoVoz && ctxI.primera) { await speak(tx("voz." + it.tempoVoz)); if (run !== S.run) return { cancelado: true }; }
+  await speak(ctxI.primera ? intro(it.intro || it.skill.type, "eco") : tx("ritmo.voz.escucha")); if (run !== S.run) return { cancelado: true };
+  if (it.tempoVoz && ctxI.primera) { await speak(tx("ritmo.voz." + it.tempoVoz)); if (run !== S.run) return { cancelado: true }; }
   const t0 = performance.now() + 150, fin = sonarPatron(run, P, t0, beatMs, ver);
   muteUntil = Math.max(muteUntil, fin + beatMs + 250); G.limpiarMascaras();
   await sleepT(fin + beatMs * 0.6 - performance.now()); if (run !== S.run) return { cancelado: true };
-  UI.limpiaMarcas("on"); UI.msg("🥁", tx("voz.turno"));
-  await speak(tx("voz.turno")); if (run !== S.run) return { cancelado: true };
+  UI.limpiaMarcas("on"); UI.msg("🥁", tx("ritmo.voz.turno"));
+  await speak(tx("ritmo.voz.turno")); if (run !== S.run) return { cancelado: true };
   const rel = P.ons.map(b => b * beatMs), n = rel.length, maxGap = Math.max(beatMs, ...rel.slice(1).map((x, i) => x - rel[i]));
   const desde = performance.now(); R.fase = "turno";
   R.turno = { id: ++R.tid, modo: "ioi", rel, n, beatMs, W, desde, aid, intento: ctxI.intento, skill: it.skill.id };
@@ -351,16 +351,16 @@ async function intentoGrid(run, it, ss, ctxI) {
   const cartasVis = lee && (tipo === "lectura" || tipo === "compone" || aid <= 1 || fallos >= 1);   // canciones y silencios: sin ayuda no hay tarjetas
   const conModelo = (tipo === "lectura" || tipo === "cancion" || tipo === "silencio") && (aid === 0 || fallos >= 1 || (tipo === "silencio" && aid === 2));
   UI.limpiaMarcas("ok"); UI.limpiaMarcas("ko"); R.fase = "modelo"; R.turno = null; G.limpiarMascaras();
-  UI.cartas(cartasVis ? P : null); UI.latidos(aid === 0); UI.msg(lee ? "👀" : "💓", lee ? tx("tarjeta.mudo_ayuda") : "");
-  if (ctxI.primera || conModelo) { await speak(ctxI.primera ? intro(it.intro || tipo, "lectura") : tx("voz.escucha")); if (run !== S.run) return { cancelado: true }; }
+  UI.cartas(cartasVis ? P : null); UI.latidos(aid === 0); UI.msg(lee ? "👀" : "💓", lee ? tx("ritmo.tarjeta.mudo_ayuda") : "");
+  if (ctxI.primera || conModelo) { await speak(ctxI.primera ? intro(it.intro || tipo, "lectura") : tx("ritmo.voz.escucha")); if (run !== S.run) return { cancelado: true }; }
   if (it.cancion && ctxI.primera) { await speak(t("ritmo.cancion." + it.cancion.id) + "."); if (run !== S.run) return { cancelado: true }; }
   if (conModelo) {
-    UI.msg("👂", tx("tarjeta.mudo_ayuda"));
+    UI.msg("👂", tx("ritmo.tarjeta.mudo_ayuda"));
     const t0m = performance.now() + 150, fm = sonarPatron(run, P, t0m, beatMs, true); muteUntil = Math.max(muteUntil, fm + 250);
     await sleepT(fm + beatMs * 0.4 - performance.now()); if (run !== S.run) return { cancelado: true };
     UI.limpiaMarcas("on");
   }
-  await speak(tx("voz.cuenta")); if (run !== S.run) return { cancelado: true };
+  await speak(tx("ritmo.voz.cuenta")); if (run !== S.run) return { cancelado: true };
   /* cuenta y pulso */
   const nC = AJ.pulsosCuenta, tS = performance.now() + 200, t0 = tS + nC * beatMs, L = P.L;
   const apoyoN = tipo === "solo" ? it.skill.apoyo[clamp(aid, 0, 2)] : (aid <= 1 ? L : 0), clics = [];
@@ -370,7 +370,7 @@ async function intentoGrid(run, it, ss, ctxI) {
     if (enCuenta || (aid === 0 && i - nC < apoyoN)) luz(tp, run, () => UI.latido(i % 4));
     if (!enCuenta && cartasVis && lee) { const k = P.toks.findIndex(t => t.b <= i - nC && i - nC < t.b + DUR[t.k]); if (k >= 0 && aid === 0) luz(tp, run, () => { UI.limpiaMarcas("on"); UI.marca(k, "on"); }); }
   }
-  luz(tS, run, () => UI.msg("", tx("ui.cuenta"))); luz(t0 - 20, run, () => UI.msg("🥁", tx("voz.turno")));
+  luz(tS, run, () => UI.msg("", tx("ritmo.ui.cuenta"))); luz(t0 - 20, run, () => UI.msg("🥁", tx("ritmo.voz.turno")));
   const exp = P.ons.map(b => t0 + b * beatMs), desde = t0 - 0.5 * beatMs, hasta = t0 + L * beatMs + 0.6 * beatMs;
   const silencios = P.toks.filter(t => t.k === "S").map(t => t0 + t.b * beatMs);
   R.fase = "turno"; R.turno = { id: ++R.tid, modo: "grid", esperados: exp, n: exp.length, beatMs, W, t0, desde, hasta, tS, aid, intento: ctxI.intento, skill: it.skill.id, silencios };
@@ -403,15 +403,15 @@ async function intentoLibre(run, it, ss, ctxI) {
   const P = it.P, aid = ctxI.aid, fallos = ctxI.fallos;
   const bpmReal = it.bpm * ESC * (fallos >= 2 ? AJ.bajaTempoAyuda : 1), beatMs = 60000 / bpmReal, W = ventana(ctxI.lvl, beatMs);
   UI.limpiaMarcas("ok"); UI.limpiaMarcas("ko"); R.fase = "modelo"; R.turno = null; G.limpiarMascaras();
-  UI.cartas(aid === 0 || fallos >= 1 ? P : null); UI.latidos(aid === 0); UI.msg("📣", tx("tarjeta.mudo_ayuda"));
-  await speak(ctxI.primera ? tx("voz.intro.llamada") : tx("voz.escucha")); if (run !== S.run) return { cancelado: true };
+  UI.cartas(aid === 0 || fallos >= 1 ? P : null); UI.latidos(aid === 0); UI.msg("📣", tx("ritmo.tarjeta.mudo_ayuda"));
+  await speak(ctxI.primera ? tx("ritmo.voz.intro.llamada") : tx("ritmo.voz.escucha")); if (run !== S.run) return { cancelado: true };
   const tL = performance.now() + 200, tR = tL + 4 * beatMs, fin = sonarPatron(run, P, tL, beatMs, aid === 0 || fallos >= 1); muteUntil = Math.max(muteUntil, tL + 4 * beatMs - 50);
   const clics = [];
   for (let i = 0; i < 8; i++) {
     const tp = tL + i * beatMs; if (i >= 4 && aid <= 1) { sonar(i % 4 === 0 ? "tic2" : "tic", AJ.volumen.base, tp); clics.push(tp); }
     if (aid === 0) luz(tp, run, () => UI.latido(i % 4));
   }
-  UI.msg("🥁", tx("voz.turno")); luz(tR - 20, run, () => UI.msg("🥁", tx("voz.turno")));
+  UI.msg("🥁", tx("ritmo.voz.turno")); luz(tR - 20, run, () => UI.msg("🥁", tx("ritmo.voz.turno")));
   const hasta = tR + 4 * beatMs + 0.6 * beatMs;
   R.fase = "turno"; R.turno = { id: ++R.tid, modo: "libre", t0: tR, beatMs, W, desde: tR - 0.5 * beatMs, hasta, aid, intento: ctxI.intento, skill: it.skill.id, esperados: [] };
   if (modoMic() && R.eco != null) clics.forEach(c => G.enmascarar(c + R.eco - ms(14), c + R.eco + ms(26)));
@@ -421,7 +421,7 @@ async function intentoLibre(run, it, ss, ctxI) {
   if (cap.motivo === "repetir") return { repetir: true };
   const r = evalLibre(cap.hits.map(h => h.t), tR, beatMs, W, hasta); r.fuentes = cap.hits.map(h => h.fuente);
   if (r.motivo === "vacio") return { vacio: true };
-  return Object.assign(r, { bpmReal, W, msg: r.ok ? tx("voz.libre_ok") : tx(r.motivo === "pocos" ? "voz.libre_muy_poco" : (r.motivo === "muchos" ? "voz.libre_muchos" : "voz.libre_desparejo")) });
+  return Object.assign(r, { bpmReal, W, msg: r.ok ? tx("ritmo.voz.libre_ok") : tx(r.motivo === "pocos" ? "ritmo.voz.libre_muy_poco" : (r.motivo === "muchos" ? "ritmo.voz.libre_muchos" : "ritmo.voz.libre_desparejo")) });
 }
 
 /* ---- COMPOSICIÓN: se eligen 4 tarjetas, se escucha y se toca ---- */
@@ -429,16 +429,16 @@ async function componer(run, it) {
   const N = D.COMPONER.pulsos; R.fase = "componer"; R.turno = null;
   const slots = []; R.compose = { slots, n: N, id: ++R.tid };
   $("rit").classList.add("comp"); UI.latidos(false); UI.msg("🎨", "");
-  const pal = $("rtPal"); pal.innerHTML = D.COMPONER.fichas.map(k => `<button class="rtPal${k}" data-k="${k}" style="background:${k === "T" ? "#4d96ff" : k === "TT" ? "#ff9f1c" : "#8d84b3"}"><b>${k === "S" ? "🤫" : "🥁"}</b>${tx("ui.componer_" + SILABA[k])}</button>`).join("") + `<button class="rtPalB" data-k="borrar" style="background:#fff;color:#2b2350"><b>↺</b>${tx("ui.componer_borrar")}</button>`;
+  const pal = $("rtPal"); pal.innerHTML = D.COMPONER.fichas.map(k => `<button class="rtPal${k}" data-k="${k}" style="background:${k === "T" ? "#4d96ff" : k === "TT" ? "#ff9f1c" : "#8d84b3"}"><b>${k === "S" ? "🤫" : "🥁"}</b>${tx("ritmo.ui.componer_" + SILABA[k])}</button>`).join("") + `<button class="rtPalB" data-k="borrar" style="background:#fff;color:#2b2350"><b>↺</b>${tx("ritmo.ui.componer_borrar")}</button>`;
   const dibuja = () => { $("rtCards").style.display = ""; $("rtCards").innerHTML = Array.from({ length: N }, (_, i) => slots[i] ? carta({ k: slots[i] }, i, false) : `<div class="slot">${i + 1}</div>`).join(""); };
-  dibuja(); await speak(tx("voz.intro.compone")); if (run !== S.run) return null;
+  dibuja(); await speak(tx("ritmo.voz.intro.compone")); if (run !== S.run) return null;
   const str = await new Promise(res => {
     pal.onclick = e => {
       const b = e.target.closest("button"); if (!b || run !== S.run) return; const k = b.dataset.k;
       if (k === "borrar") { slots.length = 0; dibuja(); return; }
       if (slots.length >= N) return; slots.push(k); dibuja(); R.compose.slots = slots;
       if (slots.length === N) {
-        if (slots.every(x => x === "S")) { slots.length = 0; setTimeout(() => { dibuja(); speak(tx("voz.compone_al_menos")); }, 250); return; }
+        if (slots.every(x => x === "S")) { slots.length = 0; setTimeout(() => { dibuja(); speak(tx("ritmo.voz.compone_al_menos")); }, 250); return; }
         setTimeout(() => res(slots.join(" ")), 350);
       }
     };
@@ -457,7 +457,7 @@ async function jugarItem(run, it, ss) {
   if (sk.type === "compone") {
     if (check) { it.str = genLectura({ tt: true, s: true, compases: 1 }); }
     else { const s = await componer(run, it); if (run !== S.run || s == null) return; it.str = s; it.P = parse(s);
-      UI.cartas(it.P, false); UI.msg("👂", tx("voz.compone_escucha")); await speak(tx("voz.compone_escucha")); if (run !== S.run) return;
+      UI.cartas(it.P, false); UI.msg("👂", tx("ritmo.voz.compone_escucha")); await speak(tx("ritmo.voz.compone_escucha")); if (run !== S.run) return;
       const bm = 60000 / (it.bpm * ESC), t0 = performance.now() + 200, fin = sonarPatron(run, it.P, t0, bm, true); muteUntil = Math.max(muteUntil, fin + 250);
       await sleepT(fin + bm * .5 - performance.now()); if (run !== S.run) return; UI.limpiaMarcas("on"); }
     it.P = parse(it.str);
@@ -469,7 +469,7 @@ async function jugarItem(run, it, ss) {
     const r = await (fam === "eco" ? intentoEco : fam === "libre" ? intentoLibre : intentoGrid)(run, it, ss, ctxI);
     if (run !== S.run || r.cancelado) return;
     if (r.repetir) continue;
-    if (r.vacio) { vacios++; if (vacios < 2 && !check) { await speak(tx("voz.sin_golpes")); if (run !== S.run) return; continue; } r.msg = tx("voz.pregunta"); }
+    if (r.vacio) { vacios++; if (vacios < 2 && !check) { await speak(tx("ritmo.voz.sin_golpes")); if (run !== S.run) return; continue; } r.msg = tx("ritmo.voz.pregunta"); }
     intento++;
     if (!r.vacio) { mt = r; if (!primeraMedida) { primeraMedida = r; registrar(it, r, r, st.lvl); } }
     if (r.ok) {
@@ -480,11 +480,11 @@ async function jugarItem(run, it, ss) {
     fallos++;
     if (check) { S.mode = "between"; S.onDone({ miss: 1 }); return; }
     if (fallos >= max) {
-      S.mode = "between"; UI.msg("🤝", ""); await speak(tx("voz.revela")); if (run !== S.run) return;
+      S.mode = "between"; UI.msg("🤝", ""); await speak(tx("ritmo.voz.revela")); if (run !== S.run) return;
       if (it.P) { UI.cartas(it.P, false); const bm = 60000 / (it.bpm * ESC * AJ.bajaTempoAyuda), t0 = performance.now() + 200, fin = sonarPatron(run, it.P, t0, bm, true); muteUntil = Math.max(muteUntil, fin + 250); await sleepT(fin + bm * .5 - performance.now()); if (run !== S.run) return; UI.limpiaMarcas("on"); }
       S.onDone({ miss: fallos, revealed: true }); return;
     }
-    S.mode = "between"; await speak(r.msg || tx("voz.casi")); if (run !== S.run) return; S.mode = "play";
+    S.mode = "between"; await speak(r.msg || tx("ritmo.voz.casi")); if (run !== S.run) return; S.mode = "play";
   }
 }
 
@@ -513,22 +513,22 @@ const ACTIVIDADES = {
 /* ============ INFORME PARA ADULTOS ============ */
 function informe(kid) {
   const L = (store.ritmo || {})[kid] || []; if (!L.length) return [];
-  const out = [tx("informe.titulo"), tx("informe.como")], n = L.length, dm = Math.round(media(L.map(e => e.d)));
+  const out = [tx("ritmo.informe.titulo"), tx("ritmo.informe.como")], n = L.length, dm = Math.round(media(L.map(e => e.d)));
   const mic = L.filter(e => e.f === "m").length;
-  out.push(tx("informe.general", { d: dm, n, mic, tq: n - mic }));
+  out.push(tx("ritmo.informe.general", { d: dm, n, mic, tq: n - mic }));
   const k = Math.min(10, Math.floor(n / 2));
   if (n >= AJ.minEvaluaciones) {
     const a = Math.round(media(L.slice(0, k).map(e => e.d))), b = Math.round(media(L.slice(-k).map(e => e.d))), dl = a - b;
-    out.push(tx("informe.mejora", { k, a, b, delta: Math.abs(dl) < 8 ? tx("informe.mejora_igual") : (dl > 0 ? tx("informe.mejora_menos", { x: dl }) : tx("informe.mejora_mas", { x: -dl })) }));
-  } else out.push(tx("informe.pocos", { n: AJ.minEvaluaciones }));
+    out.push(tx("ritmo.informe.mejora", { k, a, b, delta: Math.abs(dl) < 8 ? tx("ritmo.informe.mejora_igual") : (dl > 0 ? tx("ritmo.informe.mejora_menos", { x: dl }) : tx("ritmo.informe.mejora_mas", { x: -dl })) }));
+  } else out.push(tx("ritmo.informe.pocos", { n: AJ.minEvaluaciones }));
   const dias = {}; L.forEach(e => { const d = new Date(e.t).toLocaleDateString("en-CA"); (dias[d] = dias[d] || []).push(e.d); });
   const lista = Object.keys(dias).sort().slice(-7).map(d => d.slice(8) + "/" + d.slice(5, 7) + " " + Math.round(media(dias[d])) + " ms").join(" · ");
-  out.push(tx("informe.por_dia", { lista }));
+  out.push(tx("ritmo.informe.por_dia", { lista }));
   const sg = Math.round(media(L.map(e => e.b)));
-  out.push(tx("informe.sesgo", { dir: Math.abs(sg) < 15 ? tx("informe.sesgo_nada") : (sg < 0 ? tx("informe.sesgo_adelante") : tx("informe.sesgo_atras")), x: Math.abs(sg) }));
+  out.push(tx("ritmo.informe.sesgo", { dir: Math.abs(sg) < 15 ? tx("ritmo.informe.sesgo_nada") : (sg < 0 ? tx("ritmo.informe.sesgo_adelante") : tx("ritmo.informe.sesgo_atras")), x: Math.abs(sg) }));
   const ph = {}; L.forEach(e => (ph[e.s] = ph[e.s] || []).push(e.d));
-  out.push(tx("informe.por_hab", { lista: SKILLS.filter(s => ph[s.id]).map(s => s.name + " " + Math.round(media(ph[s.id])) + " ms").join(" · ") }));
-  out.push(tx("informe.aclaracion"));
+  out.push(tx("ritmo.informe.por_hab", { lista: SKILLS.filter(s => ph[s.id]).map(s => s.name + " " + Math.round(media(ph[s.id])) + " ms").join(" · ") }));
+  out.push(tx("ritmo.informe.aclaracion"));
   return out;
 }
 
@@ -541,26 +541,26 @@ function iniciar() {
   $("rtBack").onclick = () => { S.run++; S.mode = "idle"; R.fase = "idle"; R.turno = null; try { speechSynthesis.cancel(); } catch (e) {} resetFlow(); goMenuIsla(); };
   $("rtSkip").onclick = () => { if (!S.session) return; const run = ++S.run; S.session.i++; renderProg(); nextItem(run); };
   $("rtHear").onclick = () => { if (R.cap && R.fase === "turno" && R.cur && tipoFamilia(R.cur.skill.type) === "eco") R.repetir = true; else if (R.cur) speak(intro(R.cur.skill.type, "eco")); };
-  $("rtMicOff").onclick = () => { apagarMic(); setBubble(tx("voz.modo_pantalla")); };
+  $("rtMicOff").onclick = () => { apagarMic(); setBubble(tx("ritmo.voz.modo_pantalla")); };
   $("rtCalOk").onclick = () => { if (R.calBaja) { R.calBaja(); R.calBaja = null; } $("rtCal").classList.remove("show"); };
   $("rtCalPant").onclick = () => { apagarMic(); renderMenuIsla(); };
   $("rtSens").oninput = e => { const v = +e.target.value / 100; $("rtSensVal").textContent = v.toFixed(1) + "×"; G.sensibilidad(v); };
-  $("rtRecal").onclick = () => { if (modoMic()) { $("rtCal").classList.add("show"); $("rtCalT").textContent = tx("ui.calibrando"); G.calibrar().then(info => { if (info) { $("rtCalT").textContent = tx("ui.calibrado"); panelEstado(); } }); } };
+  $("rtRecal").onclick = () => { if (modoMic()) { $("rtCal").classList.add("show"); $("rtCalT").textContent = tx("ritmo.ui.calibrando"); G.calibrar().then(info => { if (info) { $("rtCalT").textContent = tx("ritmo.ui.calibrado"); panelEstado(); } }); } };
   Gioval.on("idioma", () => panelEstado());
   const mostrarPanel = on => { $("rtPanel").style.display = on ? "" : "none"; panelEstado(); };
   Gioval.on("menu", p => { if (p !== ISLA) apagarMic(); mostrarPanel(p === ISLA); });
   Gioval.on("mapa", () => { apagarMic(); mostrarPanel(false); });
   document.addEventListener("visibilitychange", () => { if (document.hidden && modoMic()) { apagarMic(); $("menuIsla").classList.contains("active") && renderMenuIsla(); } });
 }
-const ISLA = { id: "ritmo", get name() { return tx("nombre"); }, emoji: "🥁", get sub() { return tx("sub"); }, skills: SKILLS, plain: true,
+const ISLA = { id: "ritmo", get name() { return tx("ritmo.nombre"); }, emoji: "🥁", get sub() { return tx("ritmo.sub"); }, skills: SKILLS, plain: true,
   instrumento: "percusion", entradas: ["golpe"], actividades: ACTIVIDADES, dom: DOM, iniciar,
   entrar(title) { $("rtTitle").textContent = title; $("rtMsg").innerHTML = ""; UI.cartas(null); UI.latidos(false); UI.modo(); show("rit"); },
   antesDeSesion() { R.cur = null; G.limpiarMascaras(); },
-  tarjetas() { const m = modoMic(), c = m ? "on" : "off"; return [{ em: m ? "🥁" : "🎤", t: tx("ui.tarjeta_mic_" + c + "_t"), s: tx("ui.tarjeta_mic_" + c + "_s"), on: true, go: () => { if (m) { apagarMic(); setBubble(tx("voz.modo_pantalla")); renderMenuIsla(); } else encenderMic(); } }]; },
+  tarjetas() { const m = modoMic(), c = m ? "on" : "off"; return [{ em: m ? "🥁" : "🎤", t: tx("ritmo.ui.tarjeta_mic_" + c + "_t"), s: tx("ritmo.ui.tarjeta_mic_" + c + "_s"), on: true, go: () => { if (m) { apagarMic(); setBubble(tx("ritmo.voz.modo_pantalla")); renderMenuIsla(); } else encenderMic(); } }]; },
   informe,
-  get outro() { return tx("outro"); },
-  get capTail() { return tx("cola_tope"); },
-  get notaInforme() { return tx("nota_informe"); },
+  get outro() { return tx("ritmo.outro"); },
+  get capTail() { return tx("ritmo.cola_tope"); },
+  get notaInforme() { return tx("ritmo.nota_informe"); },
 };
 Gioval.islas.registrar(ISLA);
 })();

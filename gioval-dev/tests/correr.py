@@ -433,7 +433,7 @@ def t_sonido(C):
       S.usar('falso'); tone(60,.4,.2); S.tocar(62,.5,.3); out.calls=calls; S.usar('piano');
       const c=ensureCtx(); const buf=c.createBuffer(1,4410,44100); let n=0; const cb=c.createBufferSource.bind(c); c.createBufferSource=function(){ n++; return cb(); };
       S.registrarInstrumento('conmuestras',{nombre:'M',muestras:{60:buf}}); await S.cargarMuestras('conmuestras'); S.tocar(64,.3,.3,'conmuestras'); out.fuentes=n; return out; })()""")
-    igual(r["base"], ["piano"], "instrumentos de base"); igual(r["calls"], [[60, .4, .2], [62, .5, .3]], "instrumento activo")
+    igual(r["base"], ["piano", "percusion"], "instrumentos de base (piano de Música y percusión de Ritmo)"); igual(r["calls"], [[60, .4, .2], [62, .5, .3]], "instrumento activo")
     igual(r["fuentes"], 1, "usó la muestra"); verificar(not err, str(err)); ctx.close()
 
 @prueba("entradas: micrófono real (dispositivo falso de Chrome) arranca, emite y se detiene")
@@ -666,7 +666,7 @@ def t_ingles(C):
     verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change", "botón Cambiar")
     entrar(pg, "Vale")
     islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n').slice(1).join('|'))")
-    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
+    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Rhythm Island|Let's keep the beat!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
     foto(pg, "pixel7_60_ingles_mapa"); CAPTURAS.append("pixel7_60_ingles_mapa.png")
     abrir_isla(pg, "Music"); tarjeta(pg, "Today"); pg.wait_for_timeout(400)
     labels = pg.evaluate("[...document.querySelectorAll('.key span')].map(s=>s.textContent).join('')")
@@ -1207,6 +1207,20 @@ def t_ritmo_mic_interfaz(C):
             ctx.close()
         finally: b.cerrar()
     verificar(not err, str(err))
+
+@prueba("idioma inglés: la isla Ritmo (menú, sesión con errores, informe) sin una palabra en español")
+def t_ritmo_ingles(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, semilla=99, rapido=False, extra_init="window.__RITMO_ESCALA=5;localStorage.setItem('gioval_idioma','en');"); instalar_speak(pg); entrar(pg, "Vale")
+    abrir_isla(pg, "Rhythm"); txt = pg.evaluate("document.getElementById('menuIslaItems').innerText")
+    verificar("Play with my instrument" in txt and "Today" in txt, txt); verificar(not sin_espanol([txt]), txt)
+    tarjeta(pg, "Today"); esperar_fase(pg, "turno"); pg.wait_for_timeout(200)
+    visibles = pg.evaluate("[...document.querySelectorAll('#rit .lbl, #rit button, #rit small')].map(e=>e.textContent)"); verificar(not sin_espanol(visibles), str(visibles))
+    verificar(jugar_ritmo(pg, errores=["adelantado", None, "falta", None]) == "fin"); cerrar_fin(pg)
+    dicho = pg.evaluate("window.__LOG.concat(window.__BUB)"); verificar(not sin_espanol(dicho), "español en Ritmo en inglés: %s" % sin_espanol(dicho)[:3])
+    verificar(any("Listen" in x or "listen" in x for x in dicho), "frases en inglés: %s" % dicho[:4])
+    rep = pg.evaluate("reportText()"); verificar("RHYTHM STEADINESS" in rep and "Feel the beat" in rep and not sin_espanol([rep[rep.index("RHYTHM STEADINESS"):rep.index("RHYTHM STEADINESS") + 1200]]), rep[-900:])
+    igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes"); verificar(not err, str(err)); ctx.close()
 
 # ---------------------------------------------------------------- capturas varias
 @prueba("capturas: pantallas principales en Pixel 7, 360x700 y 740x330")

@@ -125,6 +125,7 @@ Con eso se puede cambiar `factor`, `rmsMin` o `ventana.frac` (ver tablas de arri
 - **Evaluación del eco**: acierto, adelantado, atrasado, golpe de más, golpe que falta, ventanas por nivel.
 - **Sesiones completas por toque** con un jugador sintético (dominio, desbloqueo, errores sin castigo, informe), las 14 habilidades,
   chequeo semanal, capturas en 360x700 y 740x330.
+- **Inglés**: una sesión de Ritmo con errores y el informe, sin una palabra en español.
 - `window.__RITMO_ESCALA` (solo pruebas): acelera el reloj de la isla (por ejemplo 5 veces) para que una sesión dure segundos. En la
   app real vale 1.
 

@@ -154,7 +154,7 @@ Gioval.i18n.agregar("en", {
   "ritmo.ui.pad": "Tap here", "ritmo.ui.pad_alt": "Drum",
   "ritmo.ui.mic_escucho": "I'm listening", "ritmo.ui.mic_pantalla": "🥁 Use the screen",
   "ritmo.ui.tarjeta_mic_on_t": "Use the screen", "ritmo.ui.tarjeta_mic_on_s": "I'm listening now: play your instrument",
-  "ritmo.ui.tarjeta_mic_off_t": "Play with my instrument", "ritmo.ui.tarjeta_mic_off_s": "Drum, cajón, claps… I'm listening!",
+  "ritmo.ui.tarjeta_mic_off_t": "Play with my instrument", "ritmo.ui.tarjeta_mic_off_s": "Drum, cajon, claps… I'm listening!",
   "ritmo.ui.calibrando": "Shhh… I'm listening to the noise in the room", "ritmo.ui.calibrando_sub": "Stay quiet for {s} seconds",
   "ritmo.ui.calibrado": "Ready! Make a hit to try it out", "ritmo.ui.oi": "I heard you!", "ritmo.ui.cerrar": "Done", "ritmo.ui.usar_pantalla": "Use the screen",
   "ritmo.ui.ruido_bajo": "Quiet room", "ritmo.ui.ruido_medio": "Some noise", "ritmo.ui.ruido_alto": "Very noisy",
