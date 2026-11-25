@@ -130,7 +130,7 @@
   function empezar(id) {
     const t = porId(id); if (!t) return;
     ensureCtx(); const seg = dur(t);
-    Alarma.programar(seg, { titulo: T.alarmaTitulo, texto: fmt(T.alarmaTexto, { nombre: t.nombre }) });
+    escuchar(); Alarma.programar(seg, { titulo: T.alarmaTitulo, texto: fmt(T.alarmaTexto, { nombre: t.nombre }) });
     E = { kid: KID, id, estado: "corre", tIni: Date.now(), total: seg, tarde: 0 }; persistir();
     ir("corre");
     const m = Math.round(seg / 60); speak(fmt(m === 1 ? T.vamos1 : T.vamos, { n: m, nombre: t.nombre }));
@@ -147,19 +147,19 @@
   }
   function masTiempo() {
     if (!E) return; const t = porId(E.id), seg = T.masMinutos * 60;
-    Alarma.programar(seg, { titulo: T.alarmaTitulo, texto: fmt(T.alarmaTexto, { nombre: t.nombre }) });
+    escuchar(); Alarma.programar(seg, { titulo: T.alarmaTitulo, texto: fmt(T.alarmaTexto, { nombre: t.nombre }) });
     E.estado = "corre"; E.total = seg; E.tarde = 0; persistir(); ir("corre"); speak(T.masTiempoVoz);
   }
   function terminar() {
     if (!E || E.estado === "fin") return;
-    const e = E, kid = e.kid; Alarma.cancelar();
+    const e = E, kid = e.kid; Alarma.cancelar(); dejarDeEscuchar();
     const reg = registrar(kid, e.id, Math.round((Date.now() - e.tIni) / 1000));
     const c = cfg(kid); if (c.asig.includes(e.id)) ponerCfg(kid, { asig: c.asig.filter(x => x !== e.id) }); /* una tarea asignada se cumple una vez */
     ULT = { id: e.id, reg, elogio: rnd(T.elogios) }; E = null; persistir();
     ir("fin"); speak(ULT.elogio + " " + fmt(vecesSemana(kid) === 1 ? T.semana1 : T.semanaN, { n: vecesSemana(kid) }));
   }
   function cancelar() {
-    Alarma.cancelar(); E = null; persistir(); ir("lista"); speak(T.cancelado);
+    Alarma.cancelar(); dejarDeEscuchar(); E = null; persistir(); ir("lista"); speak(T.cancelado);
   }
   async function reducir(file) {
     const bm = await createImageBitmap(file), k = Math.min(1, 1280 / Math.max(bm.width, bm.height));
@@ -192,7 +192,12 @@
   $("ayBody").addEventListener("change", ev => { if (ev.target.id === "ayFotoIn") guardarFoto(ev.target.files[0]); });
 
   /* ---------- alarma: hora absoluta, se revisa al volver a primer plano ---------- */
-  Alarma.onFin(info => tiempoCumplido(info && info.tarde));
+  /* Se escucha SOLO mientras hay una tarea en curso: un oyente permanente se llevaría el aviso de una alarma vencida que
+     le corresponde a otro (Alarma entrega lo vencido al primer oyente que se registre). */
+  let baja = null;
+  const escuchar = () => { if (!baja) baja = Alarma.onFin(info => tiempoCumplido(info && info.tarde)); };
+  const dejarDeEscuchar = () => { if (baja) { baja(); baja = null; } };
+  if (E) escuchar();
   setInterval(() => { if (E && E.estado === "corre" && $("ayudantes").classList.contains("active")) { if (!Alarma.activa()) tiempoCumplido(0); else pintarTiempo(); } }, 250);
   document.addEventListener("visibilitychange", () => { if (!document.hidden && E && E.estado === "corre") { if (!Alarma.activa()) tiempoCumplido(0); else pintarTiempo(); } });
   /* si la app se cerró con una tarea en curso, al elegir de nuevo a ese niño se retoma */
@@ -225,13 +230,13 @@
     const por = {}; sem.forEach(e => { por[e.id] = (por[e.id] || 0) + 1; });
     const detalle = Object.keys(por).map(id => (porId(id) ? porId(id).nombre : id) + " ×" + por[id]).join(", ");
     box.innerHTML = `
-      <label class="ayFila"><input type="checkbox" id="ayOn" ${c.on ? "checked" : ""}> ${P.activar}</label>
+      <label class="ayChk"><input type="checkbox" id="ayOn" ${c.on ? "checked" : ""}> ${P.activar}</label>
       <div class="note-hint">${P.aclaracion}</div>
       <label>${P.edad} <select id="ayEdad" style="font-size:16px;padding:4px;border-radius:10px">${[4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => `<option value="${n}" ${c.edad === n ? "selected" : ""}>${fmt(P.anios, { n })}</option>`).join("")}</select></label>
       <label>${P.duracion} <select id="ayDur" style="font-size:16px;padding:4px;border-radius:10px"><option value="0" ${c.dur === 0 ? "selected" : ""}>${P.duracionTarea}</option>${[3, 5, 10, 15, 20].map(n => `<option value="${n}" ${c.dur === n ? "selected" : ""}>${fmt(P.duracionMin, { n })}</option>`).join("")}</select></label>
       <div class="note-hint">${P.tareas}</div>
       <div class="ayTareas">${TAREAS.map(t => `<div class="ayFila"><label><input type="checkbox" data-h="${t.id}" ${c.off.includes(t.id) && !c.asig.includes(t.id) ? "" : "checked"}> ${t.emoji} ${esc(t.nombre)} <small>(${fmt(P.edadDesde, { n: t.edadMin })} · ${sup(t).icono} ${sup(t).corto})</small></label> <label class="pin" title="${esc(T.pedida)}"><input type="checkbox" data-asig="${t.id}" ${c.asig.includes(t.id) ? "checked" : ""}>📌</label></div>`).join("")}</div>
-      <label class="ayFila"><input type="checkbox" id="ayFoto" ${c.foto ? "checked" : ""}> ${P.foto}</label>
+      <label class="ayChk"><input type="checkbox" id="ayFoto" ${c.foto ? "checked" : ""}> ${P.foto}</label>
       <div style="margin-top:6px"><button class="btn" id="ayAbrir" style="padding:6px 14px;font-size:16px">${P.abrirAhora}</button></div>
       <div class="psum" id="ayResumen">${sem.length ? fmt(P.semana, { n: sem.length + " " + (sem.length === 1 ? P.vez : P.veces) }) + (detalle ? " (" + detalle + ")" : "") : P.semanaNada} <span id="ayFotos"></span></div>
       ${estadoAlarma()}`;

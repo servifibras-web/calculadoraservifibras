@@ -38,7 +38,7 @@ la pantalla activa tiene la clase `juego` (`motor.js`, contador de tiempo) y `#a
 
 ## Alarma con la pantalla apagada: NO garantizada en navegador
 
-Se usa `js/core/alarma.js` sin cambios. Comportamiento verificado automáticamente (reloj simulado + `document.hidden` +
+Se usa `js/core/alarma.js` sin cambios (Ayudantes se registra con `onFin` solo mientras hay una tarea en curso, para no llevarse el aviso de una alarma vencida que sea de otro módulo). Comportamiento verificado automáticamente (reloj simulado + `document.hidden` +
 timers congelados), con la tarea en curso:
 
 | Situación | Qué pasa |
