@@ -8,11 +8,11 @@
    Al arrancar se usa la copia más reciente (meta.guardado). Las migraciones están numeradas: v0 = formato
    antiguo de localStorage (sin campo version). NUNCA se borra nada si una migración falla: se guarda copia
    previa y se sigue con los datos originales. */
-const ALMACEN_VERSION = 2;
-const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+const ALMACEN_VERSION = 3;
+const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
 
 Gioval.almacen = (function () {
-  const DB = "gioval-db", DB_V = 1, LS = "gioval", LS_PRE = "gioval_pre_migracion";
+  const DB = "gioval-db" + (Gioval.espacio ? "-" + Gioval.espacio : ""), DB_V = 1, LS = Gioval.clave("gioval"), LS_PRE = Gioval.clave("gioval_pre_migracion");
   const A = { listo: null, persistente: null, errorMigracion: null, idbOk: false, versionFutura: false, VERSION: ALMACEN_VERSION };
   let db = null, tmr = null, escribiendo = Promise.resolve();
   const esObj = x => x && typeof x === "object" && !Array.isArray(x);
@@ -29,12 +29,13 @@ Gioval.almacen = (function () {
         Object.keys(s.checks).forEach(k => { if (Array.isArray(s.checks[k])) s.checks[k].forEach(c => { if (c && !c.p) c.p = "musica"; }); });
         return s;
       } },
-    /* v2 (Fase 1): preguntas iniciales para adultos, por jugador y por isla: intake: { Nombre: { letras: {...}, numeros: {...} } }.
-       RECONCILIAR: la rama numeros-edades crea la misma migración (misma intención). Si las ramas i18n u otras también reclaman
-       "v2", dejar UNA sola migración v2 que haga todo (intake + idioma) o numerarlas v2, v3; nunca dos migraciones con el mismo número. */
-    { a: 2, nombre: "v1 → v2: preguntas iniciales para adultos (intake por jugador e isla)",
+    { a: 2, nombre: "v1 → v2: idioma elegido por jugador (idioma: { Nombre: \"es-AR\" })",
+      fn(s) { s.idioma = obj(s.idioma); return s; } },
+    /* v3 (Fase 1, Letras): preguntas iniciales para adultos, por jugador y por isla: intake: { Nombre: { letras: {...}, numeros: {...} } }.
+       RECONCILIAR: la rama numeros-edades hace la misma migración (misma intención, también como v3). Al juntar las ramas, dejar UNA sola. */
+    { a: 3, nombre: "v2 → v3: preguntas iniciales para adultos (intake por jugador e isla)",
       fn(s) { s.intake = obj(s.intake); return s; } },
-    /* v3 (próxima): { a: 3, nombre:"…", fn(s){ …; return s; } } */
+    /* v4 (próxima): { a: 4, nombre:"…", fn(s){ …; return s; } } */
   ];
   A.migraciones = MIGRACIONES;
   function migrar(s) {
@@ -132,11 +133,11 @@ Gioval.almacen = (function () {
   };
   /* lee un archivo de respaldo, lo valida y devuelve { ok, error, datos, resumen } sin tocar nada */
   A.leerRespaldo = async function (file) {
-    let o; try { o = JSON.parse(await file.text()); } catch (e) { return { ok: false, error: "El archivo no es un respaldo válido (no se pudo leer)." }; }
-    if (!esObj(o) || o.app !== "gioval" || !esObj(o.store) || !Array.isArray(o.store.profiles)) return { ok: false, error: "Ese archivo no es un respaldo de Mundo Gioval." };
+    let o; try { o = JSON.parse(await file.text()); } catch (e) { return { ok: false, error: t("almacen.err.leer") }; }
+    if (!esObj(o) || o.app !== "gioval" || !esObj(o.store) || !Array.isArray(o.store.profiles)) return { ok: false, error: t("almacen.err.no_es") };
     const v = Number.isInteger(o.store.version) ? o.store.version : 0;
-    if (v > ALMACEN_VERSION) return { ok: false, error: "Ese respaldo es de una versión más nueva de la app. Actualizá la app y probá de nuevo." };
-    let s; try { s = migrar(JSON.parse(JSON.stringify(o.store))); } catch (e) { return { ok: false, error: "No se pudo convertir el respaldo viejo: " + e.message }; }
+    if (v > ALMACEN_VERSION) return { ok: false, error: t("almacen.err.futura") };
+    let s; try { s = migrar(JSON.parse(JSON.stringify(o.store))); } catch (e) { return { ok: false, error: t("almacen.err.convertir", { detalle: e.message }) }; }
     const resumen = {
       exportado: o.exportado || "", perfiles: s.profiles.slice(),
       dias: Object.fromEntries(s.profiles.map(p => [p, (s.days[p] || []).length])),
@@ -146,7 +147,7 @@ Gioval.almacen = (function () {
   };
   A.restaurar = async function (datos) {
     await idbPut("respaldo", { id: "pre-restauracion-" + Date.now(), motivo: "antes de restaurar un respaldo", ts: Date.now(), json: JSON.stringify(store) });
-    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
     reemplazar(Object.assign(base, datos)); store.meta = Object.assign(base.meta, obj(store.meta));
     store.meta.guardado = Date.now(); await A.guardarYa(); return true;
   };
