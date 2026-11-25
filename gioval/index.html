@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-AR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
@@ -7,161 +7,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>Mundo Gioval - A jugar</title>
 <link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/letras.css">
+<link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#7c4dff">
 <meta name="apple-mobile-web-app-title" content="Gioval">
-<style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
-html,body{margin:0;height:100%;font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;background:linear-gradient(160deg,#ffe9a8,#ffc2d4 55%,#b9d8ff);color:#2b2350;overflow:hidden}
-#app{height:100%;height:100dvh;display:flex;flex-direction:column;padding:max(10px,env(safe-area-inset-top)) 14px max(10px,env(safe-area-inset-bottom))}
-.top{display:flex;align-items:center;gap:12px;min-height:0}
-.mascot{font-size:64px;line-height:1;animation:bob 2.4s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(-6px) rotate(-3deg)}}
-.bubble{flex:1;background:#fff;border-radius:22px;padding:14px 18px;font-size:clamp(20px,3.2vw,30px);font-weight:700;box-shadow:0 4px 0 rgba(0,0,0,.12);position:relative;min-height:70px;display:flex;align-items:center}
-.bubble:before{content:"";position:absolute;left:-12px;top:50%;margin-top:-10px;border:10px solid transparent;border-right-color:#fff;border-left:0}
-.iconbtn{border:0;background:#fff;border-radius:16px;font-size:26px;width:52px;height:52px;box-shadow:0 3px 0 rgba(0,0,0,.15)}
-.iconbtn.on{background:#4cc86a;color:#fff}
-.screen{flex:1;display:none;flex-direction:column;min-height:0;margin-top:12px}
-.screen.active{display:flex}
-h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
-.songs{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;overflow:auto;padding-bottom:10px}
-.song{background:#fff;border:0;border-radius:26px;padding:20px;text-align:left;font-size:clamp(22px,3vw,28px);font-weight:800;color:#2b2350;box-shadow:0 6px 0 rgba(0,0,0,.14);display:flex;flex-direction:column;gap:6px}
-.song:active{transform:translateY(3px);box-shadow:0 3px 0 rgba(0,0,0,.14)}
-.song small{font-size:18px;font-weight:600;opacity:.7}
-.song .st{font-size:26px;letter-spacing:2px}
-.bar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
-.btn{border:0;border-radius:20px;padding:12px 20px;font-size:clamp(18px,2.6vw,24px);font-weight:800;background:#7c4dff;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.2)}
-.btn.alt{background:#fff;color:#2b2350}
-.btn:active{transform:translateY(2px)}
-.dots{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;padding:6px;min-height:92px}
-.tools{display:flex;gap:8px;flex:none}
-.bar{flex-wrap:wrap}
-.top{flex-wrap:wrap}
-.bubble{min-width:0}
-.dot{width:clamp(48px,7vw,72px);height:clamp(48px,7vw,72px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:clamp(14px,2vw,20px);color:#2b2350;border:4px solid rgba(255,255,255,.9);opacity:.45;transition:transform .15s}
-.dot.cur{opacity:1;transform:scale(1.25);box-shadow:0 0 0 6px rgba(255,255,255,.8)}
-.dot.done{opacity:1}
-.dot.done:after{content:"✓";font-size:1.4em}
-.dot.done span{display:none}
-.stage{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:0}
-.kb{position:relative;display:flex;flex:1 1 0;min-height:100px;max-height:340px;background:#2b2350;padding:8px 8px 10px;border-radius:24px 24px 18px 18px}
-.key{position:relative;flex:1 1 0;min-width:0;margin:0 2px;background:#fff;border-radius:0 0 14px 14px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:10px;font-weight:900;font-size:clamp(14px,2.2vw,22px);touch-action:manipulation;transition:background .08s}
-.key span{background:var(--c);border-radius:12px;padding:2px 6px;color:#2b2350;line-height:1.2;max-width:96%}
-.key.target{background:color-mix(in srgb,var(--c) 45%,#fff);animation:pulse .9s ease-in-out infinite}
-@keyframes pulse{50%{filter:brightness(1.12);transform:translateY(3px)}}
-.key.ok{background:#7be495!important}
-.key.near{background:#ffb3d1!important}
-.key.demo{background:var(--c)!important}
-.black{position:absolute;top:8px;width:5%;height:52%;background:#17122e;border-radius:0 0 10px 10px;pointer-events:none;z-index:2}
-.big{position:fixed;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(43,35,80,.82);z-index:20;color:#fff;text-align:center;gap:14px}
-.big.show{display:flex}
-.big .stars{font-size:clamp(60px,12vw,120px)}
-.big h1{margin:0;font-size:clamp(30px,6vw,56px)}
-.panel{display:none;background:#fff;border-radius:20px;padding:14px 18px;margin-top:10px;font-size:18px}
-.panel.show{display:block}
-.panel label{display:flex;gap:10px;align-items:center;margin-top:8px}
-.meter{height:12px;background:#eee;border-radius:6px;overflow:hidden;flex:1}
-.meter i{display:block;height:100%;width:0;background:#4cc86a}
-.islands{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;overflow:auto;padding:6px 2px 12px}
-.island{border:0;border-radius:30px;padding:22px 16px;font-size:clamp(22px,3vw,28px);font-weight:900;color:#2b2350;box-shadow:0 7px 0 rgba(0,0,0,.16);display:flex;flex-direction:column;align-items:center;gap:8px;background:linear-gradient(160deg,#fff,#e8f7ff)}
-.island .em{font-size:68px;line-height:1}
-.island small{font-size:17px;font-weight:700;opacity:.65}
-.island.off{filter:grayscale(.85);opacity:.6;box-shadow:0 4px 0 rgba(0,0,0,.1)}
-.island:not(.off):active{transform:translateY(3px)}
-.nameBox input,#gateIn{font-size:34px;padding:12px 16px;border-radius:18px;border:0;text-align:center;width:min(80vw,420px);user-select:text;-webkit-user-select:text;font-family:inherit;font-weight:800}
-@media (max-width:640px){
-  .mascot{font-size:44px}
-  .bubble{flex:1 1 0;font-size:19px;padding:10px 14px;min-height:56px;border-radius:18px}
-  .tools{width:100%;justify-content:flex-end;order:3}
-  .iconbtn{width:44px;height:44px;font-size:22px}
-  #songTitle,#actTitle{display:none}
-  .btn{padding:10px 16px;font-size:18px}
-  .lbl{display:none}
-  .dot{width:42px;height:42px;font-size:13px}
-  .dots{min-height:60px;gap:6px}
-  h2{font-size:22px}
-  .key{font-size:13px}
-}
-@media (max-height:480px){
-  #app{padding-top:6px;padding-bottom:6px}
-  .mascot{font-size:38px}
-  .bubble{min-height:42px;font-size:17px;padding:5px 12px}
-  .iconbtn{width:38px;height:38px;font-size:19px}
-  .screen{margin-top:6px}
-  .bar{margin-bottom:2px}
-  .btn{padding:5px 14px;font-size:16px}
-  .dots{min-height:50px;padding:2px;gap:6px}
-  .dot{width:42px;height:42px;font-size:13px}
-  .dot.cur{transform:scale(1.12)}
-  .kb{padding:5px 6px 6px}
-  .key{padding-bottom:6px}
-  .songs,.islands{gap:10px}
-}
-.prog{display:none;gap:6px;justify-content:center;flex-wrap:wrap;padding:2px 0 4px}
-.prog i{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.7);border:2px solid #fff;display:block}
-.prog i.ok{background:#4cc86a}.prog i.soft{background:#ffd23f}.prog i.now{background:#7c4dff;transform:scale(1.3)}
-.skill{background:#fff;border-radius:22px;padding:14px 18px;display:flex;align-items:center;gap:14px;box-shadow:0 4px 0 rgba(0,0,0,.12);font-weight:800;font-size:clamp(18px,2.6vw,24px)}
-.skill.lock{opacity:.5}
-.skill .em{font-size:34px;min-width:64px;text-align:center}
-.skill .bar2{height:12px;background:#eee;border-radius:8px;overflow:hidden;margin-top:6px}
-.skill .bar2 i{display:block;height:100%;background:linear-gradient(90deg,#ffd23f,#4cc86a)}
-.skill small{display:block;font-weight:600;opacity:.7;font-size:15px}
-.dot.q{background:#fff!important;color:#7c4dff}
-.dot.neutral{background:#fff!important}
-.panel{max-height:46vh;overflow:auto}
-.prog i.dn{background:#b9a6ff}
-.psum{margin-top:8px;font-size:16px;line-height:1.5}
-.note-hint{font-size:15px;opacity:.7;margin-top:6px}
-
-/* ---- pantalla de actividades por toque (Números, Letras) ---- */
-.actBody{flex:1;display:flex;flex-direction:column;min-height:0;gap:10px}
-.actStage{flex:1 1 0;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(255,255,255,.55);border-radius:26px;padding:6px;overflow:hidden;text-align:center}
-.actStage:empty{display:none}
-.actStage:empty+.actOpts{flex:1 1 0;height:auto;min-height:0}
-.actStage.sm{flex:0 0 auto}
-.actStage.sm .bignum{font-size:clamp(48px,12vh,96px)}
-.actOpts{display:grid;grid-template-columns:repeat(var(--oc,2),1fr);grid-auto-rows:1fr;gap:10px;flex:none;height:min(32vh,230px)}
-.actOpts.wide{flex:1 1 0;height:auto;min-height:0}
-.opt{border:0;border-radius:24px;background:#fff;color:#2b2350;font-weight:900;font-size:clamp(34px,9vmin,64px);box-shadow:0 6px 0 rgba(0,0,0,.16);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px;min-width:0;min-height:0;overflow:hidden;font-family:inherit;touch-action:manipulation;line-height:1.1}
-.opt:active{transform:translateY(3px)}
-.opt.syl{font-size:clamp(24px,6.5vmin,46px)}
-.opt.ok{background:#7be495}
-.opt.near{background:#ffb3d1;animation:shake .3s}
-.opt.dead,.opt.used{opacity:.18;pointer-events:none}
-.opt.target{background:#ffe88a;animation:pulse .9s ease-in-out infinite}
-@keyframes shake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
-.og{display:flex;flex-direction:column;align-items:center;justify-content:center}
-.or{display:flex;justify-content:center}
-.ob{position:relative;font-size:var(--es,24px);line-height:1.2;width:1.25em;text-align:center;font-weight:400}
-.ob b{position:absolute;right:-.05em;bottom:-.05em;font-size:.5em;line-height:1;background:#7c4dff;color:#fff;border-radius:50%;min-width:1.2em;height:1.2em;display:flex;align-items:center;justify-content:center}
-.ob.x{opacity:.3;filter:grayscale(1)}
-.ob.x:after{content:"✖";position:absolute;left:0;right:0;top:.1em;font-size:.9em;color:#ff5a5f;opacity:1}
-.ocap{font-size:calc(var(--es,24px)*1.1);font-weight:900;color:#7c4dff;line-height:1.1}
-.eq{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3em}
-.eqrow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:.15em .5em}
-.eqrow .grp{background:rgba(124,77,255,.12);border-radius:16px;padding:4px 6px}
-.eqrow .grp.g2{background:rgba(255,159,28,.2)}
-.eqop{font-size:calc(var(--es,24px)*1.2);font-weight:900;color:#7c4dff}
-.eqt{font-weight:900;font-size:clamp(30px,8vmin,60px);color:#7c4dff;letter-spacing:2px}
-.bignum{font-size:clamp(60px,min(30vw,30vh),150px);font-weight:900;color:#7c4dff;line-height:1}
-.pic{font-size:clamp(46px,min(20vw,16vh),110px);line-height:1.1}
-.slots{display:flex;gap:.14em;justify-content:center;font-weight:900;font-size:clamp(32px,min(11vw,9vh),62px);margin-top:4px;flex-wrap:wrap}
-.sl{min-width:1.05em;padding:0 .12em;background:#fff;border-radius:12px;border-bottom:.09em solid #7c4dff;text-align:center;line-height:1.25}
-.sl.blank{background:#ffe88a;color:#ff9f1c}
-.sl.syl{font-size:.78em}
-.sl.hl{color:#ff5a5f}
-.lmodel{font-size:clamp(46px,min(18vw,15vh),100px);font-weight:900;color:#7c4dff;line-height:1}
-.lmodel small{font-size:.5em;color:#ff9f1c}
-@media (max-height:480px) and (orientation:landscape){
-  .actBody{flex-direction:row}
-  .actStage,.actStage.sm{flex:1.1 1 0}
-  .actStage.sm .bignum{font-size:clamp(50px,26vh,110px)}
-  .actOpts{height:auto;flex:1 1 0;grid-template-columns:repeat(var(--ocl,2),1fr)}
-  .actOpts.wide{grid-template-columns:repeat(var(--n,2),1fr)}
-  .opt{font-size:clamp(26px,13vh,50px);border-radius:18px}
-  .opt.syl{font-size:clamp(20px,9vh,34px)}
-}
-</style>
 </head>
 <body>
 <div id="app">
@@ -169,945 +20,146 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
     <div class="mascot" id="mascot">🦊</div>
     <div class="bubble" id="bubble">¡Mundo Gioval, a jugar! 🦊</div>
     <div class="tools">
-      <button class="iconbtn" id="btnMic" title="Escuchar mi piano">🎤</button>
-      <button class="iconbtn" id="btnVoice" title="Voz">🔊</button>
-      <button class="iconbtn" id="btnGear" title="Para papá">⚙️</button>
+      <button class="iconbtn" id="btnVoice" title="Voz" data-i18n-title="app.voz">🔊</button>
+      <button class="iconbtn" id="btnGear" title="Para papá" data-i18n-title="adultos.boton">⚙️</button>
     </div>
   </div>
   <div class="panel" id="panel">
-    <b>Para papá</b> — el 🎤 hace que la app escuche el piano. Tocar el teclado de la pantalla también funciona.
-    <label>Nota que escucho: <b id="dbgNote">–</b></label>
-    <label>Volumen <div class="meter"><i id="dbgLevel"></i></div></label>
-    <label>Sensibilidad <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
-    <label>Aceptar la nota en cualquier octava <input type="checkbox" id="anyOctave" checked></label>
+    <b data-i18n="adultos.titulo">Para papá</b><span id="panelTexto"></span>
+    <div id="panelArriba"></div>
     <div class="psum" id="parentSum"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px">📄 Informe</button></div>
-    <label>Tiempo por día: <select id="limSel" style="font-size:16px;padding:6px;border-radius:10px"><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option></select></label>
-    <label>Ya sabe hasta: <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px">Marcar</button></label>
-    <div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px" data-i18n="adultos.extra">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px" data-i18n="adultos.informe">📄 Informe</button></div>
+    <label><span data-i18n="adultos.tiempo">Tiempo por día:</span> <select id="limSel" style="font-size:16px;padding:6px;border-radius:10px"><option value="10" data-i18n="adultos.min" data-i18n-n="10">10 min</option><option value="15" data-i18n="adultos.min" data-i18n-n="15">15 min</option><option value="20" data-i18n="adultos.min" data-i18n-n="20">20 min</option><option value="30" data-i18n="adultos.min" data-i18n-n="30">30 min</option><option value="45" data-i18n="adultos.min" data-i18n-n="45">45 min</option><option value="60" data-i18n="adultos.min" data-i18n-n="60">60 min</option></select></label>
+    <label><span data-i18n="adultos.sabe_hasta">Ya sabe hasta:</span> <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px" data-i18n="adultos.marcar">Marcar</button></label>
+    <label><span data-i18n="idioma.aparato">Idioma del aparato:</span> <select id="langDev" style="font-size:16px;padding:6px;border-radius:10px"></select></label>
+    <label><span id="langKidLbl"></span> <select id="langKid" style="font-size:16px;padding:6px;border-radius:10px"></select></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn alt" id="btnVozProbar" style="padding:6px 14px;font-size:16px" data-i18n="voz.probar">🔊 Probar voz</button></div>
+    <div class="psum" id="vozAviso" style="display:none"></div>
+    <div class="psum" id="respaldoInfo"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn" id="btnExport" style="padding:6px 14px;font-size:16px" data-i18n="respaldo.exportar">⬇ Exportar respaldo</button><button class="btn alt" id="btnRestore" style="padding:6px 14px;font-size:16px" data-i18n="respaldo.restaurar_btn">⬆ Restaurar</button></div>
+    <input type="file" id="fileRestore" accept="application/json,.json" style="display:none">
+    <div id="panelPie"></div>
   </div>
 
   <div class="screen active" id="who">
-    <div style="text-align:center;font-size:clamp(30px,6vw,56px);font-weight:900;color:#7c4dff;text-shadow:0 3px 0 #fff">Mundo Gioval<br><span style="color:#ff5a5f;font-size:.6em">¡A jugar!</span></div>
-    <h2>¿Quién juega?</h2>
+    <div style="text-align:center;font-size:clamp(30px,6vw,56px);font-weight:900;color:#7c4dff;text-shadow:0 3px 0 #fff"><span data-i18n="app.nombre">Mundo Gioval</span><br><span style="color:#ff5a5f;font-size:.6em" data-i18n="app.a_jugar">¡A jugar!</span></div>
+    <h2 data-i18n="app.quien_juega">¿Quién juega?</h2>
     <div class="songs" id="profiles"></div>
   </div>
 
   <div class="screen" id="map">
-    <div class="bar"><h2 id="mapTitle" style="margin:0"></h2><button class="btn alt" id="btnWho">👤 Cambiar</button></div>
+    <div class="bar"><h2 id="mapTitle" style="margin:0"></h2><button class="btn alt" id="btnWho" data-i18n="app.cambiar">👤 Cambiar</button></div>
     <div class="islands" id="islands"></div>
   </div>
 
-  <div class="screen" id="music">
-    <div class="bar"><button class="btn alt" id="btnMusicBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0" id="musicTitle">🎹 Isla Música</h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
-    <div class="islands" id="musicMenu"></div>
-  </div>
-
-  <div class="screen" id="home">
-    <div class="bar"><button class="btn alt" id="btnHomeBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🎵 Mis canciones</h2><span style="width:90px"></span></div>
-    <div class="songs" id="songs"></div>
+  <div class="screen" id="menuIsla">
+    <div class="bar"><button class="btn alt" id="btnMenuBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.mapa"> Mapa</span></button><h2 style="margin:0" id="menuIslaTitle"></h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
+    <div class="islands" id="menuIslaItems"></div>
   </div>
 
   <div class="screen" id="logros">
-    <div class="bar"><button class="btn alt" id="btnLogrosBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🌟 Mis logros</h2><span style="width:90px"></span></div>
+    <div class="bar"><button class="btn alt" id="btnLogrosBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.isla"> Isla</span></button><h2 style="margin:0" data-i18n="app.logros_titulo">🌟 Mis logros</h2><span style="width:90px"></span></div>
     <div class="songs" id="skillList" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
   </div>
 
-  <div class="screen" id="act">
+  <div class="screen juego" id="act">
     <div class="bar">
-      <button class="btn alt" id="btnActBack">⬅<span class="lbl"> Volver</span></button>
+      <button class="btn alt" id="btnActBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.volver"> Volver</span></button>
       <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="actTitle"></div>
       <div style="display:flex;gap:8px">
-        <button class="btn alt" id="btnActHear">🔊<span class="lbl"> Escuchar</span></button>
-        <button class="btn" id="btnActSkip">Seguir ➜</button>
+        <button class="btn alt" id="btnActHear">🔊<span class="lbl" data-i18n="app.escuchar"> Escuchar</span></button>
+        <button class="btn" id="btnActSkip" data-i18n="app.seguir">Seguir ➜</button>
       </div>
     </div>
     <div class="prog" id="prog2"></div>
     <div class="actBody"><div class="actStage" id="actStage"></div><div class="actOpts" id="actOpts"></div></div>
   </div>
-
-  <div class="screen" id="play">
-    <div class="bar">
-      <button class="btn alt" id="btnBack">⬅<span class="lbl"> Volver</span></button>
-      <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="songTitle"></div>
-      <div style="display:flex;gap:8px">
-        <button class="btn alt" id="btnHear">🔊<span class="lbl"> Escuchar</span></button>
-        <button class="btn" id="btnSkip">Seguir ➜</button>
-      </div>
-    </div>
-    <div class="prog" id="prog"></div>
-    <div class="dots" id="dots"></div>
-    <div class="stage">
-      <div class="kb" id="kb"></div>
-    </div>
-  </div>
 </div>
 
 <div class="big nameBox" id="nameBox">
-  <h1>¿Cómo te llamás?</h1>
-  <input id="nameIn" maxlength="14" placeholder="Tu nombre" autocomplete="off">
-  <button class="btn" id="nameOk">¡Listo!</button>
+  <h1 data-i18n="app.pregunta_nombre">¿Cómo te llamás?</h1>
+  <input id="nameIn" maxlength="14" placeholder="Tu nombre" data-i18n-placeholder="app.tu_nombre" autocomplete="off">
+  <button class="btn" id="nameOk" data-i18n="app.listo">¡Listo!</button>
 </div>
 
 <div class="big nameBox" id="gateBox">
-  <h1 id="gateQ">Pregunta para adultos</h1>
-  <input id="gateIn" type="number" inputmode="numeric" placeholder="Respuesta">
-  <div style="display:flex;gap:10px"><button class="btn" id="gateOk">Entrar</button><button class="btn alt" id="gateNo">Cancelar</button></div>
+  <h1 id="gateQ" data-i18n="adultos.pregunta">Pregunta para adultos</h1>
+  <input id="gateIn" type="number" inputmode="numeric" placeholder="Respuesta" data-i18n-placeholder="adultos.respuesta">
+  <div style="display:flex;gap:10px"><button class="btn" id="gateOk" data-i18n="adultos.entrar">Entrar</button><button class="btn alt" id="gateNo" data-i18n="adultos.cancelar">Cancelar</button></div>
 </div>
 
 <div class="big" id="capBox">
   <div class="stars">🌙</div>
-  <h1>¡Terminamos por hoy!</h1>
-  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0">Ya jugaste <span id="capMin">15</span> minutos. <span id="capTail">Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</span></p>
-  <button class="btn" id="capOk">¡Chau, zorro! 👋</button>
+  <h1 data-i18n="motor.tope.titulo">¡Terminamos por hoy!</h1>
+  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0" id="capTxt">Ya jugaste 15 minutos. Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</p>
+  <div id="capAcc" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="capOk" data-i18n="motor.tope.chau">¡Chau, zorro! 👋</button></div>
 </div>
 
 <div class="big" id="reportBox">
   <pre id="reportTxt" style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:62vh;overflow:auto;font-size:15px;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:0;font-family:inherit"></pre>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="repCopy">Copiar</button><button class="btn" id="repWa">WhatsApp</button><button class="btn alt" id="repClose">Cerrar</button></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="repCopy" data-i18n="adultos.copiar">Copiar</button><button class="btn" id="repWa" data-i18n="adultos.whatsapp">WhatsApp</button><button class="btn alt" id="repClose" data-i18n="adultos.cerrar">Cerrar</button></div>
 </div>
 
 <div class="big" id="finish">
   <div class="stars" id="finStars">⭐⭐⭐</div>
-  <h1 id="finTitle">¡Lo lograste!</h1>
-  <button class="btn" id="btnFinOk">¡Otra vez!</button>
-  <button class="btn alt" id="btnFinHome">Elegir otra canción</button>
+  <h1 id="finTitle" data-i18n="motor.fin.lograste">¡Lo lograste!</h1>
+  <button class="btn" id="btnFinOk" data-i18n="motor.fin.otra_vez">¡Otra vez!</button>
+  <button class="btn alt" id="btnFinHome" data-i18n="motor.fin.elegir">Elegir otra canción</button>
 </div>
 
-<script>
-"use strict";
-/* ============ DATOS ============ */
-let KID = "";
-const NAMES = {C:"Do",D:"Re",E:"Mi",F:"Fa",G:"Sol",A:"La",B:"Si"};
-const COLORS = {C:"#ff5a5f",D:"#ff9f1c",E:"#ffd23f",F:"#4cc86a",G:"#2ec4b6",A:"#4d96ff",B:"#9b5de5"};
-const BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
-const WHITE = [60,62,64,65,67,69,71,72,74,76]; // Do4 .. Mi5
-const PCLET = {0:"C",2:"D",4:"E",5:"F",7:"G",9:"A",11:"B"};
-function parseNote(tok){
-  const m = /^([A-G])(\d)(?::([\d.]+))?$/.exec(tok);
-  const midi = 12*(+m[2]+1)+BASE[m[1]];
-  return {midi, beats: m[3]?parseFloat(m[3]):1};
-}
-function parsePhrase(s){ return s.trim().split(/\s+/).map(parseNote); }
-// Agregá acá las canciones favoritas de Valentino (melodía de una mano, notas Do4–Mi5)
-const SONGS = [
-  {title:"Estrellita", sub:"Estrellita, ¿dónde estás?", emoji:"⭐",
-   phrases:["C4 C4 G4 G4 A4 A4 G4:2","F4 F4 E4 E4 D4 D4 C4:2","G4 G4 F4 F4 E4 E4 D4:2"],
-   order:[0,1,2,2,0,1]},
-  {title:"Himno a la Alegría", sub:"Beethoven", emoji:"🎶",
-   phrases:["E4 E4 F4 G4 G4 F4 E4 D4","C4 C4 D4 E4 E4:1.5 D4:.5 D4:2","C4 C4 D4 E4 D4:1.5 C4:.5 C4:2"],
-   order:[0,1,0,2]},
-  {title:"Cumpleaños feliz", sub:"¡A festejar!", emoji:"🎂",
-   phrases:["G4 G4 A4 G4 C5 B4:2","G4 G4 A4 G4 D5 C5:2"],
-   order:[0,1,0,1]},
-].map(s=>({...s, chunks:s.phrases.map(parsePhrase)}));
+<div class="big" id="restoreBox">
+  <div style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:70vh;overflow:auto;font-size:16px;line-height:1.5;user-select:text;-webkit-user-select:text" id="restoreTxt"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="restoreOk" data-i18n="respaldo.restaurar">Restaurar</button><button class="btn alt" id="restoreNo" data-i18n="adultos.cancelar">Cancelar</button></div>
+</div>
 
-/* ============ ESTADO ============ */
-const $ = id=>document.getElementById(id);
-const sleep = ms=>new Promise(r=>setTimeout(r,ms));
-let S = {song:null, mode:"idle", chunks:[], ci:0, ni:0, run:0, missPhrase:0, missNote:0, learnIdx:0, lastWrong:0};
-let ctx=null, analyser=null, micStream=null, micOn=false, voiceOn=true, muteUntil=0;
-let store = {profiles:[],stars:{},sk:{},days:{},time:{},log:{},checks:{},extra:{},limit:{}};
-try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{},sk:s.sk||{},days:s.days||{},time:s.time||{},log:s.log||{},checks:s.checks||{},extra:s.extra||{},limit:s.limit||{}}; }catch(e){}
-function save(){ try{ localStorage.setItem("gioval", JSON.stringify(store)); }catch(e){} }
-const starsOf=t=>store.stars[KID+"|"+t]||0;
+<div class="aviso" id="avisoVersion"><span data-i18n="app.aviso_version">Hay una versión nueva</span> <button class="btn" id="btnActualizar" style="padding:4px 12px;font-size:15px" data-i18n="app.actualizar">Actualizar</button></div>
 
-/* ============ VOZ ============ */
-let esVoice=null;
-function pickVoice(){
-  const vs = (window.speechSynthesis && speechSynthesis.getVoices())||[];
-  const es = vs.filter(v=>/^es/i.test(v.lang));
-  esVoice = es.find(v=>/AR/i.test(v.lang)) || es.find(v=>/MX|US|419/i.test(v.lang)) || es[0] || null;
-}
-if(window.speechSynthesis){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-function setBubble(t){ $("bubble").textContent = t; }
-function speak(text){
-  setBubble(text);
-  const est = 500 + text.length*85;
-  muteUntil = performance.now() + est + 400;
-  if(!voiceOn || !window.speechSynthesis) return sleep(Math.min(est,1400));
-  return new Promise(res=>{
-    let done=false; const fin=()=>{ if(!done){done=true; muteUntil=performance.now()+350; res();} };
-    try{
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = esVoice?esVoice.lang:"es-AR"; if(esVoice) u.voice=esVoice;
-      u.rate=.92; u.pitch=1.25;
-      u.onend=fin; u.onerror=fin;
-      speechSynthesis.speak(u);
-    }catch(e){ fin(); }
-    setTimeout(fin, est+1500);
-  });
-}
-const PRAISE = ()=>["¡Muy bien, "+KID+"!","¡Qué bien que lo intentaste!","¡Lo practicaste y te salió!","¡Eso es! Escuchaste con atención.","¡Seguiste hasta lograrlo!","¡Esa melodía está quedando genial!"];
-const rnd = a=>a[Math.floor(Math.random()*a.length)];
-
-/* ============ AUDIO (sonido del piano de juguete) ============ */
-function ensureCtx(){
-  if(!ctx){ const AC=window.AudioContext||window.webkitAudioContext; ctx=new AC(); }
-  if(ctx.state==="suspended") ctx.resume();
-  return ctx;
-}
-function tone(midi, dur=.5, vol=.35){
-  const c=ensureCtx(); const f=440*Math.pow(2,(midi-69)/12); const t=c.currentTime;
-  const g=c.createGain(); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+.01);
-  g.gain.exponentialRampToValueAtTime(.001,t+Math.max(.25,dur)); g.connect(c.destination);
-  [[1,"triangle",1],[2,"sine",.3],[3,"sine",.1]].forEach(([m,type,a])=>{
-    const o=c.createOscillator(); o.type=type; o.frequency.value=f*m;
-    const gg=c.createGain(); gg.gain.value=a; o.connect(gg); gg.connect(g); o.start(t); o.stop(t+Math.max(.3,dur)+.05);
-  });
-}
-
-/* ============ TECLADO ============ */
-function buildKeyboard(){
-  const kb=$("kb"); kb.innerHTML="";
-  WHITE.forEach((m,i)=>{
-    const L=PCLET[m%12]; const k=document.createElement("div");
-    k.className="key"; k.dataset.m=m; k.style.setProperty("--c",COLORS[L]);
-    k.innerHTML=`<span>${NAMES[L]}</span>`;
-    k.addEventListener("pointerdown",e=>{ e.preventDefault(); pressKey(m); });
-    kb.appendChild(k);
-  });
-  // teclas negras decorativas
-  [0,1,3,4,5,7,8].forEach(i=>{
-    const b=document.createElement("div"); b.className="black";
-    const innerW=100-1.6; b.style.left=`calc(8px + (100% - 16px) * ${(i+1)/WHITE.length} - 2.5%)`;
-    kb.appendChild(b);
-  });
-}
-function keyEl(midi){ return document.querySelector(`.key[data-m="${midi}"]`) || document.querySelector(`.key[data-m="${midi%12+60}"]`); }
-function flash(midi, cls, ms=350){
-  const el = (function(){ const exact=document.querySelector(`.key[data-m="${midi}"]`); if(exact) return exact; return [...document.querySelectorAll(".key")].find(k=>(+k.dataset.m)%12===midi%12); })();
-  if(!el) return; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls),ms);
-}
-function pressKey(midi){ ensureCtx(); tone(midi,.6); handleInput(midi,"touch"); }
-
-/* ============ JUEGO ============ */
-function show(id){ document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("active",s.id===id)); }
-function renderHome(){
-  const box=$("songs"); box.innerHTML="";
-  SONGS.forEach((s,i)=>{
-    const st=starsOf(s.title);
-    const b=document.createElement("button"); b.className="song";
-    b.innerHTML=`<div style="font-size:44px">${s.emoji}</div>${s.title}<small>${s.sub}</small><div class="st">${"⭐".repeat(st)}${"☆".repeat(3-st)}</div>`;
-    b.onclick=()=>startSong(i); box.appendChild(b);
-  });
-}
-function chunk(){ return S.chunks[S.ci]; }
-function renderDots(){
-  const box=$("dots"); box.innerHTML="";
-  const ch=chunk(); if(!ch) return;
-  const hide=(S.kind==="ear"||S.kind==="echo")&&!S.reveal;
-  ch.forEach((n,i)=>{
-    const L=PCLET[n.midi%12]; const d=document.createElement("div");
-    const pending=i>=S.ni;
-    d.className="dot"+(i<S.ni?" done":"")+(i===S.ni&&S.mode==="play"?" cur":"");
-    if(pending&&hide){ d.className+=" q"; d.innerHTML="<span>?</span>"; }
-    else if(pending&&S.kind==="find"&&S.hint>=2&&!S.reveal){ d.className+=" neutral"; d.innerHTML=`<span>${NAMES[L]}</span>`; }
-    else { d.style.background=COLORS[L]; d.innerHTML=`<span>${NAMES[L]}</span>`; }
-    if(i<S.ni) d.style.background=COLORS[L];
-    box.appendChild(d);
-  });
-  document.querySelectorAll(".key").forEach(k=>k.classList.remove("target"));
-  const guide=(!S.kind)||S.reveal||(S.kind==="find"&&S.hint===0);
-  if(S.mode==="play"&&guide){ const t=ch[S.ni]; if(t) markTarget(t.midi); }
-}
-function markTarget(midi){
-  const el=[...document.querySelectorAll(".key")].find(k=>+k.dataset.m===midi) || [...document.querySelectorAll(".key")].find(k=>(+k.dataset.m)%12===midi%12);
-  if(el) el.classList.add("target");
-}
-async function demo(notes, run, showKeys=true){
-  S.mode="demo";
-  const beat=.5;
-  for(const n of notes){
-    if(run!==S.run) return false;
-    muteUntil=performance.now()+n.beats*beat*1000+500;
-    if(showKeys) flash(n.midi,"demo",n.beats*beat*1000-40); tone(n.midi,n.beats*beat+.1);
-    await sleep(n.beats*beat*1000);
-  }
-  muteUntil=performance.now()+400;
-  return run===S.run;
-}
-async function startSong(i){
-  if(capLeft()<=0) return showCap();
-  ensureCtx(); S.check=false; S.capShown=false; S.tap=null;
-  S.song=SONGS[i]; S.run++; S.learnIdx=0; S.session=null; S.onDone=null; S.kind=null; S.hint=0; S.reveal=false; $("songTitle").textContent=S.song.emoji+" "+S.song.title;
-  show("play"); buildKeyboard(); renderProg();
-  await learnPhrase(0, "Vamos a tocar "+S.song.title+". Primero escuchá.");
-}
-async function learnPhrase(idx, intro){
-  const run=S.run; S.learnIdx=idx; S.mode="demo"; S.chunks=[S.song.chunks[idx]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; renderDots();
-  await speak(intro|| (idx===0?"Escuchá cómo suena.":"Ahora, la siguiente parte. Escuchá."));
-  if(run!==S.run) return;
-  if(!(await demo(S.chunks[0],run))) return;
-  await speak("¡Ahora te toca a vos!"); if(run!==S.run) return;
-  S.mode="play"; renderDots(); armMic();
-}
-async function startFull(){
-  const run=S.run; S.mode="demo";
-  S.chunks=S.song.order.map(i=>S.song.chunks[i]); S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.full=true;
-  renderDots();
-  await speak("¡Ya sabés todas las partes! Ahora tocá la canción completa. ¡Yo te espero!");
-  if(run!==S.run) return; S.mode="play"; renderDots();
-}
-function stars3(m){ return m===0?3:(m<=3?2:1); }
-async function handleInput(midi){
-  if(S.mode!=="play"||S.tap) return;
-  const now=performance.now(); if(now-S.lastWrong<300) return;
-  const t=chunk()[S.ni]; if(!t) return;
-  const anyOct=$("anyOctave").checked;
-  const ok = anyOct ? (midi%12===t.midi%12) : (midi===t.midi);
-  const run=S.run;
-  if(ok){
-    S.missNote=0; if(!S.check) flash(t.midi,"ok",300); S.ni++; renderDots();
-    if(S.ni>=chunk().length){
-      S.mode="between";
-      if(S.onDone){ const cb=S.onDone; cb({miss:S.missPhrase}); return; }
-      if(!S.full){
-        const st=stars3(S.missPhrase);
-        await speak(rnd(PRAISE())+" "+"⭐".repeat(st)); if(run!==S.run) return;
-        if(S.learnIdx+1<S.song.chunks.length) await learnPhrase(S.learnIdx+1);
-        else await startFull();
-      } else {
-        S.ci++; S.ni=0;
-        if(S.ci>=S.chunks.length) return finishSong(run);
-        S.mode="play"; renderDots();
-      }
-    }
-  } else {
-    S.lastWrong=now; S.missPhrase++; S.missNote++;
-    if(S.check){ S.mode="between"; const cb=S.onDone; cb({miss:S.missPhrase}); return; }
-    flash(midi,"near",450);
-    const tn=NAMES[PCLET[t.midi%12]];
-    if(S.kind==="ear"||S.kind==="echo"){
-      if(S.missNote===2){ S.mode="demo"; await speak("Escuchá otra vez."); if(await demo(chunk(),run,false)){ S.mode="play"; renderDots(); } }
-      else if(S.missNote>=4){ S.reveal=true; S.missNote=0; renderDots(); setBubble("Mirá, es el "+tn+" 👀"); }
-      else setBubble("¡Casi! Probá otra vez 😊");
-    }
-    else if(S.missNote===2){ S.reveal=true; renderDots(); setBubble("¡Casi! Buscá el "+tn); await speak("¡Casi! Probá con el "+tn+"."); }
-    else if(S.missNote>=4){ S.missNote=0; S.mode="demo"; await speak("Mirá, te ayudo. Este es el "+tn+"."); tone(t.midi,.8); flash(t.midi,"demo",700); await sleep(900); if(run===S.run){ S.mode="play"; renderDots(); } }
-    else setBubble("¡Casi! Probá otra vez 😊");
-  }
-}
-async function finishSong(run){
-  S.finMode="song"; $("btnFinOk").textContent="¡Otra vez!"; $("btnFinHome").textContent="Elegir otra canción";
-  S.mode="done"; const st=stars3(Math.floor(S.missPhrase/2)); // en la canción completa se tolera más
-  const prev=starsOf(S.song.title); if(st>prev){ store.stars[KID+"|"+S.song.title]=st; save(); }
-  $("finStars").textContent="⭐".repeat(st)+"☆".repeat(3-st);
-  $("finTitle").textContent="¡Tocaste "+S.song.title+"!";
-  $("finish").classList.add("show");
-  await speak("¡Bravo "+KID+"! ¡Tocaste toda la canción!");
-}
-/* botones */
-$("btnBack").onclick=()=>{ const was=S.session; S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow();
-  if(was){ goMusic(); } else { show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); } };
-$("btnHomeBack").onclick=()=>goMusic();
-$("btnLogrosBack").onclick=()=>goMusic();
-$("btnMusicBack").onclick=()=>goMap();
-$("btnWho").onclick=()=>{ renderWho(); show("who"); setBubble("¿Quién juega?"); };
-const ISLANDS=[
-  {name:"Isla Letras",emoji:"🔤",sub:"Pronto",on:false},
-  {name:"Isla Animales",emoji:"🐘",sub:"Pronto",on:false},
-];
-function renderMap(){
-  $("mapTitle").textContent="Mundo Gioval · ¡A jugar, "+KID+"!";
-  const box=$("islands"); box.innerHTML="";
-  ISLANDS.forEach(is=>{
-    const b=document.createElement("button"); b.className="island"+(is.on?"":" off");
-    b.innerHTML=`<div class="em">${is.on?is.emoji:"🔒"}</div>${is.name}<small>${is.sub}</small>`;
-    if(is.on) b.onclick=()=>{ ensureCtx(); is.go(); }
-    box.appendChild(b);
-  });
-}
-function goMap(){ S.run++; S.tap=null; $("btnMic").style.display=""; show("map"); renderMap(); setBubble("¡Hola "+KID+"! ¿A qué isla vamos?"); }
-function renderWho(){
-  const box=$("profiles"); box.innerHTML="";
-  store.profiles.forEach(n=>{
-    const b=document.createElement("button"); b.className="song"; b.innerHTML=`<div style="font-size:48px">🦊</div>${n}`;
-    b.onclick=()=>{ ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Mundo Gioval, ¡a jugar! ¿A qué isla vamos?"); }; box.appendChild(b);
-  });
-  const nb=document.createElement("button"); nb.className="song"; nb.innerHTML=`<div style="font-size:48px">➕</div>Nuevo jugador`;
-  nb.onclick=()=>{ $("nameBox").classList.add("show"); $("nameIn").value=""; setTimeout(()=>$("nameIn").focus(),50); }; box.appendChild(nb);
-}
-$("nameOk").onclick=()=>{
-  const n=$("nameIn").value.trim().slice(0,14); if(!n) return;
-  if(!store.profiles.includes(n)){ store.profiles.push(n); save(); }
-  $("nameBox").classList.remove("show"); ensureCtx(); KID=n; goMap(); speak("¡Hola "+KID+"! Mundo Gioval, ¡a jugar!");
-};
-$("nameIn").addEventListener("keydown",e=>{ if(e.key==="Enter") $("nameOk").click(); });
-$("btnHear").onclick=async()=>{ if(!S.song&&!S.session) return; const run=++S.run; const ch=chunk(); await demo(ch, run, !S.session); if(run===S.run){ S.mode="play"; renderDots(); } };
-$("btnSkip").onclick=()=>{
-  if(S.session){ const run=++S.run; S.session.i++; renderProg(); nextItem(run); return; }
-  if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
-$("btnFinOk").onclick=()=>{ $("finish").classList.remove("show");
-  if(S.finMode==="session"){ resetFlow(); if(capLeft()<=0||!PACK.hasSongs){ goMusic(); return; } show("home"); renderHome(); return; }
-  const i=SONGS.indexOf(S.song); S.full=false; startSong(i); };
-$("btnFinHome").onclick=()=>{ $("finish").classList.remove("show"); S.full=false;
-  if(S.finMode==="session"){ resetFlow(); if(PACK.hasSongs) goMusic(); else goMap(); return; }
-  $("btnBack").onclick(); };
-$("btnVoice").onclick=()=>{ voiceOn=!voiceOn; $("btnVoice").textContent=voiceOn?"🔊":"🔇"; if(!voiceOn){try{speechSynthesis.cancel();}catch(e){}} };
-$("btnGear").onclick=()=>$("panel").classList.toggle("show");
-$("sens").oninput=e=>{ $("sensVal").textContent=e.target.value; };
-$("sensVal").textContent=$("sens").value;
-$("btnMic").onclick=async()=>{ ensureCtx(); if(micOn){ stopMic(); } else { await startMic(); } };
-function armMic(){ /* el micrófono sigue activo si ya se encendió */ }
-
-/* ============ MICRÓFONO + DETECCIÓN DE NOTA ============ */
-let timer=null, slow=0, pending=false, votes=[], pendStart=0, lastOnset=0;
-async function startMic(){
-  try{
-    ensureCtx();
-    micStream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
-    const src=ctx.createMediaStreamSource(micStream);
-    analyser=ctx.createAnalyser(); analyser.fftSize=4096; analyser.smoothingTimeConstant=0;
-    src.connect(analyser);
-    micOn=true; $("btnMic").classList.add("on");
-    timer=setInterval(frame,30);
-    setBubble("¡Te escucho! Tocá tu piano 🎹");
-  }catch(e){
-    micOn=false; $("btnMic").classList.remove("on");
-    setBubble("No pude usar el micrófono. Podés tocar el teclado de la pantalla.");
-  }
-}
-function stopMic(){
-  micOn=false; $("btnMic").classList.remove("on"); clearInterval(timer);
-  if(micStream){ micStream.getTracks().forEach(t=>t.stop()); micStream=null; }
-}
-// YIN: detecta la frecuencia fundamental de una nota suelta
-function yin(buf, sr){
-  const W=1024, maxTau=Math.floor(sr/170), minTau=Math.floor(sr/1200);
-  const start=buf.length-W-maxTau-2; if(start<0) return null;
-  const d=new Float32Array(maxTau+1);
-  for(let tau=1;tau<=maxTau;tau++){ let s=0; for(let i=0;i<W;i++){ const x=buf[start+i]-buf[start+i+tau]; s+=x*x; } d[tau]=s; }
-  const c=new Float32Array(maxTau+1); c[0]=1; let run=0;
-  for(let tau=1;tau<=maxTau;tau++){ run+=d[tau]; c[tau]=d[tau]*tau/(run||1); }
-  let tau=-1;
-  for(let t=minTau;t<maxTau;t++){ if(c[t]<.15){ while(t+1<maxTau&&c[t+1]<c[t]) t++; tau=t; break; } }
-  if(tau<0) return null;
-  const a=c[tau-1]||c[tau], b=c[tau], g=c[tau+1]||c[tau];
-  const den=2*(2*b-a-g); const shift=den?(a-g)/den:0;
-  return sr/(tau+shift);
-}
-function freqToMidi(f){ return Math.round(69+12*Math.log2(f/440)); }
-const FULLNAME=m=>NAMES[PCLET[((m%12)+12)%12]]||(["Do#","Re#","","Fa#","Sol#","La#"].join()&&midiName(m));
-function midiName(m){ const n=["Do","Do#","Re","Re#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"]; return n[((m%12)+12)%12]; }
-function frame(){
-  if(!analyser) return;
-  const buf=new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(buf);
-  let s=0; for(let i=buf.length-1024;i<buf.length;i++) s+=buf[i]*buf[i]; const rms=Math.sqrt(s/1024);
-  $("dbgLevel").style.width=Math.min(100,rms*600)+"%";
-  const now=performance.now();
-  if(now<muteUntil){ slow=rms; pending=false; return; }
-  const thr=(+$("sens").value)/1000; // 0.001 – 0.03
-  if(!pending && rms>thr && rms>slow*1.4 && now-lastOnset>140){ pending=true; votes=[]; pendStart=now; lastOnset=now; }
-  if(pending){
-    if(now-pendStart>70){ const f=yin(buf,ctx.sampleRate); if(f) votes.push(freqToMidi(f)); }
-    if(votes.length>=3 || now-pendStart>380){
-      pending=false;
-      if(votes.length>=2){
-        const cnt={}; votes.forEach(v=>cnt[v]=(cnt[v]||0)+1);
-        const best=+Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
-        $("dbgNote").textContent=midiName(best)+" ("+best+")";
-        handleInput(best,"mic");
-      }
-    }
-  }
-  slow=slow*.85+rms*.15;
-}
-
-
-/* ============ MOTOR DE APRENDIZAJE ============
-   Ideas con respaldo en la ciencia del aprendizaje:
-   - Sesiones cortas + repaso espaciado (la práctica distribuida rinde más que la masiva)
-   - Recuperar de memoria (sin mostrar la respuesta) y mezclar habilidades (intercalado)
-   - Dificultad adaptativa: apuntar a ~85% de aciertos
-   - Pistas que se retiran de a poco
-   - Oído primero (método Kodály)
-   - Elogio al esfuerzo, no a "ser inteligente"
-   - Tope diario de tiempo y chequeo semanal SIN ayuda para comprobar lo que realmente quedó
-   CÓMO SUMAR OTRA ISLA (letras, números, inglés…):
-   1) Definir una lista de habilidades {id,name,icon,type,req:[ids previas],...}. Los id deben ser únicos entre islas.
-   2) Registrar sus tipos de actividad en ACTIVITIES (make = genera un ítem, present = lo muestra).
-   3) Agregar la isla a PACKS. El resto (sesión diaria, repaso espaciado, dificultad adaptativa,
-      chequeo semanal, logros, informe y tope de tiempo) funciona igual para todas. */
-const DAY=864e5, INTERVALS=[.2,1,3,7];
-const capBase=()=>(store.limit[KID]||15)*60; /* minutos por día; lo cambian los adultos desde el panel */
-const SK_ALL=[60,62,64,65,67,69,71,72];
-const SKILLS_MUSICA=[
-  {id:"n1",name:"Do, Re y Mi",icon:"🔴🟠🟡",type:"find",notes:[60,62,64],prior:[],req:[]},
-  {id:"e1",name:"Oído: ¿cuál suena?",icon:"👂",type:"ear",notes:[60,62,64],req:["n1"]},
-  {id:"n2",name:"Fa y Sol",icon:"🟢🔵",type:"find",notes:[65,67],prior:[60,62,64],req:["n1"]},
-  {id:"eco3",name:"Eco de 3 notas",icon:"🔁",type:"echo",len:3,notes:[60,62,64,65,67],req:["e1","n2"]},
-  {id:"n3",name:"La, Si y Do alto",icon:"🟣⭐",type:"find",notes:[69,71,72],prior:[60,62,64,65,67],req:["n2"]},
-  {id:"e2",name:"Oído con todas las notas",icon:"🎧",type:"ear",notes:SK_ALL,req:["e1","n3"]},
-  {id:"eco5",name:"Eco de 5 notas",icon:"🎶",type:"echo",len:5,notes:SK_ALL,req:["eco3","n3"]},
-];
-const SKILLS_NUMEROS=[
-  {id:"num_c10",name:"Contar hasta 10",icon:"🍎🍎🍎",type:"count",min:1,max:10,req:[]},
-  {id:"num_r10",name:"Reconocer los números",icon:"7️⃣",type:"numrec",min:1,max:10,req:["num_c10"]},
-  {id:"num_may",name:"Más y menos",icon:"⚖️",type:"cmp",max:10,req:["num_r10"]},
-  {id:"num_add5",name:"Sumas hasta 5",icon:"➕",type:"add",min:2,max:5,req:["num_r10"]},
-  {id:"num_sub5",name:"Restas hasta 5",icon:"➖",type:"sub",min:2,max:5,req:["num_add5"]},
-  {id:"num_c20",name:"Contar hasta 20",icon:"🔢",type:"count",min:6,max:20,req:["num_c10","num_may"]},
-  {id:"num_add10",name:"Sumas hasta 10",icon:"➕🔟",type:"add",min:6,max:10,req:["num_add5","num_may"]},
-  {id:"num_sub10",name:"Restas hasta 10",icon:"➖🔟",type:"sub",min:6,max:10,req:["num_sub5","num_add10"]},
-  {id:"num_r20",name:"Los números hasta 20",icon:"2️⃣0️⃣",type:"numrec",min:8,max:20,req:["num_c20"]},
-];
-const PACKS=[
-  {id:"musica",name:"Isla Música",emoji:"🎹",sub:"¡A tocar el piano!",skills:SKILLS_MUSICA,hasSongs:true},
-  {id:"numeros",name:"Isla Números",emoji:"🔢",sub:"¡A contar y sumar!",skills:SKILLS_NUMEROS,tap:true,plain:true,
-   outro:"Ahora, ¡buscá cosas para contar a tu alrededor!",capTail:"Ahora, a jugar con cosas de verdad: ¡contá lo que encuentres! ¡Mañana seguimos!"},
-];
-const ALL_SKILLS=PACKS.flatMap(p=>p.skills);
-let PACK=PACKS[0];
-const today=()=>new Date().toLocaleDateString("en-CA");
-const capLeft=()=>capBase()+(store.extra[KID+"|"+today()]||0)-(store.time[KID+"|"+today()]||0);
-function SK(id){ const k=KID+"|"+id; return store.sk[k]||(store.sk[k]={score:.5,att:0,box:0,due:0,lvl:0,rec:[],mast:false,last:0}); }
-const mastered=id=>SK(id).mast;
-const unlockedList=()=>PACK.skills.filter(s=>s.req.every(mastered));
-let lastTarget=null;
-function pickDistinct(arr){ let x,g=0; do{ x=rnd(arr); g++; }while(arr.length>1&&x===lastTarget&&g<10); lastTarget=x; return x; }
-const shuffle=a=>a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
-/* tipos de actividad de la Isla Música (otras islas registran los suyos acá) */
-const ACTIVITIES={
-  find:{
-    make(s){ const pool=(Math.random()<.35&&s.prior&&s.prior.length)?s.prior:s.notes; return {skill:s,notes:[pickDistinct(pool)]}; },
-    async present(it,run,ss){ const nm=NAMES[PCLET[it.notes[0]%12]]; await speak(rnd(["Tocá el "+nm,"Buscá el "+nm,"¿Dónde está el "+nm+"?"])); return run===S.run; }
-  },
-  ear:{
-    make(s){ return {skill:s,notes:[pickDistinct(s.notes)]}; },
-    async present(it,run,ss){ await speak(ss.seen.ear?"Escuchá…":"Escuchá bien y tocá la nota que suena."); ss.seen.ear=true;
-      if(!(await demo(S.chunks[0],run,false))) return false; setBubble("¿Cuál era? 🎧"); return true; }
-  },
-  echo:{
-    make(s){ const seq=[]; let cur=rnd(s.notes); seq.push(cur);
-      while(seq.length<s.len){ const i=s.notes.indexOf(cur); const j=Math.max(0,Math.min(s.notes.length-1,i+rnd([-2,-1,1,2]))); cur=s.notes[j]; seq.push(cur); }
-      return {skill:s,notes:seq}; },
-    async present(it,run,ss){ await speak(ss.seen.echo?"Escuchá…":"Escuchá y repetí igualito."); ss.seen.echo=true;
-      if(!(await demo(S.chunks[0],run,false))) return false; setBubble("¡Ahora vos! 🎹"); return true; }
-  }
-};
-
-/* ============ ACTIVIDADES POR TOQUE (sin micrófono) ============
-   Una actividad "tap" define:
-     make(s)            -> ítem con todo lo aleatorio ya resuelto: {skill, seq:[respuestas en orden], opts:[{val,html}], ...}
-     view(it,aid,T)     -> {say, stage, opts, oc, ocl, wide, cls} según el nivel de ayuda aid (0 más ayuda … 2 sin ayuda)
-     okMsgs/tip/reveal  -> textos de proceso (nunca elogio de la persona)
-     stageTap(it,T,i)   -> (opcional) toque sobre el dibujo del escenario
-   El motor (tapItem/tapPick) se ocupa de errores, ayudas progresivas, chequeo sin ayuda y registro. */
-const R=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
-const LASTP={};
-function pick(arr,key){ let x,g=0; do{ x=rnd(arr); g++; }while(arr.length>1&&x===LASTP[key]&&g<12); LASTP[key]=x; return x; }
-const range=(a,b)=>{ const r=[]; for(let i=a;i<=b;i++) r.push(i); return r; };
-const NW=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince","dieciséis","diecisiete","dieciocho","diecinueve","veinte"];
-const OBJS=[
-  {e:"🍎",s:"manzana",p:"manzanas",f:1},{e:"⭐",s:"estrella",p:"estrellas",f:1},{e:"🚗",s:"auto",p:"autos"},
-  {e:"🐟",s:"pez",p:"peces"},{e:"🌸",s:"flor",p:"flores",f:1},{e:"🎈",s:"globo",p:"globos"},
-  {e:"🐶",s:"perro",p:"perros"},{e:"🍓",s:"frutilla",p:"frutillas",f:1},{e:"⚽",s:"pelota",p:"pelotas",f:1},
-  {e:"🦋",s:"mariposa",p:"mariposas",f:1},{e:"🍪",s:"galletita",p:"galletitas",f:1},{e:"🐢",s:"tortuga",p:"tortugas",f:1},
-];
-const nm=(o,n)=>n===1?o.s:o.p;
-const nw=(n,o)=>(n===1&&o)?(o.f?"una":"un"):NW[n];
-const uno=o=>o.f?"una":"uno";
-const cuantos=o=>o.f?"Cuántas":"Cuántos";
-function numOpts(ans,min,max,k){
-  const c=[]; for(let d=-3;d<=3;d++){ const v=ans+d; if(d&&v>=min&&v<=max) c.push(v); }
-  const pool=shuffle(c).slice(0,k-1);
-  for(let v=min;v<=max&&pool.length<k-1;v++){ if(v!==ans&&!pool.includes(v)) pool.push(v); }
-  return shuffle([ans,...pool]);
-}
-const chunks5=n=>{ const a=[]; for(let l=n;l>0;l-=5) a.push(Math.min(5,l)); return a; };
-const chunksRnd=n=>{ const a=[]; let l=n; while(l>0){ const c=Math.min(l,R(2,6)); a.push(c); l-=c; } if(a.length>1&&a[a.length-1]===1){ a[a.length-2]++; a.pop(); } return shuffle(a); };
-/* dibujo de n objetos en filas; o.x = cuántos tachados al final; o.cnt = índices ya contados; o.nofit = sin tamaño propio */
-function objs(e,plan,o={}){
-  const total=plan.reduce((a,b)=>a+b,0); let i=0;
-  const rows=plan.map(c=>{ let r=""; for(let k=0;k<c;k++,i++){
-    const cr=o.x&&i>=total-o.x, ci=o.cnt?o.cnt.indexOf(i):-1;
-    r+=`<span class="ob${cr?" x":""}" data-i="${i}">${e}${ci>=0?`<b>${ci+1}</b>`:""}</span>`; } return `<div class="or">${r}</div>`; }).join("");
-  return `<div class="og"${o.nofit?"":` data-fit="${Math.max(...plan)},${plan.length+(o.extra||0)}"`}>${rows}${o.cap?`<div class="ocap">${o.cap}</div>`:""}</div>`;
-}
-const numOpt=v=>({val:v,html:String(v)});
-const OKGEN=["¡Eso es! Te fijaste bien.","¡Salió! Pensarlo paso a paso funciona.","¡Bien pensado! Seguimos 🚀"];
-const TAP_ACTS={
-  count:{
-    okMsgs:["¡Contaste con cuidado!","¡Contar de a uno funciona!","¡Prestaste atención y salió!"],
-    make(s){ const n=pick(range(s.min,s.max),"cn"+s.id), o=pick(OBJS,"obj");
-      const vals=numOpts(n,1,Math.max(s.max,n+1),4); const far=vals.slice().sort((a,b)=>Math.abs(b-n)-Math.abs(a-n))[0];
-      return {skill:s,n,o,seq:[n],opts:vals.map(numOpt),far,plan0:chunks5(n),plan2:chunksRnd(n)}; },
-    view(it,aid,T){
-      const tapOn=(aid===0||T.help)&&!S.check, plan=aid>=2?it.plan2:it.plan0;
-      let ops=it.opts; if(aid===0&&ops.length>3) ops=ops.filter(o=>o.val!==it.far);
-      return {say:"¿"+cuantos(it.o)+" "+it.o.p+" hay? "+(tapOn?"Tocá cada dibujo mientras contás.":"Contá y tocá el número."),
-        stage:objs(it.o.e,plan,{cnt:tapOn?T.cnt:null}), opts:ops, oc:ops.length===3?3:2, ocl:ops.length===3?3:2}; },
-    stageTap(it,T,i){ if(S.check||!(T.aid===0||T.help)||T.cnt.includes(i)) return; T.cnt.push(i); speak(NW[T.cnt.length]); tapRender(); },
-    tip:it=>"Contá de a uno, tocando cada dibujo. Y saqué una opción.",
-    reveal:it=>"Contemos juntos: hay "+NW[it.n]+". Mirá cuál es."
-  },
-  numrec:{
-    okMsgs:["¡Te fijaste bien en el número!","¡Escuchaste con atención y salió!","¡Eso es! Buscar con calma ayuda."],
-    noVoiceAid:0,
-    make(s){ const n=pick(range(s.min,s.max),"nr"+s.id), o=pick(OBJS,"obj");
-      const grp=s.max<=10&&Math.random()<.4;
-      const vals=numOpts(n,1,s.max,grp?3:4);
-      return {skill:s,n,o,grp,seq:[n],opts:vals.map(v=>({val:v,html:grp?objs(o.e,chunks5(v),{extra:0}):String(v)})),far:vals.slice().sort((a,b)=>Math.abs(b-n)-Math.abs(a-n))[0],plan:chunks5(n)}; },
-    view(it,aid,T){
-      if(it.grp) return {say:"Este es el "+NW[it.n]+". Tocá el grupo que tiene "+NW[it.n]+".",stage:`<div class="bignum">${it.n}</div>`,sm:true,opts:it.opts,wide:true,oc:1,ocl:3};
-      let ops=it.opts; if(aid===0&&ops.length>3) ops=ops.filter(o=>o.val!==it.far);
-      return {say:rnd(["Tocá el número "+NW[it.n]+".","¿Dónde está el "+NW[it.n]+"?","Buscá el "+NW[it.n]+"."]),
-        stage:aid===0?objs("🔵",it.plan):"", opts:ops, oc:ops.length===3?3:2, ocl:ops.length===3?3:2}; },
-    tip:it=>"Fijate bien en cada número. Saqué una opción.",
-    reveal:it=>"Mirá, es el "+NW[it.n]+"."
-  },
-  cmp:{
-    okMsgs:["¡Comparaste con cuidado!","¡Miraste bien y decidiste!","¡Eso es! Fijarse ayuda."],
-    make(s){ let a=R(1,s.max),b=R(1,s.max),g=0; while(a===b&&g++<20) b=R(1,s.max); if(a===b) b=a===s.max?a-1:a+1;
-      const o=pick(OBJS,"obj"), ask=Math.random()<.4?"menos":"mas";
-      return {skill:s,a,b,o,ask,seq:[ask==="mas"?Math.max(a,b):Math.min(a,b)],opts:shuffle([a,b]).map(numOpt)}; },
-    view(it,aid,T){
-      const ops=it.opts.map(op=>({val:op.val,html:aid>=2?`<div class="bignum" style="font-size:clamp(50px,min(22vw,26vh),120px)">${op.val}</div>`:objs(it.o.e,chunks5(op.val),{cap:aid===0?op.val:"",extra:aid===0?1:0})}));
-      const say=aid>=2?(it.ask==="mas"?"Tocá el número más grande.":"Tocá el número más chico."):("¿Dónde hay "+(it.ask==="mas"?"más ":"menos ")+it.o.p+"?");
-      return {say,stage:"",opts:ops,wide:true,oc:1,ocl:2}; },
-    tip:it=>"Fijate bien cuál tiene "+(it.ask==="mas"?"más":"menos")+". Saqué una opción.",
-    reveal:it=>"Mirá, este es el que tiene "+(it.ask==="mas"?"más":"menos")+": "+NW[it.seq[0]]+"."
-  },
-  add:{
-    okMsgs:["¡Juntaste y contaste!","¡Pensaste la suma paso a paso!","¡Eso es! Contar todo junto ayuda."],
-    make(s){ const c=pick(range(s.min,s.max),"ad"+s.id), a=R(1,c-1), b=c-a, o=pick(OBJS,"obj");
-      return {skill:s,a,b,c,o,seq:[c],opts:numOpts(c,1,s.max,4).map(numOpt)}; },
-    view(it,aid,T){
-      const {a,b,o}=it, g=(n,k)=>`<div class="grp ${k}">${objs(o.e,chunks5(n),{nofit:1})}</div>`;
-      const stage=aid>=2?`<div class="eqt" style="font-size:clamp(46px,14vmin,110px)">${a} + ${b} = ?</div>`
-        :`<div class="eq" data-fit="0,0" data-area="${a+b+2}"><div class="eqrow">${g(a,"g1")}<span class="eqop">+</span>${g(b,"g2")}<span class="eqop" style="white-space:nowrap">= ?</span></div>${aid===0?`<div class="eqt">${a} + ${b} = ?</div>`:""}</div>`;
-      const say=aid>=2?"¿Cuánto es "+NW[a]+" más "+NW[b]+"?":"Hay "+nw(a,o)+" "+nm(o,a)+". "+(b===1?"Llega "+uno(o):"Llegan "+NW[b])+" más. ¿"+cuantos(o)+" hay en total?";
-      return {say,stage,opts:it.opts,oc:2,ocl:2}; },
-    tip:it=>"Contá todos juntos. Saqué una opción.",
-    reveal:it=>NW[it.a]+" más "+NW[it.b]+" son "+NW[it.c]+". Mirá."
-  },
-  sub:{
-    okMsgs:["¡Sacaste y contaste lo que queda!","¡Pensaste la resta paso a paso!","¡Eso es! Mirar lo que queda ayuda."],
-    make(s){ const a=pick(range(s.min,s.max),"sb"+s.id), b=R(1,a-1), c=a-b, o=pick(OBJS,"obj");
-      return {skill:s,a,b,c,o,seq:[c],opts:numOpts(c,1,s.max,4).map(numOpt)}; },
-    view(it,aid,T){
-      const {a,b,o}=it;
-      const stage=aid>=2?`<div class="eqt" style="font-size:clamp(46px,14vmin,110px)">${a} − ${b} = ?</div>`
-        :`<div class="eq" data-fit="0,0" data-area="${a+2}"><div class="eqrow"><div class="grp">${objs(o.e,chunks5(a),{nofit:1,x:b})}</div></div>${aid===0?`<div class="eqt">${a} − ${b} = ?</div>`:""}</div>`;
-      const say=aid>=2?"¿Cuánto es "+NW[a]+" menos "+NW[b]+"?":"Había "+nw(a,o)+" "+nm(o,a)+". "+(b===1?"Se va "+uno(o):"Se van "+NW[b])+". ¿"+cuantos(o)+" quedan?";
-      return {say,stage,opts:it.opts,oc:2,ocl:2}; },
-    tip:it=>"Mirá las que quedan sin tachar. Saqué una opción.",
-    reveal:it=>NW[it.a]+" menos "+NW[it.b]+" son "+NW[it.c]+". Mirá."
-  },
-};
-Object.values(TAP_ACTS).forEach(a=>a.tap=true);
-Object.assign(ACTIVITIES,TAP_ACTS);
-
-/* ---- motor de toques ---- */
-function fitAll(){
-  document.querySelectorAll("#act [data-fit]").forEach(el=>{
-    const p=el.parentElement; el.style.setProperty("--es","12px");
-    const w=p.clientWidth-16,h=p.clientHeight-16; if(w<=0||h<=0) return;
-    const [c,r]=el.dataset.fit.split(",").map(Number); let es;
-    if(el.dataset.area) es=Math.sqrt(w*h/((+el.dataset.area+3)*2.2)); else es=Math.min(w/(c*1.3),h/(r*1.35));
-    es=Math.max(14,Math.min(es,76)); el.style.setProperty("--es",es+"px");
-    for(let g=0;g<14&&es>14&&(el.offsetHeight>p.clientHeight-8||el.offsetWidth>p.clientWidth-8);g++){ es*=.9; el.style.setProperty("--es",es+"px"); }
-  });
-}
-window.addEventListener("resize",()=>{ if($("act").classList.contains("active")) fitAll(); });
-function tapRender(){
-  const T=S.tap; if(!T) return; const it=T.it, A=ACTIVITIES[it.skill.type];
-  const v=A.view(it,T.aid,T); T.v=v;
-  $("actStage").innerHTML=v.stage||""; $("actStage").className="actStage"+(v.sm?" sm":"");
-  const ob=$("actOpts"); ob.className="actOpts"+(v.wide?" wide":"");
-  ob.style.setProperty("--oc",v.oc||2); ob.style.setProperty("--ocl",v.ocl||v.oc||2); ob.style.setProperty("--n",v.opts.length);
-  ob.innerHTML="";
-  const want=it.seq[T.pos];
-  v.opts.forEach((o,i)=>{
-    const b=document.createElement("button"); b.className="opt"+(o.cls?" "+o.cls:"")+(v.cls?" "+v.cls:"");
-    b.innerHTML=o.html; b.dataset.i=i;
-    if(T.used.has(o.id!=null?o.id:i)) b.classList.add("used");
-    if(T.dead.has(o.val)&&it.seq.length===1) b.classList.add("dead");
-    if(T.reveal&&o.val===want&&!T.used.has(o.id!=null?o.id:i)&&!b.classList.contains("target")&&!ob.querySelector(".target")) b.classList.add("target");
-    b.onclick=()=>tapPick(i); ob.appendChild(b);
-  });
-  fitAll();
-}
-$("actStage").onclick=e=>{ const T=S.tap; if(!T||S.mode!=="play") return; const A=ACTIVITIES[T.it.skill.type]; const ob=e.target.closest(".ob"); if(ob&&A.stageTap) A.stageTap(T.it,T,+ob.dataset.i); };
-function voiceReady(){ return voiceOn&&!!window.speechSynthesis; }
-async function tapItem(run,it,A,ss){
-  let aid=S.hint; if(A.noVoiceAid!=null&&!voiceReady()) aid=Math.min(aid,A.noVoiceAid);
-  S.tap={it,run,aid,pos:it.start||0,miss:0,used:new Set(),dead:new Set(),help:false,reveal:false,revealed:false,cnt:[],v:null};
-  renderProg(); tapRender();
-  S.mode="play";
-  await speak(S.tap.v.say);
-}
-async function tapPick(i){
-  const T=S.tap; if(!T||S.mode!=="play") return;
-  const v=T.v, o=v.opts[i], it=T.it, A=ACTIVITIES[it.skill.type], id=o.id!=null?o.id:i;
-  if(T.used.has(id)||T.dead.has(o.val)) return;
-  const now=performance.now(); if(now-S.lastWrong<250) return;
-  const run=T.run, want=it.seq[T.pos], btn=$("actOpts").children[i];
-  if(o.val===want){
-    T.pos++; if(it.consume) T.used.add(id);
-    try{ tone(76,.3,.16); }catch(e){}
-    const fin=T.pos>=it.seq.length;
-    if(fin) S.mode="between";
-    T.reveal=false; tapRender();
-    if(fin){ const b2=$("actOpts").children[i]; if(b2) b2.classList.add("ok"); await sleep(520); if(run!==S.run) return; S.onDone({miss:T.miss,revealed:T.revealed}); }
-    return;
-  }
-  S.lastWrong=now; T.miss++;
-  if(S.check){ S.mode="between"; btn.classList.add("near"); await sleep(380); if(run!==S.run) return; S.onDone({miss:1}); return; }
-  btn.classList.add("near"); setTimeout(()=>btn.classList.remove("near"),450);
-  if(T.miss===1){ setBubble(rnd(["Mmm, probá distinto 🤔","Fijate de nuevo, despacito.","¡Casi! Probá de otra manera."])); }
-  else if(T.miss===2){
-    T.help=true;
-    if(it.seq.length===1){ const wr=v.opts.filter(x=>x.val!==want&&!T.dead.has(x.val)); if(wr.length>1) T.dead.add(rnd(wr).val); }
-    tapRender(); await speak(A.tip?A.tip(it):"Fijate bien. Te saqué una opción.");
-  } else if(T.miss>=3&&!T.reveal){
-    T.reveal=true; T.revealed=true; tapRender(); await speak(A.reveal?A.reveal(it,T):"Mirá, es este.");
-  }
-}
-$("btnActHear").onclick=()=>{ if(S.tap&&S.tap.v) speak(S.tap.v.say); };
-$("btnActSkip").onclick=()=>{ if(!S.session) return; const run=++S.run; S.session.i++; renderProg(); nextItem(run); };
-$("btnActBack").onclick=()=>{ S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow(); goMusic(); };
-
-const makeItem=s=>ACTIVITIES[s.type].make(s);
-function planSession(){
-  const now=Date.now(), un=unlockedList();
-  const due=un.filter(s=>SK(s.id).mast&&SK(s.id).due<=now).slice(0,2);
-  const learn=un.find(s=>!SK(s.id).mast);
-  const learn2=un.find(s=>!SK(s.id).mast&&s!==learn);
-  let items=[];
-  due.forEach(s=>{ for(let i=0;i<3;i++) items.push(makeItem(s)); });
-  items=shuffle(items);
-  if(learn){
-    const L=[]; for(let i=0;i<7;i++) L.push(makeItem(learn));
-    if(learn2){ [2,5,8].forEach(pos=>L.splice(pos,0,makeItem(learn2))); }
-    items=items.concat(L);
-  } else if(!due.length){
-    let mix=[]; un.slice(-3).forEach(s=>{ for(let i=0;i<3;i++) mix.push(makeItem(s)); }); items=shuffle(mix);
-  }
-  return {items,due,learn};
-}
-function sessionPreview(){
-  const un=unlockedList(), learn=un.find(s=>!SK(s.id).mast);
-  const due=un.filter(s=>SK(s.id).mast&&SK(s.id).due<=Date.now());
-  if(learn) return (due.length?"Repaso + ":"")+"Nuevo: "+learn.name;
-  return due.length?"Repaso de lo aprendido":"¡Todo dominado! Repaso libre";
-}
-function checkInfo(){
-  const ms=PACK.skills.filter(s=>SK(s.id).mast);
-  if(!ms.length) return {ok:false,sub:"Se abre cuando domines algo"};
-  const ck=(store.checks[KID]||[]).filter(c=>(c.p||"musica")===PACK.id); if(!ck.length) return {ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"};
-  const days=Math.floor((Date.now()-new Date(ck[ck.length-1].d+"T12:00:00").getTime())/DAY);
-  return days>=7?{ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"}:{ok:false,sub:"Disponible en "+(7-days)+" día(s)"};
-}
-function renderProg(){
-  ["prog","prog2"].forEach(id=>{
-    const box=$(id); box.innerHTML="";
-    if(!S.session){ box.style.display="none"; return; }
-    box.style.display="flex";
-    S.session.items.forEach((_,i)=>{ const d=document.createElement("i"); const r=S.session.log[i];
-      d.className=r===1?"ok":(r===2?"soft":(r===4?"dn":(i===S.session.i?"now":""))); box.appendChild(d); });
-  });
-}
-/* entra a la pantalla de juego que corresponde a la isla (piano o toques) */
-function enterPlay(title){
-  S.tap=null;
-  if(PACK.tap){ $("actTitle").textContent=title; show("act"); }
-  else { $("songTitle").textContent=title; show("play"); buildKeyboard(); }
-  renderProg();
-}
-function resetFlow(){ S.tap=null; S.onDone=null; S.kind=null; S.check=false; S.session=null; S.reveal=false; renderProg(); }
-async function startSession(){
-  if(capLeft()<=0) return showCap();
-  ensureCtx(); S.run++; const run=S.run;
-  const plan=planSession();
-  S.song=null; S.full=false; S.finMode="session"; S.check=false; S.capShown=false;
-  S.session={items:plan.items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{}};
-  enterPlay("Sesión de hoy");
-  await speak("¡Vamos con la sesión de hoy, "+KID+"! Son jueguitos cortos.");
-  nextItem(run);
-}
-async function startCheck(){
-  if(capLeft()<=0) return showCap();
-  ensureCtx(); S.run++; const run=S.run;
-  let items=[]; PACK.skills.filter(s=>SK(s.id).mast).forEach(s=>{ const n=s.type==="echo"?1:2; for(let i=0;i<n;i++) items.push(makeItem(s)); });
-  items=shuffle(items).slice(0,10);
-  S.song=null; S.full=false; S.finMode="session"; S.check=true; S.capShown=false;
-  S.session={items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{},checkRes:[]};
-  enterPlay("Chequeo semanal");
-  await speak("Hoy es el chequeo. No te ayudo: ¡mostrá lo que sabés! Si no estás seguro, probá igual.");
-  nextItem(run);
-}
-async function nextItem(run){
-  const ss=S.session; if(!ss||run!==S.run) return;
-  if(ss.i>=ss.items.length || capLeft()<=0 || (Date.now()-ss.t0>10*60e3 && ss.i>=4)) return endSession(run);
-  const it=ss.items[ss.i], sk=it.skill, st=SK(sk.id);
-  S.reveal=false; S.kind=sk.type; S.hint=S.check?2:st.lvl; S.mode="demo";
-  S.onDone=res=>itemDone(run,it,res);
-  if(ACTIVITIES[sk.type].tap) return tapItem(run,it,ACTIVITIES[sk.type],ss);
-  S.chunks=[it.notes.map(m=>({midi:m,beats:1}))]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.full=false;
-  renderProg(); renderDots();
-  if(!(await ACTIVITIES[sk.type].present(it,run,ss))) return;
-  if(run!==S.run) return; S.mode="play"; renderDots(); armMic();
-}
-function logEvent(sk,ok,first,kind){
-  const st=SK(sk.id), now=Date.now(); const g=st.last?+((now-st.last)/DAY).toFixed(2):0; st.last=now;
-  const l=store.log[KID]||(store.log[KID]=[]); l.push({t:now,s:sk.id,o:ok?1:0,f:first?1:0,g,k:kind}); if(l.length>800) l.splice(0,l.length-800);
-}
-async function itemDone(run,it,res){
-  if(run!==S.run) return;
-  const sk=it.skill, st=SK(sk.id), ss=S.session, AT=ACTIVITIES[sk.type];
-  const first=res.miss===0, ok=first||(sk.type==="echo"&&res.miss<=1&&!S.check);
-  if(S.check){
-    logEvent(sk,first,first,"check"); ss.checkRes.push({s:sk.id,o:first?1:0}); save();
-    ss.log[ss.i]=4; ss.i++; renderProg();
-    setBubble(rnd(["¡Anotado! ✍️","¡Seguimos!","¡Gracias! Vamos a la próxima."])); await sleep(600);
-    if(run!==S.run) return; return nextItem(run);
-  }
-  const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn");
-  st.att++; st.score=st.score*.7+(ok?1:0)*.3; st.rec=st.rec.concat(ok?1:0).slice(-5);
-  const rc=st.rec;
-  if(rc.length>=3&&rc.slice(-3).every(x=>x)&&st.lvl<2){ st.lvl++; st.rec=[]; }
-  else if(rc.length>=2&&rc.slice(-2).every(x=>!x)&&st.lvl>0){ st.lvl--; st.rec=[]; }
-  let achievement=null;
-  if(!st.mast){ if(st.att>=6&&st.score>=.8){ st.mast=true; st.box=1; st.due=Date.now()+INTERVALS[1]*DAY; achievement=sk.name; ss.newly.push(sk.name); } }
-  else { st.box=ok?Math.min(3,st.box+1):Math.max(0,st.box-1); st.due=Date.now()+INTERVALS[st.box]*DAY; }
-  save();
-  ss.log[ss.i]=first?1:2; ss.i++; ss.streak=first?ss.streak+1:0;
-  if(!ok&&!it.retry){ ss.items.splice(Math.min(ss.i+2,ss.items.length),0,{...makeItem(sk),retry:true}); }
-  renderProg();
-  let msg=null;
-  if(achievement) msg="¡Nuevo logro! Dominaste "+achievement+". ⭐";
-  else if(!PACK.plain&&(ss.streak===3||ss.streak===6)) msg="¡"+ss.streak+" seguidas sin errores! Estás concentrado.";
-  else if(!first&&ok) msg=rnd(["¡Lo lograste! Seguiste intentando.","¡Eso! Escuchaste mejor la segunda vez.","¡Insistir funciona!"]);
-  else if(!ok) msg=(AT.tap&&!res.revealed&&res.miss<3)?"¡Probaste distinto y salió! La repasamos en un ratito.":"¡Esta era difícil! Volvemos a probarla en un ratito.";
-  if(msg){ await speak(msg); } else { setBubble(rnd(AT.okMsgs||["¡Bien! ✨","¡Eso es!","¡Muy bien!","¡Sigamos! 🚀"])); await sleep(550); }
-  if(run!==S.run) return; nextItem(run);
-}
-async function endSession(run){
-  const ss=S.session; S.mode="done"; S.onDone=null;
-  const day=today(); const ds=store.days[KID]||(store.days[KID]=[]); if(!ds.includes(day)){ ds.push(day); store.days[KID]=ds.slice(-90); }
-  S.finMode="session";
-  if(PACK.hasSongs){ $("btnFinOk").textContent="🎵 Tocar una canción"; $("btnFinHome").textContent="Terminar por hoy"; }
-  else { $("btnFinOk").textContent="↩ Volver a la isla"; $("btnFinHome").textContent="🗺️ Al mapa"; }
-  let speech;
-  if(S.check){
-    const n=ss.checkRes.length, okc=ss.checkRes.filter(x=>x.o).length;
-    if(n){ const l=store.checks[KID]||(store.checks[KID]=[]); l.push({d:day,n,ok:okc,p:PACK.id}); store.checks[KID]=l.slice(-60); }
-    $("finStars").textContent="✅ "+okc+" de "+n; $("finTitle").textContent="¡Chequeo listo!";
-    speech="¡Terminamos el chequeo, "+KID+"! Lo anoté para papá. ¡Gracias por mostrar lo que sabés!";
-  } else {
-    const okc=ss.log.filter(x=>x===1).length, tot=Math.max(1,ss.log.length), ratio=okc/tot;
-    const stars=ratio>=.85?3:(ratio>=.6?2:1);
-    $("finStars").textContent=PACK.plain?"🌱":"⭐".repeat(stars)+"☆".repeat(3-stars);
-    $("finTitle").textContent=ss.newly.length?"¡Nuevo logro: "+ss.newly[0]+"!":"¡Terminaste la sesión de hoy!";
-    const nxt=unlockedList().find(s=>!SK(s.id).mast);
-    speech="¡Terminamos por hoy, "+KID+"! Practicaste mucho. "+(nxt?"Mañana seguimos con "+nxt.name+(/[?!.]$/.test(nxt.name)?"":"."):"Mañana repasamos lo que aprendiste.")+" "+(PACK.outro||"Ahora, ¡a tocar el piano de verdad!");
-  }
-  save(); $("finish").classList.add("show"); await speak(speech);
-}
-function showCap(){
-  S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
-  $("capBox").classList.add("show");
-  $("capMin").textContent=(store.limit[KID]||15); const tail=PACK.capTail||"Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!"; $("capTail").textContent=tail;
-  speak("¡Llegamos a los "+(store.limit[KID]||15)+" minutos de hoy, "+KID+"! "+tail);
-}
-$("capOk").onclick=()=>{ $("capBox").classList.remove("show"); S.capShown=false; resetFlow(); goMusic(); };
-/* contador de tiempo: solo cuenta mientras se juega (pantalla de actividad abierta) */
-setInterval(()=>{
-  if(!KID||document.hidden) return;
-  const act=document.querySelector(".screen.active"); if(!act||(act.id!=="play"&&act.id!=="act")) return;
-  const k=KID+"|"+today(); store.time[k]=(store.time[k]||0)+1; if(store.time[k]%10===0) save();
-  if(capLeft()<=0&&!S.capShown) showCap();
-},1000);
-function goMusic(){ S.run++; S.tap=null; if(PACK.tap&&micOn) stopMic(); $("btnMic").style.display=PACK.tap?"none":""; show("music"); renderMusic(); setBubble("¡"+PACK.name+"! ¿Qué hacemos?"); }
-function renderMusic(){
-  $("musicTitle").textContent=PACK.emoji+" "+PACK.name;
-  const left=capLeft(); $("streak").textContent="⏱ "+(left>0?Math.ceil(left/60)+" min":"listo por hoy");
-  const box=$("musicMenu"); box.innerHTML="";
-  const done=left<=0, ci=checkInfo();
-  const cards=[
-    {em:"▶️",t:"Sesión de hoy",s:done?"Mañana seguimos 🌙":sessionPreview(),on:!done,go:()=>startSession()},
-    ...(PACK.hasSongs?[{em:"🎵",t:"Mis canciones",s:done?"Mañana seguimos 🌙":"Tocá tus favoritas",on:!done,go:()=>{ show("home"); renderHome(); }}]:[]),
-    {em:"🌟",t:"Mis logros",s:"Mirá todo lo que aprendiste",on:true,go:()=>{ show("logros"); renderLogros(); }},
-    {em:"🧪",t:"Chequeo semanal",s:done&&ci.ok?"Mañana seguimos 🌙":ci.sub,on:ci.ok&&!done,go:()=>startCheck()},
-  ];
-  cards.forEach(c=>{ const b=document.createElement("button"); b.className="island"+(c.on?"":" off"); b.innerHTML=`<div class="em">${c.on?c.em:(c.em==="🌟"?c.em:"🔒")}</div>${c.t}<small>${c.s}</small>`; if(c.on) b.onclick=()=>{ ensureCtx(); c.go(); }; box.appendChild(b); });
-}
-function renderLogros(){
-  const box=$("skillList"); box.innerHTML="";
-  PACK.skills.forEach(s=>{
-    const st=SK(s.id), open=s.req.every(mastered);
-    const pct=st.mast?100:Math.round(Math.min(1,st.att/6)*st.score*100);
-    const d=document.createElement("div"); d.className="skill"+(open?"":" lock");
-    d.innerHTML=`<div class="em">${open?s.icon:"🔒"}</div><div style="flex:1">${s.name}<small>${st.mast?"⭐ ¡Dominado!":(open?"Practicando…":"Se abre al dominar lo anterior")}</small><div class="bar2"><i style="width:${open?pct:0}%"></i></div></div>`;
-    box.appendChild(d);
-  });
-}
-/* ---- Informe verificable (para papá y la profesora) ---- */
-function reportText(){
-  const lines=[], ds=store.days[KID]||[], log=store.log[KID]||[];
-  const mins=Math.round(Object.entries(store.time).filter(([k])=>k.startsWith(KID+"|")).reduce((a,[,v])=>a+v,0)/60);
-  lines.push("INFORME DE "+KID.toUpperCase()+" — Mundo Gioval", new Date().toLocaleDateString("es-AR"),
-    "Días practicados: "+ds.length+" · Minutos en la app: "+mins, "");
-  const pc=a=>a.length?Math.round(100*a.filter(Boolean).length/a.length)+"% (n="+a.length+")":"–";
-  let lastPk=null;
-  ALL_SKILLS.forEach(s=>{
-    const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
-    const pk=PACKS.find(p=>p.skills.includes(s)); if(pk&&pk!==lastPk){ lines.push(pk.emoji+" "+pk.name.toUpperCase()); lastPk=pk; }
-    const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
-    lines.push("• "+s.name+": "+(st.mast?"dominado":"en práctica"));
-    lines.push("   Aciertos al primer intento: primeros "+pc(first.slice(0,5))+" → últimos "+pc(first.slice(-5)));
-    lines.push("   Retención (acierto ≥1 día después de practicar): "+pc(ret));
-  });
-  const ck=store.checks[KID]||[];
-  lines.push("", "CHEQUEOS SIN AYUDA (1 por semana y por isla)");
-  if(!ck.length) lines.push("   (todavía no hizo ninguno)");
-  ck.slice(-12).forEach(c=>{ const pk=PACKS.find(x=>x.id===(c.p||"musica")); lines.push("   "+c.d+" · "+(pk?pk.name:"")+": "+c.ok+"/"+c.n+" ("+Math.round(100*c.ok/c.n)+"%)"); });
-  lines.push("", "Cómo leerlo: la retención mide si recuerda tras dormir y pasar días; el chequeo semanal se hace sin pistas ni ayuda. Lo más importante es que lo aprendido se vea también en su piano de verdad.");
-  return lines.join("\n");
-}
-function renderParent(){
-  const ds=store.days[KID]||[];
-  const used=Math.round((store.time[KID+"|"+today()]||0)/60);
-  let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados · hoy ${used} de ${store.limit[KID]||15} min.<br>`:"";
-  ALL_SKILLS.forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${(PACKS.find(p=>p.skills.includes(s))||{}).emoji||""} ${s.name}: ${st.mast?"dominado":"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
-  $("parentSum").innerHTML=t||"";
-  if(KID) $("limSel").value=String(store.limit[KID]||15);
-  $("skipSel").innerHTML=PACKS.flatMap(p=>p.skills.map(s=>`<option value="${s.id}">${p.emoji} ${s.name}</option>`)).join("");
-}
-function markKnown(id){
-  const mark=sid=>{ const s=ALL_SKILLS.find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
-  mark(id); save(); renderParent();
-}
-$("skipBtn").onclick=()=>{ if(!KID) return; markKnown($("skipSel").value); setBubble("¡Listo! Marqué eso como ya sabido."); };
-/* candado para adultos */
-function gate(cb){
-  const a=3+Math.floor(Math.random()*6), b=3+Math.floor(Math.random()*6);
-  S.gateAns=a*b; S.gateCb=cb; $("gateQ").textContent="Pregunta para adultos: ¿cuánto es "+a+" × "+b+"?";
-  $("gateIn").value=""; $("gateBox").classList.add("show"); setTimeout(()=>$("gateIn").focus(),50);
-}
-$("gateOk").onclick=()=>{ if(+$("gateIn").value===S.gateAns){ $("gateBox").classList.remove("show"); const cb=S.gateCb; S.gateCb=null; if(cb) cb(); } else { $("gateIn").value=""; $("gateQ").textContent="Probá de nuevo 🙂 (solo para adultos)"; } };
-$("gateNo").onclick=()=>$("gateBox").classList.remove("show");
-$("gateIn").addEventListener("keydown",e=>{ if(e.key==="Enter") $("gateOk").click(); });
-$("btnGear").onclick=()=>{
-  if($("panel").classList.contains("show")){ $("panel").classList.remove("show"); return; }
-  gate(()=>{ renderParent(); $("panel").classList.add("show"); });
-};
-$("limSel").onchange=()=>{ if(!KID) return; store.limit[KID]=+$("limSel").value; save(); renderParent(); setBubble("Listo: "+$("limSel").value+" minutos por día."); if($("music").classList.contains("active")) renderMusic(); };
-$("btnExtra").onclick=()=>{ if(!KID) return; const k=KID+"|"+today(); store.extra[k]=(store.extra[k]||0)+900; save(); renderParent(); setBubble("¡Sumé 15 minutos más para hoy!"); if($("music").classList.contains("active")) renderMusic(); };
-$("btnReport").onclick=()=>{ if(!KID) return; $("reportTxt").textContent=reportText(); $("reportBox").classList.add("show"); };
-$("repClose").onclick=()=>$("reportBox").classList.remove("show");
-$("repCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(reportText()); $("repCopy").textContent="¡Copiado!"; setTimeout(()=>$("repCopy").textContent="Copiar",1500); }catch(e){ $("repCopy").textContent="Seleccioná y copiá"; } };
-$("repWa").onclick=()=>{ window.open("https://wa.me/?text="+encodeURIComponent(reportText()),"_blank"); };
-/* las islas del mapa salen de PACKS */
-ISLANDS.splice(0,0,...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMusic(); speak("¡"+p.name+"! Empezamos con la sesión de hoy, o elegí otra cosa."); }})));
-
-/* ============ INICIO ============ */
-buildKeyboard(); renderWho(); show("who");
-if(!store.profiles.length) $("nameBox").classList.add("show");
-if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
-</script>
+<div class="big" id="vozBox">
+  <div style="background:#fff;color:#2b2350;text-align:start;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:70vh;overflow:auto;font-size:16px;line-height:1.5;display:flex;flex-direction:column;gap:8px">
+    <b data-i18n="voz.titulo">Probar voz</b>
+    <div id="vozIdioma"></div><div id="vozNivel"></div>
+    <label><span data-i18n="voz.elegir">Voz a usar:</span> <select id="vozSel" style="font-size:16px;padding:6px;border-radius:10px;max-width:100%"></select></label>
+    <div id="vozNota"></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="vozSonar" data-i18n="voz.sonar">▶ Escuchar</button><button class="btn alt" id="vozCerrar" data-i18n="voz.cerrar">Cerrar</button></div>
+</div>
+<script src="js/version.js"></script>
+<script src="js/core/util.js"></script>
+<script src="js/i18n/i18n.js"></script>
+<script src="js/i18n/es-AR.js"></script>
+<script src="js/i18n/es-419.js"></script>
+<script src="js/i18n/es-ES.js"></script>
+<script src="js/i18n/en.js"></script>
+<script src="js/i18n/pseudo.js"></script>
+<script src="js/core/voz.js"></script>
+<script src="js/core/audio.js"></script>
+<script src="js/core/sonido.js"></script>
+<script src="js/core/almacen.js"></script>
+<script src="js/core/alarma.js"></script>
+<script src="js/core/entrada/entrada.js"></script>
+<script src="js/core/entrada/toque.js"></script>
+<script src="js/core/entrada/microfono.js"></script>
+<script src="js/core/entrada/golpes.js"></script>
+<script src="js/core/entrada/acordes.js"></script>
+<script src="js/core/entrada/midi.js"></script>
+<script src="js/core/actividades.js"></script>
+<script src="js/core/motor.js"></script>
+<script src="js/core/dominio.js"></script>
+<script src="js/core/ui.js"></script>
+<script src="js/core/adultos.js"></script>
+<script src="js/datos/proximas.js"></script>
+<script src="js/datos/tareas.js"></script>
+<script src="js/datos/letras.js"></script>
+<script src="js/datos/numeros.js"></script>
+<script src="js/datos/misiones.js"></script>
+<script src="js/datos/ritmo.js"></script>
+<script src="js/islas/musica.js"></script>
+<script src="js/islas/numeros_ubicacion.js"></script>
+<script src="js/islas/numeros.js"></script>
+<script src="js/islas/letras.js"></script>
+<script src="js/islas/ayudantes.js"></script>
+<script src="js/islas/misiones.js"></script>
+<script src="js/islas/ritmo.js"></script>
+<script>Gioval.arrancar();</script>
 </body>
 </html>
