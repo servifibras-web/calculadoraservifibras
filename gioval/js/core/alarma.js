@@ -18,7 +18,7 @@
    garantizada: el navegador congela la página y no hay forma confiable de despertarla. Eso se resuelve con el
    envoltorio nativo (Android primero; aparato todavía por confirmar). Ver docs/ALARMA.md. */
 Gioval.alarma = (function () {
-  const KEY = "gioval_alarma", NID = 7001;
+  const KEY = Gioval.clave("gioval_alarma"), NID = 7001;
   const A = { fin: 0, titulo: "", texto: "", cbs: [], tick: null, wake: null, disparada: false, perdida: null };
   const nativa = () => { try { return window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications || null; } catch (e) { return null; } };
   const persist = () => { try { A.fin ? localStorage.setItem(KEY, JSON.stringify({ fin: A.fin, titulo: A.titulo, texto: A.texto })) : localStorage.removeItem(KEY); } catch (e) {} };

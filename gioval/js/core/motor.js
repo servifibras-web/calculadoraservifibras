@@ -70,15 +70,15 @@ function planSession(){
 function sessionPreview(){
   const un=unlockedList(), learn=un.find(s=>!SK(s.id).mast);
   const due=un.filter(s=>SK(s.id).mast&&SK(s.id).due<=Date.now());
-  if(learn) return (due.length?"Repaso + ":"")+"Nuevo: "+learn.name;
-  return due.length?"Repaso de lo aprendido":"¡Todo dominado! Repaso libre";
+  if(learn) return due.length?t("motor.prev.repaso_nuevo",{nombre:learn.name}):t("motor.prev.nuevo",{nombre:learn.name});
+  return due.length?t("motor.prev.repaso"):t("motor.prev.todo");
 }
 function checkInfo(){
   const ms=PACK.skills.filter(s=>SK(s.id).mast);
-  if(!ms.length) return {ok:false,sub:"Se abre cuando domines algo"};
-  const ck=(store.checks[KID]||[]).filter(c=>c.p===PACK.id); if(!ck.length) return {ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"};
+  if(!ms.length) return {ok:false,sub:t("menu.chequeo_cerrado")};
+  const ck=(store.checks[KID]||[]).filter(c=>c.p===PACK.id); if(!ck.length) return {ok:true,sub:t("menu.chequeo_abierto")};
   const days=Math.floor((Date.now()-new Date(ck[ck.length-1].d+"T12:00:00").getTime())/DAY);
-  return days>=7?{ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"}:{ok:false,sub:"Disponible en "+(7-days)+" día(s)"};
+  return days>=7?{ok:true,sub:t("menu.chequeo_abierto")}:{ok:false,sub:t("menu.chequeo_dias",{n:7-days})};
 }
 function renderProg(){
   document.querySelectorAll(".prog").forEach(box=>{   /* todas las barras de progreso (cada pantalla de juego tiene la suya) */
@@ -102,8 +102,8 @@ async function startSession(){
   const plan=planSession();
   if(PACK.antesDeSesion) PACK.antesDeSesion(); S.finMode="session"; S.check=false; S.capShown=false;
   S.session={items:plan.items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{}};
-  enterPlay("Sesión de hoy");
-  await speak("¡Vamos con la sesión de hoy, "+KID+"! Son jueguitos cortos.");
+  enterPlay(t("menu.sesion"));
+  await speak(t("motor.sesion.inicio",{nombre:KID}));
   nextItem(run);
 }
 async function startCheck(){
@@ -113,8 +113,8 @@ async function startCheck(){
   items=shuffle(items).slice(0,10);
   if(PACK.antesDeSesion) PACK.antesDeSesion(); S.finMode="session"; S.check=true; S.capShown=false;
   S.session={items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{},checkRes:[]};
-  enterPlay("Chequeo semanal");
-  await speak("Hoy es el chequeo. No te ayudo: ¡mostrá lo que sabés! Si no estás seguro, probá igual.");
+  enterPlay(t("menu.chequeo"));
+  await speak(t("motor.chequeo.inicio"));
   nextItem(run);
 }
 async function nextItem(run){
@@ -136,7 +136,7 @@ async function itemDone(run,it,res){
   if(S.check){
     logEvent(sk,first,first,"check"); ss.checkRes.push({s:sk.id,o:first?1:0}); save();
     ss.log[ss.i]=4; ss.i++; renderProg();
-    setBubble(rnd(["¡Anotado! ✍️","¡Seguimos!","¡Gracias! Vamos a la próxima."])); await sleep(600);
+    setBubble(rnd(tl("motor.chequeo.anotado"))); await sleep(600);
     if(run!==S.run) return; return nextItem(run);
   }
   const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn");
@@ -152,39 +152,41 @@ async function itemDone(run,it,res){
   if(!ok&&!it.retry){ ss.items.splice(Math.min(ss.i+2,ss.items.length),0,{...makeItem(sk),retry:true}); }
   renderProg();
   let msg=null;
-  if(achievement) msg="¡Nuevo logro! Dominaste "+achievement+". ⭐";
-  else if(!PACK.plain&&(ss.streak===3||ss.streak===6)) msg="¡"+ss.streak+" seguidas sin errores! Estás concentrado.";
-  else if(!first&&ok) msg=rnd(["¡Lo lograste! Seguiste intentando.","¡Eso! Escuchaste mejor la segunda vez.","¡Insistir funciona!"]);
-  else if(!ok) msg=(AT.tap&&!res.revealed&&res.miss<3)?"¡Probaste distinto y salió! La repasamos en un ratito.":"¡Esta era difícil! Volvemos a probarla en un ratito.";
-  if(msg){ await speak(msg); } else { setBubble(rnd(AT.okMsgs||["¡Bien! ✨","¡Eso es!","¡Muy bien!","¡Sigamos! 🚀"])); await sleep(550); }
+  if(achievement) msg=t("motor.logro",{logro:achievement});
+  else if(!PACK.plain&&(ss.streak===3||ss.streak===6)) msg=t("motor.seguidas",{n:ss.streak});
+  else if(!first&&ok) msg=rnd(tl("motor.reintento_ok"));
+  else if(!ok) msg=(AT.tap&&!res.revealed&&res.miss<3)?t("motor.probaste_distinto"):t("motor.dificil");
+  if(msg){ await speak(msg); } else { setBubble(rnd(AT.okMsgs||tl("motor.ok_general"))); await sleep(550); }
   if(run!==S.run) return; nextItem(run);
 }
 async function endSession(run){
   const ss=S.session; S.mode="done"; S.onDone=null;
   const day=today(); const ds=store.days[KID]||(store.days[KID]=[]); if(!ds.includes(day)){ ds.push(day); store.days[KID]=ds.slice(-90); }
   S.finMode="session";
-  const fin=PACK.fin||{}; $("btnFinOk").textContent=fin.ok||"↩ Volver a la isla"; $("btnFinHome").textContent=fin.home||"🗺️ Al mapa";
+  const fin=PACK.fin||{}; $("btnFinOk").textContent=fin.ok||t("motor.fin.volver"); $("btnFinHome").textContent=fin.home||t("motor.fin.mapa");
   let speech;
   if(S.check){
     const n=ss.checkRes.length, okc=ss.checkRes.filter(x=>x.o).length;
     if(n){ const l=store.checks[KID]||(store.checks[KID]=[]); l.push({d:day,n,ok:okc,p:PACK.id}); store.checks[KID]=l.slice(-60); }
-    $("finStars").textContent="✅ "+okc+" de "+n; $("finTitle").textContent="¡Chequeo listo!";
-    speech="¡Terminamos el chequeo, "+KID+"! Lo anoté para papá. ¡Gracias por mostrar lo que sabés!";
+    $("finStars").textContent=t("motor.fin.chequeo_res",{ok:okc,n}); $("finTitle").textContent=t("motor.fin.chequeo_titulo");
+    speech=t("motor.fin.chequeo_voz",{nombre:KID});
   } else {
     const okc=ss.log.filter(x=>x===1).length, tot=Math.max(1,ss.log.length), ratio=okc/tot;
     const stars=ratio>=.85?3:(ratio>=.6?2:1);
     $("finStars").textContent=PACK.plain?"🌱":"⭐".repeat(stars)+"☆".repeat(3-stars);
-    $("finTitle").textContent=ss.newly.length?"¡Nuevo logro: "+ss.newly[0]+"!":"¡Terminaste la sesión de hoy!";
+    $("finTitle").textContent=ss.newly.length?t("motor.fin.logro_titulo",{logro:ss.newly[0]}):t("motor.fin.sesion_titulo");
     const nxt=unlockedList().find(s=>!SK(s.id).mast);
-    speech="¡Terminamos por hoy, "+KID+"! Practicaste mucho. "+(nxt?"Mañana seguimos con "+nxt.name+(/[?!.]$/.test(nxt.name)?"":"."):"Mañana repasamos lo que aprendiste.")+" "+(PACK.outro||"¡Hasta mañana!");
+    const cierre=PACK.outro||t("motor.cierre");
+    speech=nxt?t("motor.fin.sesion_sigue",{nombre:KID,siguiente:nxt.name+(/[?!.]$/.test(nxt.name)?"":"."),cierre}):t("motor.fin.sesion_repaso",{nombre:KID,cierre});
   }
   save(); $("finish").classList.add("show"); await speak(speech);
 }
 function showCap(){
   S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
   $("capBox").classList.add("show");
-  $("capMin").textContent=(store.limit[KID]||15); const tail=PACK.capTail||"¡Mañana seguimos!"; $("capTail").textContent=tail;
-  speak("¡Llegamos a los "+(store.limit[KID]||15)+" minutos de hoy, "+KID+"! "+tail);
+  const min=(store.limit[KID]||15), tail=PACK.capTail||t("motor.tope.cola");
+  $("capTxt").textContent=t("motor.tope.texto",{n:min,cola:tail});
+  speak(t("motor.tope.voz",{n:min,nombre:KID,cola:tail}));
 }
 $("capOk").onclick=()=>{ $("capBox").classList.remove("show"); S.capShown=false; resetFlow(); goMenuIsla(); };
 /* contador de tiempo: solo cuenta mientras se juega (pantalla de actividad abierta) */

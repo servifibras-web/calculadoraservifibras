@@ -19,6 +19,9 @@ def verificar(cond, msg="falló una verificación"):
 def igual(a, b, msg=""):
     if a != b: raise Falla("%s: esperado %r, obtenido %r" % (msg, b, a))
 
+def sin_espanol(frases):
+    return [x for x in frases if re.search(r"[¿¡áéíóúñÁÉÍÓÚ]", x)]
+
 FIXTURE = (HERE / "fixtures" / "almacen_v0.json").read_text(encoding="utf-8")
 STORE_KID = {"profiles": ["Vale"], "limit": {"Vale": 60}}
 CAPTURAS = []
@@ -74,7 +77,7 @@ def t_arranque(C):
         ctx = C.banco.contexto(v); err = []
         pg = abrir(ctx, C.url + "/index.html", errores=err)
         verificar(pg.evaluate("document.getElementById('nameBox').classList.contains('show')"), "no pide el nombre (%s)" % v)
-        igual(pg.evaluate("store.version"), 1, "store.version")
+        igual(pg.evaluate("store.version"), 2, "store.version")
         verificar(not err, "errores en %s: %s" % (v, err))
         foto(pg, v + "_00_nombre"); CAPTURAS.append(v + "_00_nombre.png"); ctx.close()
 
@@ -205,13 +208,13 @@ def t_repaso(C):
 def norm(s):
     s = json.loads(json.dumps(s)); s.pop("meta", None); s.pop("version", None); return s
 
-@prueba("migración: datos viejos (v0) conservan TODO el progreso")
+@prueba("migración: datos viejos (v0 → v2) conservan TODO el progreso")
 def t_migracion(C):
     viejo = json.loads(FIXTURE)
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 1, "version")
+    igual(nuevo["version"], 2, "version")
     for k in ("profiles", "stars", "sk", "days", "time", "log", "extra", "limit"):
         igual(nuevo[k], viejo[k], "campo " + k)
     esperado = json.loads(json.dumps(viejo["checks"])); esperado["Valentino"][0]["p"] = "musica"
@@ -222,7 +225,7 @@ def t_migracion(C):
     igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
     entrar(pg, "Valentino"); abrir_isla(pg, "Música"); txt = pg.evaluate("document.getElementById('menuIslaItems').innerText")
     verificar("Sesión de hoy" in txt); verificar(not err, str(err)); ctx.close()
-    return "versión 0 → 1, %d claves de progreso intactas" % len(viejo["sk"])
+    return "versión 0 → 2, %d claves de progreso intactas" % len(viejo["sk"])
 
 @prueba("migración: si falla, no se pierde nada")
 def t_migracion_falla(C):
@@ -531,9 +534,406 @@ def t_agregar_isla(C):
         verificar(pg.evaluate("store.checks.Vale.some(c=>c.p==='colores')"), "el chequeo no quedó registrado")
         rep = pg.evaluate("reportText()"); verificar("ISLA COLORES" in rep and "Nombrar colores" in rep, rep[:300])
         foto(pg, "360x700_50_isla_ejemplo_colores"); CAPTURAS.append("360x700_50_isla_ejemplo_colores.png")
+        # la misma isla en inglés: sale de su propia tabla de textos, sin tocar el motor
+        pg.evaluate("window.__LOG.length=0; window.__BUB.length=0; Gioval.i18n.usar('en')")
+        igual(pg.evaluate("PACKS.find(p=>p.id==='colores').name"), "Colors Island", "nombre de la isla en inglés")
+        abrir_isla(pg, "Colors"); tarjeta(pg, "Today"); verificar(jugar(pg) == "fin"); cerrar_fin(pg)
+        dicho = pg.evaluate("window.__LOG.concat(window.__BUB)")
+        verificar(any(x.startswith("Tap the color") for x in dicho), "frases de la isla de ejemplo en inglés: %s" % dicho[:4]); verificar(not sin_espanol(dicho), "español en la isla en inglés: %s" % sin_espanol(dicho)[:3])
+        igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes")
         verificar(not err, str(err)); ctx.close()
     finally:
         srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
+
+
+# ================================================================== FASE 0b: idiomas y voz
+STORE_2 = {"profiles": ["Vale", "Gio"], "limit": {"Vale": 60, "Gio": 60}}
+FAKE_VOZ = """(function(){ window.__VOCES=[]; window.__DICHO=[];
+  Object.defineProperty(window,'speechSynthesis',{configurable:true,value:{ getVoices:function(){ return window.__VOCES; }, cancel:function(){}, onvoiceschanged:null,
+    speak:function(u){ window.__DICHO.push({text:u.text,lang:u.lang,voz:u.voice&&u.voice.name}); setTimeout(function(){ u.onend&&u.onend(); },0); } }});
+  window.SpeechSynthesisUtterance=function(t){ this.text=t; };
+  window.__setVoces=function(l){ window.__VOCES=l.map(function(v){ return {lang:v[0],name:v[1],localService:!!v[2],voiceURI:v[1],default:false}; }); window.speechSynthesis.onvoiceschanged&&window.speechSynthesis.onvoiceschanged(); };
+})();"""
+
+def tablas(pg):
+    return pg.evaluate("Object.fromEntries(Object.entries(Gioval.i18n.tablas).map(([c,t])=>[c,t.textos]))")
+
+@prueba("idiomas: formato de textos (género, plurales, anidados) y números en palabras")
+def t_i18n_formato(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    f = lambda txt, p: pg.evaluate("([t,p])=>Gioval.i18n.formatear(t,p)", [txt, p])
+    igual(f("{g, select, f{una} other{un}} {x}", {"g": "f", "x": "casa"}), "una casa", "select f")
+    igual(f("{g, select, f{una} other{un}} {x}", {"g": "m", "x": "auto"}), "un auto", "select other")
+    igual([f("{n, plural, =0{ninguno} one{# gato} other{# gatos}}", {"n": n}) for n in (0, 1, 2, 21)], ["ninguno", "1 gato", "2 gatos", "21 gatos"], "plural es")
+    igual(f("Hay {a, plural, one{uno} other{{b} de {c}}}.", {"a": 3, "b": "x", "c": "y"}), "Hay x de y.", "anidado")
+    igual(f("Hola {nombre}", {}), "Hola {nombre}", "hueco sin valor se deja a la vista")
+    es = lambda n, g=None: pg.evaluate("([n,g])=>Gioval.tablas?0:Gioval.i18n.tablas['es-AR'].meta.numeroEnPalabras(n,{g:g||undefined})", [n, g])
+    igual([es(n) for n in (0, 1, 16, 20, 21, 22, 31, 45, 100, 101, 115, 200, 500, 999)],
+          ["cero", "uno", "dieciséis", "veinte", "veintiuno", "veintidós", "treinta y uno", "cuarenta y cinco", "cien", "ciento uno", "ciento quince", "doscientos", "quinientos", "novecientos noventa y nueve"], "es sin género")
+    igual([es(1, "m"), es(1, "f"), es(21, "m"), es(21, "f"), es(101, "f"), es(200, "f"), es(31, "f")], ["un", "una", "veintiún", "veintiuna", "ciento una", "doscientas", "treinta y una"], "es con género")
+    en = lambda n: pg.evaluate("n=>Gioval.i18n.tablas['en'].meta.numeroEnPalabras(n)", n)
+    igual([en(n) for n in (0, 1, 13, 21, 100, 115, 999)], ["zero", "one", "thirteen", "twenty-one", "one hundred", "one hundred fifteen", "nine hundred ninety-nine"], "en")
+    pg.evaluate("Gioval.i18n.usar('en')")
+    igual([f("{n, plural, one{# day} other{# days}}", {"n": n}) for n in (1, 2)], ["1 day", "2 days"], "plural en")
+    igual(pg.evaluate("[Gioval.i18n.nombreNota(0),Gioval.i18n.nombreNota(7)]"), ["C", "G"], "notas en")
+    pg.evaluate("Gioval.i18n.usar('es-AR')"); igual(pg.evaluate("[Gioval.i18n.nombreNota(0),Gioval.i18n.nombreNota(7)]"), ["Do", "Sol"], "notas es")
+    ctx.close()
+
+@prueba("idiomas: cadena de respaldo (es-ES → es-AR → en), metadatos y formatos por idioma")
+def t_i18n_cadena(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    igual(pg.evaluate("Gioval.i18n.cadena('es-ES')"), ["es-ES", "es-AR", "en"], "cadena es-ES")
+    igual(pg.evaluate("Gioval.i18n.cadena('es-419')"), ["es-419", "es-AR", "en"], "cadena es-419")
+    igual(pg.evaluate("Gioval.i18n.cadena('qps-ploc')"), ["qps-ploc", "es-AR", "en"], "cadena pseudo")
+    igual(pg.evaluate("Gioval.i18n.cadena('en')"), ["en", "es-AR"], "cadena en")
+    pg.evaluate("Gioval.i18n.agregar('en',{'x.solo_en':'only english'})")
+    igual(pg.evaluate("Gioval.i18n.t('x.solo_en')"), "only english", "cae a en cuando falta en es-AR")
+    igual(pg.evaluate("Gioval.i18n.t('x.no_existe')"), "x.no_existe", "clave inexistente se ve como clave")
+    verificar(pg.evaluate("Gioval.i18n.faltantes.has('x.no_existe')"), "no anotó la clave faltante")
+    pg.evaluate("Gioval.i18n.faltantes.clear()")
+    pg.evaluate("Gioval.i18n.usar('es-ES')")
+    igual(pg.evaluate("t('app.quien_juega')"), "¿Quién juega?", "es-ES sin esa clave: cae a es-AR")
+    igual(pg.evaluate("t('menu.logros_sub')"), "Mira todo lo que aprendiste", "es-ES propio (tuteo)")
+    igual(pg.evaluate("document.documentElement.lang"), "es-ES", "lang")
+    pg.evaluate("Gioval.i18n.usar('es-AR')"); igual(pg.evaluate("t('menu.logros_sub')"), "Mirá todo lo que aprendiste", "es-AR (voseo)")
+    m = pg.evaluate("Object.fromEntries(['es-AR','es-419','es-ES','en','qps-ploc','qps-plocm'].map(c=>{ const x=Gioval.i18n.tablas[c].meta; return [c,[x.nombreNativo,x.dir,x.locale,x.moneda,x.voz,!!x.numeroEnPalabras||x.derivadoDe||null]]; }))")
+    igual(m["es-AR"][:4], ["Español (Argentina)", "ltr", "es-AR", "ARS"]); igual(m["en"][:4], ["English", "ltr", "en", "USD"]); igual(m["qps-plocm"][1], "rtl")
+    igual(m["es-AR"][4][0], "es-AR", "voz preferida es-AR"); igual(m["es-ES"][4][0], "es-ES")
+    f = lambda c, n: pg.evaluate("([c,n])=>{ Gioval.i18n.usar(c); const r=[Gioval.i18n.num(n),Gioval.i18n.dinero(n)]; Gioval.i18n.usar('es-AR'); return r; }", [c, n])
+    a, e = f("es-AR", 1234.5), f("en", 1234.5)
+    verificar("1.234,5" in a[0] and "$" in a[1], "formato es-AR: %s" % a); verificar("1,234.5" in e[0] and "$" in e[1], "formato en: %s" % e)
+    ctx.close()
+
+@prueba("idiomas: completitud (todas las claves usadas existen, en = es-AR, mismos huecos en cada idioma)")
+def t_i18n_completitud(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    T = tablas(pg); es, en = T["es-AR"], T["en"]
+    usadas = set()
+    for f in list((APP / "js" / "core").rglob("*.js")) + list((APP / "js" / "islas").rglob("*.js")) + list((APP / "js" / "datos").rglob("*.js")):
+        txt = f.read_text(encoding="utf-8")
+        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros)\.[a-z0-9_.]+)"', txt))
+    for f in [APP / "index.html"] + list((APP / "js" / "islas").rglob("*.js")):
+        usadas |= set(re.findall(r'data-i18n(?:-html|-title|-placeholder)?="([^"]+)"', f.read_text(encoding="utf-8")))
+    dinam = [k for k in usadas if k.endswith(".") or k.endswith("_")]
+    usadas = {k for k in usadas if k in es or not (k.endswith(".") or k.endswith("_") or k.endswith("hab") or k.endswith("cancion"))}
+    faltan = sorted(k for k in usadas if k not in es); verificar(not faltan, "claves usadas que no están en es-AR: %s" % faltan)
+    # claves dinámicas: habilidades y canciones
+    din = pg.evaluate("PACKS.flatMap(p=>p.skills.map(s=>s.name)).concat(SKILLS_DUMMY=0?[]:[])")
+    verificar(all(not n.startswith(("musica.", "numeros.")) for n in din), "habilidad sin traducir: %s" % din)
+    verificar(not pg.evaluate("[...Gioval.i18n.faltantes]"), "claves faltantes: %s" % pg.evaluate("[...Gioval.i18n.faltantes]"))
+    igual(sorted(en), sorted(es), "en tiene que tener EXACTAMENTE las claves de es-AR")
+    for c in ("es-419", "es-ES"):
+        extra = sorted(set(T[c]) - set(es)); verificar(not extra, "%s tiene claves que es-AR no tiene: %s" % (c, extra))
+    P = lambda c, k: sorted({x for v in (T[c][k] if isinstance(T[c][k], list) else [T[c][k]]) if isinstance(v, str) for x in pg.evaluate("s=>Gioval.i18n.parametros(s)", v)})
+    SUMINISTRADOS = {"g", "objetos", "n", "a", "a_g", "a_palabras", "b_palabras", "c_palabras", "objetos_a", "n_palabras"}   # lo que el código de Números pasa a sus frases
+    malos = []
+    for k, v in es.items():
+        if isinstance(v, dict): continue
+        for c in ("en", "es-419", "es-ES"):
+            if k not in T[c]: continue
+            a, b = set(P("es-AR", k)), set(P(c, k))
+            if k.startswith("numeros.") and k not in ("numeros.nombre", "numeros.sub", "numeros.outro", "numeros.cola_tope"):
+                if not b <= SUMINISTRADOS: malos.append("%s/%s pide datos que el código no pasa: %s" % (c, k, sorted(b - SUMINISTRADOS)))
+            elif not b <= a: malos.append("%s/%s pide %s que es-AR no tiene (%s)" % (c, k, sorted(b - a), sorted(a)))
+    verificar(not malos, "huecos distintos entre idiomas: %s" % malos[:5])
+    r = pg.evaluate("""(()=>{ const bad=[]; const dummy=new Proxy({},{get:()=>1});
+      for(const [c,t] of Object.entries(Gioval.i18n.tablas)){ for(const [k,v] of Object.entries(t.textos)){ const xs=Array.isArray(v)?v:(typeof v==='string'?[v]:[]);
+        xs.forEach(x=>{ try{ Gioval.i18n.formatear(x,{n:2,a:2,g:'f',estado:'dominado',local:'si'}); }catch(e){ bad.push(c+'/'+k); } }); } } return bad; })()""")
+    verificar(not r, "textos mal formados: %s" % r)
+    ctx.close(); return "%d claves; en = es-AR; es-419: %d y es-ES: %d diferencias" % (len(es), len(T["es-419"]), len(T["es-ES"]))
+
+@prueba("idiomas: el texto en español del HTML coincide con la tabla es-AR (sin duplicados que se desincronicen)")
+def t_i18n_html(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    r = pg.evaluate("""(async()=>{ const bad=[]; const es=Gioval.i18n.tablas['es-AR'].textos;
+      const html=[await (await fetch('index.html')).text()].concat(PACKS.map(p=>Object.values(p.dom||{}).join('')));
+      html.forEach(h=>{ const d=new DOMParser().parseFromString(h,'text/html');
+        d.querySelectorAll('[data-i18n],[data-i18n-html],[data-i18n-title],[data-i18n-placeholder]').forEach(el=>{
+          const n=el.dataset.i18nN!=null?{n:+el.dataset.i18nN}:{};
+          const cmp=(clave,real)=>{ const v=Gioval.i18n.formatear(es[clave],n); if(v!==real) bad.push(clave+': HTML=['+real+'] tabla=['+v+']'); };
+          if(el.dataset.i18n) cmp(el.dataset.i18n,el.textContent);
+          if(el.dataset.i18nHtml) cmp(el.dataset.i18nHtml,el.innerHTML);
+          if(el.dataset.i18nTitle) cmp(el.dataset.i18nTitle,el.getAttribute('title'));
+          if(el.dataset.i18nPlaceholder) cmp(el.dataset.i18nPlaceholder,el.getAttribute('placeholder'));
+        }); }); return bad; })()""")
+    verificar(not r, "HTML ≠ tabla: %s" % r[:6]); ctx.close()
+
+@prueba("idioma inglés: sesiones completas de Música y Números sin una palabra en español")
+def t_ingles(C):
+    ctx = C.banco.contexto("pixel7"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=77, extra_init="localStorage.setItem('gioval_idioma','en');"); instalar_speak(pg)
+    igual(pg.evaluate("[document.documentElement.lang,document.documentElement.dir,document.title]"), ["en", "ltr", "Mundo Gioval - Let's play"], "lang/dir/título")
+    verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change", "botón Cambiar")
+    entrar(pg, "Vale")
+    islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n').slice(1).join('|'))")
+    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
+    foto(pg, "pixel7_60_ingles_mapa"); CAPTURAS.append("pixel7_60_ingles_mapa.png")
+    abrir_isla(pg, "Music"); tarjeta(pg, "Today"); pg.wait_for_timeout(400)
+    labels = pg.evaluate("[...document.querySelectorAll('.key span')].map(s=>s.textContent).join('')")
+    verificar(labels.startswith("CDEFGABC"), "las teclas deberían decir C D E ...: " + labels)
+    foto(pg, "pixel7_61_ingles_musica"); CAPTURAS.append("pixel7_61_ingles_musica.png")
+    verificar(jugar(pg, cada_error=5) == "fin"); cerrar_fin(pg)
+    abrir_isla(pg, "Numbers"); tarjeta(pg, "Today"); pg.wait_for_timeout(500)
+    foto(pg, "pixel7_62_ingles_numeros"); CAPTURAS.append("pixel7_62_ingles_numeros.png")
+    verificar(jugar(pg, cada_error=4) == "fin"); cerrar_fin(pg)
+    abrir_isla(pg, "Numbers"); tarjeta(pg, "Today"); jugar(pg, cada_error=3); cerrar_fin(pg)
+    dicho = pg.evaluate("window.__LOG.concat(window.__BUB)"); verificar(len(dicho) > 60, "pocas frases: %d" % len(dicho))
+    esp = sin_espanol(dicho); verificar(not esp, "frases con español: %s" % esp[:5])
+    verificar(any(re.search(r"\b(There (is|are)|How many|Tap)\b", x) for x in dicho), "no aparecieron las frases de números en inglés")
+    igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes")
+    rep = pg.evaluate("reportText()"); verificar("REPORT FOR VALE" in rep and "Correct on the first try" in rep, rep[:200]); verificar(not sin_espanol(rep.split("\n")), "informe con español")
+    verificar(not err, str(err)); ctx.close(); return "%d frases en inglés" % len(dicho)
+
+@prueba("idioma por aparato y por jugador: se elige en la zona de adultos, se guarda, se respalda")
+def t_idioma_ui(C):
+    ctx = C.banco.contexto("360x700", accept_downloads=True); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_2, errores=err, semilla=5); instalar_speak(pg); entrar(pg, "Vale")
+    igual(pg.evaluate("[...document.querySelectorAll('#langDev option')].map(o=>o.value)"), [] , "") if False else None
+    abrir_panel(pg)
+    ops = pg.evaluate("[...document.querySelectorAll('#langDev option')].map(o=>o.value)")
+    for c in ("es-AR", "es-419", "es-ES", "en", "qps-ploc", "qps-plocm"): verificar(c in ops, "falta %s en el selector: %s" % (c, ops))
+    verificar("Idioma de Vale:" in pg.evaluate("document.getElementById('langKidLbl').textContent"), "etiqueta del jugador")
+    pg.select_option("#langKid", "es-419"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("store.idioma"), {"Vale": "es-419"}, "store.idioma"); igual(pg.evaluate("document.documentElement.lang"), "es-419")
+    pg.click("#btnGear"); abrir_isla(pg, "Música") if pg.evaluate("document.querySelector('.screen.active').id") == "map" else None
+    verificar("Mira todo lo que aprendiste" in pg.evaluate("document.getElementById('menuIslaItems').innerText"), "Vale debería estar en es-419 (tuteo)")
+    pg.evaluate("document.getElementById('btnWho').click()"); pg.wait_for_timeout(100); entrar(pg, "Gio"); abrir_isla(pg, "Música")
+    verificar("Mirá todo lo que aprendiste" in pg.evaluate("document.getElementById('menuIslaItems').innerText"), "Gio sigue en es-AR")
+    # idioma del aparato
+    pg.evaluate("document.getElementById('btnWho').click()"); pg.wait_for_timeout(100); entrar(pg, "Gio")
+    abrir_panel(pg); pg.select_option("#langDev", "en"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("localStorage.getItem('gioval_idioma')"), "en", "idioma del aparato guardado"); verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change")
+    foto(pg, "360x700_63_panel_idioma"); CAPTURAS.append("360x700_63_panel_idioma.png")
+    pg.click("#btnGear"); pg.evaluate("Gioval.almacen.guardarYa()"); pg.wait_for_timeout(200)
+    pg.reload(); esperar_listo(pg); igual(pg.evaluate("document.documentElement.lang"), "en", "tras recargar (aparato)")
+    entrar(pg, "Vale"); igual(pg.evaluate("document.documentElement.lang"), "es-419", "Vale recuerda su idioma tras recargar")
+    # respaldo conserva el idioma
+    pg.evaluate("document.getElementById('nameBox').classList.remove('show')"); abrir_panel(pg)
+    with pg.expect_download() as d: pg.click("#btnExport")
+    ruta = SALIDA / "respaldo_idioma.json"; d.value.save_as(str(ruta)); igual(json.loads(ruta.read_text())["store"]["idioma"], {"Vale": "es-419"}, "el respaldo incluye idioma")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("migración v1 → v2: agrega el idioma por jugador sin tocar el progreso")
+def t_mig_v2(C):
+    v1 = json.loads(FIXTURE); v1 = {"version": 1, "meta": {"ultimoRespaldo": 5, "guardado": 9, "desde": 7}, **v1}
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=v1, errores=C.err)
+    n = pg.evaluate("JSON.parse(JSON.stringify(store))"); igual(n["version"], 2); igual(n["idioma"], {}, "idioma"); igual(n["sk"], v1["sk"], "sk"); igual(n["meta"]["ultimoRespaldo"], 5, "meta conservada")
+    rs = pg.evaluate("Gioval.almacen.respaldos()"); verificar(any("pre-migracion-v1" in r["id"] for r in rs), "copia previa v1: %s" % [r["id"] for r in rs])
+    ctx.close()
+
+@prueba("espacio de datos: una copia de prueba (GIOVAL_ESPACIO) no ve ni pisa los datos de la versión real")
+def t_espacio(C):
+    ESTADO["espacio_override"] = "beta"
+    try:
+        ctx = C.banco.contexto("360x700", sw=True); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=FIXTURE, errores=err)    # siembra 'gioval' (clave de producción)
+        igual(pg.evaluate("Gioval.espacio"), "beta"); igual(pg.evaluate("store.profiles"), [], "la copia beta no debe ver los perfiles de producción")
+        pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
+        pg.evaluate("store.profiles.push('Prueba'); save(); Gioval.almacen.guardarYa(); Alarma.programar(300)"); pg.wait_for_timeout(300)
+        igual(json.loads(pg.evaluate("localStorage.getItem('gioval')")), json.loads(FIXTURE), "la clave de producción quedó intacta")
+        igual(json.loads(pg.evaluate("localStorage.getItem('gioval_beta')"))["profiles"], ["Prueba"], "los datos de beta van a su propia clave")
+        verificar(pg.evaluate("localStorage.getItem('gioval_alarma_beta')") is not None and pg.evaluate("localStorage.getItem('gioval_alarma')") is None, "alarma con su propia clave")
+        dbs = pg.evaluate("indexedDB.databases().then(l=>l.map(d=>d.name))"); verificar("gioval-db-beta" in dbs and "gioval-db" not in dbs, "bases: %s" % dbs)
+        pg.evaluate("caches.open('gioval-OLD-real').then(c=>c.put('/x',new Response('1')))")
+        pg.wait_for_function("navigator.serviceWorker.getRegistration().then(r=>r&&r.active?true:false)", timeout=15000); pg.wait_for_timeout(800)
+        ks = pg.evaluate("caches.keys()"); v = pg.evaluate("self.GIOVAL_VERSION")
+        verificar("gioval@beta-" + v in ks, "caché de beta: %s" % ks); verificar("gioval-OLD-real" in ks, "el service worker de beta borró una caché de la versión real: %s" % ks)
+        ctx.close()
+    finally:
+        ESTADO["espacio_override"] = None
+    ctx = C.banco.contexto("360x700", sw=True); pg = abrir(ctx, C.url + "/index.html", store=FIXTURE, errores=C.err)    # versión real
+    pg.evaluate("caches.open('gioval@beta-OLD').then(c=>c.put('/x',new Response('1')))")
+    pg.wait_for_function("navigator.serviceWorker.getRegistration().then(r=>r&&r.active?true:false)", timeout=15000); pg.wait_for_timeout(800)
+    ks = pg.evaluate("caches.keys()"); verificar("gioval@beta-OLD" in ks, "el service worker real borró la caché de beta: %s" % ks); verificar(any(k.startswith("gioval-") for k in ks))
+    ctx.close()
+
+@prueba("voz: cadena de respaldo (audio → voz del aparato por BCP-47 → solo texto) con voces simuladas")
+def t_voz(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_2, errores=err, extra_init=FAKE_VOZ, rapido=False)
+    habla = lambda txt="Hola": (pg.evaluate("window.__DICHO.length=0; window.__t=speak(%s)" % json.dumps(txt)), pg.wait_for_timeout(60), pg.evaluate("window.__DICHO"))[2]
+    V = "Gioval.voz"
+    # a) es-AR: prefiere la voz es-AR que funciona sin conexión
+    pg.evaluate("__setVoces([['es-MX','Mex local',1],['es-AR','Arg online',0],['es-AR','Arg local',1],['en-US','Ing local',1]])")
+    igual(pg.evaluate("[%s.nivel,%s.voz.name]" % (V, V)), ["tts", "Arg local"], "es-AR elige la voz argentina local")
+    d = habla(); igual([d[0]["lang"], d[0]["voz"]], ["es-AR", "Arg local"], "utterance")
+    # b) es-419 y es-ES
+    pg.evaluate("Gioval.i18n.usar('es-419')"); igual(pg.evaluate("%s.voz.name" % V), "Mex local", "es-419 prefiere es-MX antes que es-AR")
+    pg.evaluate("__setVoces([['es-US','Usa',1],['es-AR','Arg',1]])"); pg.evaluate("Gioval.i18n.usar('es-419')"); igual(pg.evaluate("%s.voz.name" % V), "Usa", "es-419 → es-US antes que es-AR")
+    pg.evaluate("__setVoces([['es-MX','Mex',1],['es-CL','Chile',1],['en-US','Ing',1]])"); pg.evaluate("Gioval.i18n.usar('es-AR')"); igual(pg.evaluate("%s.voz.name" % V), "Mex", "es-AR sin voz argentina: otra variante del español")
+    pg.evaluate("__setVoces([['es-CL','Chile',1],['en-US','Ing',1]])"); pg.evaluate("Gioval.i18n.usar('es-AR')"); igual(pg.evaluate("%s.voz.name" % V), "Chile", "cualquier es-*")
+    # c) inglés
+    pg.evaluate("__setVoces([['es-AR','Arg',1],['en-GB','Brit',1],['en-US','Yanqui',0]])"); pg.evaluate("Gioval.i18n.usar('en')")
+    igual(pg.evaluate("%s.voz.name" % V), "Yanqui", "en: prefiere en-US (orden de meta.voz) aunque sea online"); d = habla("Hello"); igual(d[0]["lang"], "en-US")
+    # d) sin voz para el idioma → solo texto, y la app sigue
+    pg.evaluate("__setVoces([['en-US','Ing',1]])"); pg.evaluate("Gioval.i18n.usar('es-AR')")
+    igual(pg.evaluate("[%s.nivel,%s.sinVoz,voiceReady()]" % (V, V)), ["texto", True, False], "sin voz española")
+    d = habla("Hola"); igual(d, [], "no debe llamar a speechSynthesis"); igual(pg.evaluate("document.getElementById('bubble').textContent"), "Hola", "el texto se muestra igual")
+    pg.evaluate("window.__t.then(()=>window.__fin=1)"); pg.wait_for_function("window.__fin===1", timeout=4000)
+    abrir_panel(pg); verificar(pg.evaluate("getComputedStyle(document.getElementById('vozAviso')).display")!="none" and "Sin voz" in pg.evaluate("document.getElementById('vozAviso').textContent"), "aviso discreto en la zona de adultos")
+    foto(pg, "360x700_64_sin_voz_aviso"); CAPTURAS.append("360x700_64_sin_voz_aviso.png")
+    pg.click("#btnGear")
+    # e) pseudo-idioma: sin voz a propósito aunque haya voces españolas
+    pg.evaluate("__setVoces([['es-AR','Arg',1]])"); pg.evaluate("Gioval.i18n.usar('qps-ploc')"); igual(pg.evaluate("%s.nivel" % V), "texto", "pseudo-idioma sin voz")
+    # f) lista de voces todavía vacía: se intenta igual con el idioma pedido
+    pg.evaluate("__setVoces([])"); pg.evaluate("Gioval.i18n.usar('es-AR')"); igual(pg.evaluate("%s.nivel" % V), "tts", "lista vacía: se intenta")
+    d = habla(); igual([d[0]["lang"], d[0]["voz"]], ["es-AR", None], "utterance sin voz elegida"); 
+    # g) voz fijada por el adulto en 'Probar voz'
+    pg.evaluate("__setVoces([['es-AR','Arg A',1],['es-AR','Arg B',1]])"); pg.evaluate("Gioval.i18n.usar('es-AR')")
+    abrir_panel(pg); pg.click("#btnVozProbar"); pg.wait_for_selector("#vozBox.show")
+    verificar("Arg A" in pg.evaluate("document.getElementById('vozNivel').innerText"), "muestra la voz usada")
+    ops = pg.evaluate("[...document.querySelectorAll('#vozSel option')].map(o=>o.textContent)"); verificar(len(ops) == 3 and ops[0] == "(automática)", str(ops))
+    foto(pg, "360x700_65_probar_voz"); CAPTURAS.append("360x700_65_probar_voz.png")
+    pg.select_option("#vozSel", "Arg B"); pg.wait_for_timeout(100); igual(pg.evaluate("%s.voz.name" % V), "Arg B", "voz elegida")
+    pg.evaluate("window.__DICHO.length=0"); pg.click("#vozSonar"); pg.wait_for_timeout(100)
+    d = pg.evaluate("window.__DICHO"); igual([d[0]["text"], d[0]["voz"]], ["¡Hola! Así suena la voz de Mundo Gioval.", "Arg B"], "Escuchar")
+    igual(pg.evaluate("localStorage.getItem('gioval_voz_es-AR')"), "Arg B", "se guarda en este aparato")
+    pg.click("#vozCerrar"); pg.reload(); esperar_listo(pg); pg.evaluate("__setVoces([['es-AR','Arg A',1],['es-AR','Arg B',1]])"); igual(pg.evaluate("%s.voz.name" % V), "Arg B", "se recuerda tras recargar")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("voz: audio grabado por idioma (manifiesto, caída a la voz del aparato) y service worker con caché solo del idioma elegido")
+def t_voz_audio(C):
+    import shutil, tempfile, wave, struct
+    tmp = Path(tempfile.mkdtemp()) / "app"; shutil.copytree(APP, tmp)
+    en = (tmp / "js/i18n/en.js").read_text(encoding="utf-8"); verificar('moneda: "USD",' in en)
+    (tmp / "js/i18n/en.js").write_text(en.replace('moneda: "USD",', 'moneda: "USD", audio: true,', 1), encoding="utf-8")
+    (tmp / "audio" / "en").mkdir(parents=True)
+    for n in ("hola.wav", "quien.wav"):
+        w = wave.open(str(tmp / "audio" / "en" / n), "wb"); w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000); w.writeframes(struct.pack("<80h", *([0] * 80))); w.close()
+    (tmp / "audio/en/manifest.json").write_text(json.dumps({"version": 1, "textos": {"Hello there": "hola.wav"}, "claves": {"app.quien_juega": "quien.wav"}}))
+    srv2, url2 = servidor(raiz=tmp)
+    try:
+        ctx = C.banco.contexto("360x700", sw=True); err = []
+        pg = abrir(ctx, url2 + "/index.html", store=STORE_2, errores=err, rapido=False, extra_init=FAKE_VOZ + """
+          window.__AUD=[]; window.Audio=function(u){ var a=this; a.src=u; window.__AUD.push(u); a.pause=function(){}; a.play=function(){ setTimeout(function(){ a.onended&&a.onended(); },0); return Promise.resolve(); }; };""")
+        pg.evaluate("__setVoces([['en-US','Yanqui',1],['es-AR','Arg',1]])")
+        pg.wait_for_function("navigator.serviceWorker.getRegistration().then(r=>r&&r.active?true:false)", timeout=15000)
+        pg.reload(); esperar_listo(pg); pg.wait_for_function("!!navigator.serviceWorker.controller", timeout=10000)
+        pg.evaluate("__setVoces([['en-US','Yanqui',1],['es-AR','Arg',1]])")
+        igual(pg.evaluate("Gioval.voz.nivel"), "tts", "es-AR no tiene audio")
+        pg.evaluate("Gioval.i18n.usar('en')"); pg.wait_for_function("Gioval.voz.nivel==='grabado'", timeout=8000)
+        igual(pg.evaluate("Gioval.voz.cantidadAudios()"), 2, "audios del manifiesto")
+        pg.evaluate("window.__AUD.length=0; window.__DICHO.length=0; speak('Hello there')"); pg.wait_for_timeout(100)
+        verificar(pg.evaluate("window.__AUD").__len__() == 1 and pg.evaluate("window.__AUD[0]").endswith("audio/en/hola.wav"), "debería reproducir el audio: %s" % pg.evaluate("window.__AUD")); igual(pg.evaluate("window.__DICHO"), [], "sin voz del aparato")
+        pg.evaluate("window.__AUD.length=0; speak(t('app.quien_juega'))"); pg.wait_for_timeout(100)
+        verificar(pg.evaluate("window.__AUD[0]").endswith("audio/en/quien.wav"), "audio por clave: %s" % pg.evaluate("window.__AUD"))
+        pg.evaluate("window.__AUD.length=0; window.__DICHO.length=0; speak('Other sentence')"); pg.wait_for_timeout(100)
+        igual(pg.evaluate("window.__AUD"), [], "frase sin audio: no usa audio"); igual(pg.evaluate("window.__DICHO.map(d=>d.voz)"), ["Yanqui"], "cae a la voz del aparato")
+        # el service worker guarda SOLO el audio del idioma elegido
+        pg.wait_for_function("caches.keys().then(k=>k.some(x=>x==='gioval-audio-en'))", timeout=8000)
+        n = pg.evaluate("caches.open('gioval-audio-en').then(c=>c.keys()).then(l=>l.map(r=>new URL(r.url).pathname).sort())")
+        igual(n, ["/audio/en/hola.wav", "/audio/en/manifest.json", "/audio/en/quien.wav"], "caché de audio en")
+        ca = pg.evaluate("caches.open('gioval-'+self.GIOVAL_VERSION).then(c=>c.keys()).then(l=>l.map(r=>r.url))"); verificar(not any("/audio/" in k for k in ca), "el audio no debe ir a la caché de la app: %s" % [k for k in ca if "/audio/" in k])
+        pg.evaluate("Gioval.i18n.usar('es-AR')"); pg.wait_for_function("caches.keys().then(k=>!k.some(x=>x==='gioval-audio-en'))", timeout=8000)
+        verificar(not err, str(err)); ctx.close()
+    finally:
+        srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
+
+JS_DESBORDES = """(function(){
+ const W=innerWidth,H=innerHeight, out=[];
+ const sel='button,.island,.song,.skill,.opt,h1,h2,.bubble,label,.psum,select,input,.stars,.actStage';
+ function visible(el){ const r=el.getBoundingClientRect(), cs=getComputedStyle(el); return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('.screen:not(.active)')&&!el.closest('.big:not(.show)')&&!el.closest('.panel:not(.show)')&&!el.closest('.aviso:not(.show)'); }
+ function scrolla(el,eje){ let p=el.parentElement; while(p&&p!==document.documentElement){ const o=getComputedStyle(p)['overflow'+eje]; if((o==='auto'||o==='scroll')&&(eje==='Y'?p.scrollHeight>p.clientHeight:p.scrollWidth>p.clientWidth)) return true; p=p.parentElement; } return false; }
+ document.querySelectorAll(sel).forEach(el=>{ if(!visible(el)) return; const r=el.getBoundingClientRect();
+   const id=(el.id?'#'+el.id:'')+(typeof el.className==='string'&&el.className?'.'+el.className.trim().split(/\\s+/).join('.'):'')+':'+el.tagName.toLowerCase();
+   if(r.right>W+1||r.left<-1) out.push(id+' fuera de pantalla (horizontal)');
+   if((r.bottom>H+1||r.top<-1)&&!scrolla(el,'Y')) out.push(id+' fuera de pantalla (vertical)');
+   const cs=getComputedStyle(el);
+   if((cs.overflowX==='hidden'||cs.overflow==='hidden')&&el.scrollWidth>el.clientWidth+2) out.push(id+' texto cortado (ancho)');
+   if((cs.overflowY==='hidden'||cs.overflow==='hidden')&&el.scrollHeight>el.clientHeight+2) out.push(id+' texto cortado (alto)'); });
+ return [...new Set(out)]; })()"""
+
+def recorrido(pg, vista, idioma, prefijo, capturas=False):
+    """Recorre las pantallas principales y devuelve los desbordes que encuentra en cada una."""
+    res = {}
+    def ver(nombre):
+        pg.wait_for_timeout(120); res[nombre] = pg.evaluate(JS_DESBORDES)
+        if capturas: CAPTURAS.append(foto(pg, "%s_%s_%s" % (vista, prefijo, nombre)))
+    pg.evaluate("document.getElementById('nameBox').classList.remove('show'); S.run++; resetFlow(); renderWho(); show('who')")
+    ver("1_quien")
+    entrar(pg, "Vale"); ver("2_mapa")
+    pg.click("#islands .island >> nth=0"); ver("3_menu_musica")
+    pg.evaluate("goMap()"); pg.click("#islands .island >> nth=1"); pg.wait_for_timeout(100); ver("4_menu_numeros")
+    pg.click("#menuIslaItems .island >> nth=0"); pg.wait_for_timeout(700); ver("5_numeros_actividad")
+    pg.evaluate("S.run++; resetFlow(); goMenuIsla()"); pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(100); ver("6_logros")
+    pg.evaluate("goMap()"); abrir_panel(pg); ver("7_panel_adultos")
+    pg.click("#btnReport"); ver("8_informe"); pg.click("#repClose"); pg.click("#btnGear")
+    pg.evaluate("document.getElementById('finish').classList.add('show')"); ver("9_fin"); pg.evaluate("document.getElementById('finish').classList.remove('show')")
+    return res
+
+@prueba("pseudo-idioma (+40 %, acentos): ningún texto se corta ni se sale de la pantalla que no lo hiciera ya en es-AR")
+def t_pseudo(C):
+    pend = []
+    for v in ("360x700", "740x330"):
+        base = {}
+        for idioma in ("es-AR", "qps-ploc"):
+            ctx = C.banco.contexto(v); err = []
+            pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=9, extra_init="localStorage.setItem('gioval_idioma','%s');" % idioma, congelar=True); instalar_speak(pg)
+            r = recorrido(pg, v, idioma, "pseudo", capturas=(idioma == "qps-ploc"))
+            igual(pg.evaluate("[document.documentElement.lang, Gioval.i18n.faltantes.size]"), [idioma, 0], "idioma/faltantes")
+            if idioma == "es-AR": base = r
+            else:
+                for k, lst in r.items():
+                    for x in lst:
+                        if x not in base.get(k, []): pend.append("%s %s: %s" % (v, k, x))
+            verificar(not err, str(err)); ctx.close()
+    verificar(not pend, "con el pseudo-idioma aparecen desbordes nuevos:\n        " + "\n        ".join(pend[:12]))
+
+@prueba("RTL (derecha a izquierda): interfaz espejada, teclado de piano y cuentas sin espejar, sin desbordes nuevos")
+def t_rtl(C):
+    pend = []
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=9, extra_init="localStorage.setItem('gioval_idioma','qps-plocm');", congelar=True); instalar_speak(pg)
+        igual(pg.evaluate("[document.documentElement.dir, document.documentElement.lang, getComputedStyle(document.body).direction]"), ["rtl", "qps-plocm", "rtl"], "dir")
+        g = lambda sel: pg.evaluate("(s)=>{const r=document.querySelector(s).getBoundingClientRect();return [r.left,r.right]}", sel)
+        m, b = g("#mascot"), g("#bubble"); verificar(m[0] > b[0], "la mascota debería estar a la derecha del globito: %s %s" % (m, b))
+        pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
+        entrar(pg, "Vale"); pg.click("#islands .island >> nth=0"); pg.wait_for_timeout(100)
+        bar = pg.evaluate("(()=>{const b=document.getElementById('btnMenuBack').getBoundingClientRect(), t=document.getElementById('streak').getBoundingClientRect(); return [b.left,t.left]})()"); verificar(bar[0] > bar[1], "el botón Volver debería estar a la derecha: %s" % bar)
+        verificar(pg.evaluate("getComputedStyle(document.querySelector('#btnMenuBack .arr')).transform") != "none", "la flecha de volver debe espejarse")
+        CAPTURAS.append(foto(pg, "%s_70_rtl_menu" % v))
+        pg.click("#menuIslaItems .island >> nth=0"); pg.wait_for_timeout(400)     # sesión de Música: el teclado NO se espeja
+        k = pg.evaluate("[...document.querySelectorAll('#kb .key')].map(k=>Math.round(k.getBoundingClientRect().left))"); verificar(k == sorted(k), "las teclas del piano deben seguir de izquierda a derecha: %s" % k)
+        igual(pg.evaluate("document.querySelector('#kb .key').dataset.m"), "60", "la primera tecla (a la izquierda) es el Do central")
+        CAPTURAS.append(foto(pg, "%s_71_rtl_piano" % v))
+        pg.evaluate("S.run++; resetFlow(); goMenuIsla(); goMap()")
+        r = recorrido(pg, v, "qps-plocm", "rtl", capturas=True)
+        ctx.close()
+        ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=9, extra_init="localStorage.setItem('gioval_idioma','qps-ploc');", congelar=True); instalar_speak(pg)
+        ltr = recorrido(pg, v, "qps-ploc", "ltr"); ctx.close()
+        for k2, lst in r.items():
+            for x in lst:
+                if x not in ltr.get(k2, []): pend.append("%s %s: %s" % (v, k2, x))
+        verificar(not err, str(err))
+    verificar(not pend, "en RTL aparecen desbordes que no hay en LTR:\n        " + "\n        ".join(pend[:12]))
+
+@prueba("agregar un idioma: 1 archivo + 1 línea en index.html + 1 línea en sw.js (ejemplo pt-BR de docs/AGREGAR_IDIOMA.md)")
+def t_agregar_idioma(C):
+    import shutil, tempfile
+    tmp = Path(tempfile.mkdtemp()) / "app"; shutil.copytree(APP, tmp)
+    shutil.copy(DEV / "docs" / "ejemplos" / "pt-BR.js", tmp / "js" / "i18n" / "pt-BR.js")
+    h = (tmp / "index.html").read_text(encoding="utf-8"); a = '<script src="js/i18n/en.js"></script>'; verificar(a in h)
+    (tmp / "index.html").write_text(h.replace(a, a + '\n<script src="js/i18n/pt-BR.js"></script>'), encoding="utf-8")
+    w = (tmp / "sw.js").read_text(encoding="utf-8"); a = '"js/i18n/en.js"'; verificar(a in w)
+    (tmp / "sw.js").write_text(w.replace(a, a + ',"js/i18n/pt-BR.js"'), encoding="utf-8")
+    for f in (APP / "js" / "core").rglob("*.js"): igual((tmp / f.relative_to(APP)).read_bytes(), f.read_bytes(), "motor modificado " + f.name)
+    srv2, url2 = servidor(raiz=tmp)
+    try:
+        ctx = C.banco.contexto("360x700"); err = []
+        pg = abrir(ctx, url2 + "/index.html", store=STORE_2, errores=err, semilla=3); instalar_speak(pg)
+        verificar("pt-BR" in pg.evaluate("Gioval.i18n.idiomas().map(i=>i.codigo)"), "no se registró")
+        entrar(pg, "Vale"); abrir_panel(pg); pg.select_option("#langDev", "pt-BR"); pg.click("#btnGear"); pg.wait_for_timeout(150)
+        igual(pg.evaluate("document.documentElement.lang"), "pt-BR")
+        verificar(pg.evaluate("document.getElementById('mapTitle').textContent") == "Mundo Gioval · Vamos brincar, Vale!", "mapa en portugués: " + pg.evaluate("document.getElementById('mapTitle').textContent"))
+        islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n')[1])"); igual(islas[:2], ["Ilha da Música", "Ilha dos Números"], "nombres de isla")
+        abrir_isla(pg, "Ilha da Música"); tx = pg.evaluate("document.getElementById('menuIslaItems').innerText")
+        verificar("Sessão de hoje" in tx and "Mirá todo lo que aprendiste" in tx, "lo traducido sale en portugués y lo que falta cae a es-AR: " + tx)
+        igual(pg.evaluate("Gioval.i18n.nombreNota(0)"), "Dó", "nombre de las notas en pt-BR")
+        verificar(not err, str(err)); ctx.close()
+    finally:
+        srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
+
 
 # ---------------------------------------------------------------- capturas varias
 @prueba("capturas: pantallas principales en Pixel 7, 360x700 y 740x330")
