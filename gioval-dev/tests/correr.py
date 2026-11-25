@@ -1212,7 +1212,7 @@ def t_intake_ui(C):
         pg.click("#btnNumInicio"); pg.wait_for_selector("#numIntake.show")
         verificar("Punto de partida de Vale" in pg.evaluate("document.getElementById('numIntakeCard').innerText"), "título")
         verificar(pg.evaluate("document.querySelectorAll('#numIntakeCard select').length") == 6, "6 preguntas (edad + 5)")
-        CAPTURAS.append(foto(pg, v + "_60_intake_preguntas"))
+        CAPTURAS.append(foto(pg, v + "_70_intake_preguntas"))
         llenar_intake(pg, 6, {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0})
         pg.click("#niVer"); pg.wait_for_selector("#numResumen.show")
         txt = pg.evaluate("document.getElementById('numResumenCard').innerText")
@@ -1220,7 +1220,7 @@ def t_intake_ui(C):
         igual(pg.evaluate("store.intake.Vale.edad"), 6); igual(pg.evaluate("store.intake.Vale.resp"), {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0})
         verificar(not pg.evaluate("!!store.intake.Vale.inicio"), "todavía no se aplicó nada")
         verificar(not pg.evaluate("Object.values(store.sk).some(s=>s.mast||s.skip||s.att)"), "el progreso no cambia antes de aceptar")
-        CAPTURAS.append(foto(pg, v + "_61_resumen_punto_de_partida"))
+        CAPTURAS.append(foto(pg, v + "_71_resumen_punto_de_partida"))
         # ajuste manual: el adulto sabe que también domina "Los números hasta 20" y que "Restas hasta 5" todavía no
         pg.select_option("select[data-id='num_r20']", value="saltada"); pg.select_option("select[data-id='num_sub5']", value="no")
         txt = pg.evaluate("document.getElementById('numResumenCard').innerText"); verificar("6 habilidades marcadas como ya dominadas" in txt, txt[:300])
@@ -1254,7 +1254,7 @@ def t_ubicacion_ui(C):
         pg.click("#nrTest"); pg.wait_for_timeout(600)
         igual(pg.evaluate("document.querySelector('.screen.active').id"), "act", "pantalla de juego"); verificar(pg.evaluate("!!S.session.guia"), "sesión guiada")
         verificar(any("Vamos a jugar un ratito" in t for t in pg.evaluate("window.__LOG")), str(pg.evaluate("window.__LOG")))
-        CAPTURAS.append(foto(pg, v + "_62_ubicacion_juego"))
+        CAPTURAS.append(foto(pg, v + "_72_ubicacion_juego"))
         antes = pg.evaluate("JSON.stringify([store.sk,store.log,store.days])")
         sabe = {"num_c10", "num_r10", "num_may", "num_c20", "num_add5"}
         igual(responder_ubicacion(pg, sabe), "fin")
@@ -1266,7 +1266,7 @@ def t_ubicacion_ui(C):
         pg.click("#btnFinOk"); pg.wait_for_selector("#gateBox.show"); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_selector("#numResumen.show")
         txt = pg.evaluate("document.getElementById('numResumenCard').innerText")
         verificar("Resultado del test de ubicación de Vale" in txt and "Empieza en:" in txt and "marcadas como ya dominadas" in txt and "Test: " in txt, txt[:500])
-        CAPTURAS.append(foto(pg, v + "_63_ubicacion_resumen"))
+        CAPTURAS.append(foto(pg, v + "_73_ubicacion_resumen"))
         # el test corrigió al adulto: no pasó lo que no sabe, aunque el adulto lo haya dicho
         est = pg.evaluate("Object.fromEntries([...document.querySelectorAll('select.nsel')].map(s=>[s.dataset.id,s.value]))")
         verificar(est["num_c10"] == "saltada" and est["num_r10"] == "saltada" and est["num_add5"] in ("saltada", "encurso"), str({k: est[k] for k in ("num_c10", "num_r10", "num_add5", "num_c20")}))
@@ -1321,11 +1321,11 @@ def t_num_informe(C):
     abrir_isla(pg, "Números"); tarjeta(pg, "Chequeo semanal"); jugar(pg); cerrar_fin(pg)
     rep2 = pg.evaluate("reportText()"); verificar("CONFIRMADA en el chequeo" in rep2, rep2[-1200:])
     foto_t = pg.evaluate("document.getElementById('reportTxt')?1:0"); pg.evaluate("document.getElementById('reportTxt').textContent=reportText(); document.getElementById('reportBox').classList.add('show')")
-    CAPTURAS.append(foto(pg, "360x700_64_informe_punto_de_partida")); pg.evaluate("document.getElementById('reportBox').classList.remove('show')")
+    CAPTURAS.append(foto(pg, "360x700_74_informe_punto_de_partida")); pg.evaluate("document.getElementById('reportBox').classList.remove('show')")
     verificar(not err, str(err)); ctx.close()
     ctx = C.banco.contexto("740x330"); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=402); instalar_speak(pg); entrar(pg, "Vale")
     pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros')"); abrir_intake_ui(pg); llenar_intake(pg, 7, {"cuenta": 100, "reconoce": 100, "suma": 20, "resta": 20, "mult": 1}); pg.click("#niVer"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrAceptar"); pg.wait_for_timeout(100)
-    pg.evaluate("document.getElementById('reportTxt').textContent=reportText(); document.getElementById('reportBox').classList.add('show')"); CAPTURAS.append(foto(pg, "740x330_64_informe_punto_de_partida")); ctx.close()
+    pg.evaluate("document.getElementById('reportTxt').textContent=reportText(); document.getElementById('reportBox').classList.add('show')"); CAPTURAS.append(foto(pg, "740x330_74_informe_punto_de_partida")); ctx.close()
 
 @prueba("Números por edades en inglés, es-419 y pseudo-idioma: sin español suelto, sin claves faltantes, intake e informe")
 def t_num_idiomas(C):
@@ -1341,7 +1341,7 @@ def t_num_idiomas(C):
     card = pg.evaluate("document.getElementById('numIntakeCard').innerText"); verificar("Starting point for Vale" in card and "How old are they?" in card and not sin_espanol([card]), card[:300])
     pg.click("#niVer"); pg.wait_for_selector("#numResumen.show"); res = pg.evaluate("document.getElementById('numResumenCard').innerText")
     verificar("Starts at: Subtracting up to 5" in res or "Starts at: Restas" not in res, res[:300]); verificar(not sin_espanol([res]) and "5 skills marked as already mastered" in res, res[:400])
-    CAPTURAS.append(foto(pg, "360x700_65_ingles_resumen_punto_de_partida"))
+    CAPTURAS.append(foto(pg, "360x700_75_ingles_resumen_punto_de_partida"))
     pg.click("#nrAceptar"); pg.wait_for_timeout(100)
     rep = pg.evaluate("reportText()"); verificar("STARTING POINT — NUMBERS ISLAND" in rep and "Age: 6 years." in rep and "SKIPPED SKILLS" in rep and not sin_espanol(rep.split("\n")), rep[:900])
     igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes")
@@ -1351,7 +1351,7 @@ def t_num_idiomas(C):
     verificar("Toca el número" in " ".join(pg.evaluate("(()=>{ const o=[]; for(let i=0;i<30;i++){ const s=PACK.skills.find(x=>x.id==='num_r100'), A=ACTIVITIES[s.type], it=A.make(s); o.push(A.view(it,1,{pos:0,cnt:[],used:new Set(),dead:new Set()}).say); } return o; })()")), "es-419 usa tuteo")
     # pseudo-idioma (+40 %): las pantallas del adulto no deben dar errores ni claves
     pg.evaluate("Gioval.i18n.usar('qps-ploc')"); pg.evaluate("Gioval.numeros.mostrarResumen('ver')"); pg.wait_for_selector("#numResumen.show")
-    CAPTURAS.append(foto(pg, "360x700_66_pseudo_resumen_punto_de_partida"))
+    CAPTURAS.append(foto(pg, "360x700_76_pseudo_resumen_punto_de_partida"))
     ancho = pg.evaluate("(()=>{ const c=document.getElementById('numResumenCard'); return [c.scrollWidth,c.clientWidth]; })()"); verificar(ancho[0] <= ancho[1] + 2, "desborde horizontal en pseudo-idioma: %s" % ancho)
     igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes (pseudo)")
     verificar(not err, str(err)); ctx.close()

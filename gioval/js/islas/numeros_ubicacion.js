@@ -222,7 +222,7 @@ Gioval.numeros = (function () {
         h += `<div class="nrow"><div class="nn"><span class="ni">${s.icon}</span> ${esc(s.name)}<small>${esc(extra || "")}</small></div><select data-id="${s.id}" class="nsel e-${e}">${["saltada", "encurso", "no"].map(o => `<option value="${o}"${o === e ? " selected" : ""}>${Re("estados." + o)}</option>`).join("")}</select></div>`;
       });
     });
-    h += `<div class="nbtns"><button class="btn" id="nrAceptar">${Re("aceptar")}</button>`;
+    h += `<div class="nbtns"><button class="btn" id="nrAceptar">${Re("aceptar")}</button></div><div class="nbtns2">`;   /* solo "Aceptar" queda fijo abajo: en 360x700 los otros botones taparían la lista */
     if (V.origen === "intake" || V.origen === "ver") h += `<button class="btn alt" id="nrTest">${Re("hacer_test", { nombre: KID })}</button><button class="btn alt" id="nrResp">${Re("cambiar_resp")}</button>`;
     h += `<button class="btn alt" id="nrVolver">${Re("volver")}</button></div>`;
     O("numResumenCard").innerHTML = h;
