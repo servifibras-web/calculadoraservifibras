@@ -123,3 +123,9 @@ Para probar la isla real: sumar al `correr.py` una prueba parecida a la de Núme
   falta, escribir una migración (ver `almacen.js`, `migraciones`).
 - Las habilidades de una isla se guardan en `store.sk["Perfil|id"]`; el registro de práctica en `store.log`; los chequeos
   en `store.checks` con `p: "<id de la isla>"`. No hace falta tocar el esquema para una isla nueva.
+
+## Opcional: dominio rápido, saltos y punto de partida
+
+Una isla puede declarar `rapido:{rt,salta}` en sus habilidades (salto por dominio rápido con reevaluación semanal), un
+`informeInicio(kid)` para sumar líneas al informe y guardar datos propios por niño en `store.intake[niño]` (almacén v2).
+Mirá `gioval-dev/docs/NUMEROS_EDADES.md` y la cabecera de `gioval/js/core/dominio.js`.

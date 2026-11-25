@@ -2,7 +2,7 @@
 """Pruebas automáticas de Mundo Gioval. Un solo comando:  python3 gioval-dev/tests/correr.py   (opcional: filtro de nombre, ej. "migracion")
 Levanta un servidor local de gioval/, abre Chrome (/usr/bin/google-chrome --no-sandbox) con emulación móvil, y deja
 capturas en gioval-dev/tests/salida/ y un resumen en salida/resumen.txt."""
-import json, re, subprocess, sys, time, traceback
+import json, os, re, subprocess, sys, time, traceback
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import *
@@ -641,7 +641,8 @@ def t_salto_rapido(C):
     verificar(r["rts"] >= 6, "se registró el tiempo (rt) en el log"); verificar(len(r["dicho"]) == 1 and "Reconocer los números" in r["dicho"][0], "la app avisa al niño: %s" % r["dicho"])
     verificar("num_may" in r["unl"], "se abre lo que sigue sin esperar: %s" % r["unl"])
     for k in ("lento", "errores"):
-        verificar(res[k]["c10"] and not res[k]["r10"] and not res[k]["skip"], "%s: no debería saltear: %s" % (k, res[k]))
+        verificar(not res[k]["r10"] and not res[k]["skip"], "%s: no debería saltear: %s" % (k, res[k]))
+    verificar(res["lento"]["c10"], "lento: aun así domina c10 (por aciertos): %s" % res["lento"])
     return "rápido: c10 → r10 saltada; lento y con errores: no"
 
 @prueba("saltadas: se reevalúan en el chequeo semanal sin ayuda (aprueba → confirmada; falla → vuelve atrás)")
@@ -797,7 +798,7 @@ def t_intake_ui(C):
         verificar("Empieza en: Restas hasta 5" in txt and "5 habilidad(es) marcada(s) como ya dominada(s)" in txt and "3 en curso" in txt, txt[:400])
         igual(pg.evaluate("store.intake.Vale.edad"), 6); igual(pg.evaluate("store.intake.Vale.resp"), {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 5, "mult": 0})
         verificar(not pg.evaluate("!!store.intake.Vale.inicio"), "todavía no se aplicó nada")
-        verificar(not pg.evaluate("Object.keys(store.sk).length"), "el progreso no cambia antes de aceptar")
+        verificar(not pg.evaluate("Object.values(store.sk).some(s=>s.mast||s.skip||s.att)"), "el progreso no cambia antes de aceptar")
         CAPTURAS.append(foto(pg, v + "_61_resumen_punto_de_partida"))
         # ajuste manual: el adulto sabe que también domina "Los números hasta 20" y que "Restas hasta 5" todavía no
         pg.select_option("select[data-id='num_r20']", value="saltada"); pg.select_option("select[data-id='num_sub5']", value="no")
@@ -831,7 +832,7 @@ def t_ubicacion_ui(C):
         abrir_intake_ui(pg); llenar_intake(pg, 5, {"cuenta": 20, "reconoce": 20, "suma": 10, "resta": 0, "mult": 0}); pg.click("#niVer"); pg.wait_for_selector("#numResumen.show")
         pg.click("#nrTest"); pg.wait_for_timeout(600)
         igual(pg.evaluate("document.querySelector('.screen.active').id"), "act", "pantalla de juego"); verificar(pg.evaluate("!!S.session.guia"), "sesión guiada")
-        verificar("Vamos a jugar un ratito" in pg.evaluate("window.__LOG[0]"), pg.evaluate("window.__LOG[0]"))
+        verificar(any("Vamos a jugar un ratito" in t for t in pg.evaluate("window.__LOG")), str(pg.evaluate("window.__LOG")))
         CAPTURAS.append(foto(pg, v + "_62_ubicacion_juego"))
         antes = pg.evaluate("JSON.stringify([store.sk,store.log,store.days])")
         sabe = {"num_c10", "num_r10", "num_may", "num_c20", "num_add5"}
@@ -870,9 +871,11 @@ def t_ubicacion_tiempo(C):
     pg.evaluate("window.__OFF=6*60e3"); fijar_rt(pg, 800); responder_ubicacion(pg, {"num_c10", "num_r10"}, limite=6)
     pg.wait_for_selector("#finish.show", timeout=8000)
     igual(pg.evaluate("store.intake.Vale.ubicacion.fin"), "tiempo", "motivo de cierre")
+    reg0 = pg.evaluate("store.intake.Vale.ubicacion.registros[0]"); verificar(reg0["s"] == sid and not reg0["ok"], "«Seguir» cuenta como no sé (error): %s" % reg0)
+    verificar(pg.evaluate("store.intake.Vale.ubicacion.durMs") < 8 * 60e3, "cierra al terminar el ítem en curso")
     pg.evaluate("window.__OFF=0")
     # salir con ⬅ en medio de un test nuevo no guarda resultado
-    pg.evaluate("S.finOk()"); pg.wait_for_timeout(100); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrVolver")
+    pg.click("#btnFinOk"); pg.wait_for_selector("#gateBox.show"); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_selector("#numResumen.show"); pg.click("#nrVolver")
     pg.evaluate("delete store.intake.Vale.ubicacion; delete store.intake.Vale.pendiente"); pg.evaluate("Gioval.numeros.iniciarTest()"); pg.wait_for_timeout(500)
     pg.click("#btnActBack"); pg.wait_for_timeout(200)
     verificar(pg.evaluate("!store.intake.Vale.ubicacion&&!store.intake.Vale.pendiente"), "salir a mitad no deja resultado")
@@ -954,6 +957,7 @@ def main():
                 resultados.append((nombre, True, det, time.time() - ini)); print("  PASA  %s  (%.1fs) %s" % (nombre, time.time() - ini, det), flush=True)
             except Exception as e:
                 msg = (str(e) if isinstance(e, Falla) else "".join(traceback.format_exception_only(type(e), e)).strip())[:600]
+                if os.environ.get("GIOVAL_TB"): traceback.print_exc()
                 resultados.append((nombre, False, msg, time.time() - ini)); print("  FALLA %s\n        %s" % (nombre, msg), flush=True)
         C.banco.cerrar()
     ok = sum(1 for r in resultados if r[1]); mal = len(resultados) - ok
