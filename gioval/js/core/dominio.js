@@ -25,6 +25,51 @@
    SESIONES GUIADAS: una isla puede jugar una secuencia propia (por ejemplo un test de ubicación) con
    Gioval.dominio.iniciarGuiada({titulo,saludo,guia}) donde guia={siguiente(run), respuesta(run,it,res)}. El motor solo muestra
    los ítems; los resultados no tocan el progreso (SK) ni el registro: los maneja la isla. */
+/* ---- textos del núcleo genérico de esta función (salto rápido, reevaluación, informe de saltadas): es-AR base y en obligatorio ---- */
+Gioval.i18n.agregar("es-AR", {
+  "menu.saltada": "⏭ La saltamos: ya te salía bien (la repasamos en el chequeo)",
+  "motor.salto.aviso": "¡Respondiste con mucha seguridad! Por eso nos saltamos {lista} y vamos a lo que sigue.",
+  "motor.salto.chequeo_vuelven": "Algunas cosas que nos habíamos saltado las vamos a practicar un poquito: ¡es parte de aprender!",
+  "motor.salto.chequeo_ok": "Lo que nos habíamos saltado salió bien: ¡queda confirmado!",
+  "informe.pie_tiempo": "El tiempo de respuesta se mide desde que la app termina de hablar hasta el acierto (solo aciertos sin pistas).",
+  "informe.salto.tiempo": "   Tiempo de respuesta (mediana, aciertos sin pistas): {seg} (n={n})",
+  "informe.salto.seg": "{s} s",
+  "informe.salto.linea": "   Saltada {motivo} → {estado}",
+  "informe.salto.titulo": "HABILIDADES SALTADAS (sin práctica propia) Y POR QUÉ",
+  "informe.salto.fila": "• {nombre} — {motivo} ({fecha}). {estado}.",
+  "informe.salto.motivo_rapido": "por dominio rápido de «{de}» ({aciertos} de {n} al primer intento, mediana {med}, umbral {umbral})",
+  "informe.salto.motivo_otro": "origen: {por}",
+  "informe.salto.est_pendiente": "se reevalúa en el próximo chequeo semanal sin ayuda",
+  "informe.salto.est_confirmada": "CONFIRMADA en el chequeo del {fecha} ({ok}/{n})",
+  "informe.salto.est_confirmada_impl": "CONFIRMADA en el chequeo del {fecha} (porque aprobó otra más avanzada que la necesita)",
+  "informe.salto.est_revertida": "VOLVIÓ A PRÁCTICA tras el chequeo del {fecha} ({ok}/{n})",
+  "informe.salto.est_revertida_dep": "VOLVIÓ A PRÁCTICA (depende de otra que falló)",
+  "informe.salto.est_revertida_sola": "VOLVIÓ A PRÁCTICA",
+  "informe.hab_saltada": "• {nombre}: saltada (sin práctica propia)",
+  "adultos.hab_linea_saltada": "• {emoji} {nombre}: saltada ({pct}% de aciertos, {n} intentos, ayuda nivel {nivel})"
+});
+Gioval.i18n.agregar("en", {
+  "menu.saltada": "⏭ We skipped it: you already knew it well (we'll check it in the weekly check)",
+  "motor.salto.aviso": "You answered with a lot of confidence! So we're skipping {lista} and moving on to what comes next.",
+  "motor.salto.chequeo_vuelven": "Some things we had skipped we'll practice a little: that's part of learning!",
+  "motor.salto.chequeo_ok": "What we had skipped went well: it's confirmed!",
+  "informe.pie_tiempo": "Response time is measured from when the app finishes speaking until the correct answer (only correct answers without hints).",
+  "informe.salto.tiempo": "   Response time (median, correct answers without hints): {seg} (n={n})",
+  "informe.salto.seg": "{s} s",
+  "informe.salto.linea": "   Skipped {motivo} → {estado}",
+  "informe.salto.titulo": "SKIPPED SKILLS (no practice of their own) AND WHY",
+  "informe.salto.fila": "• {nombre} — {motivo} ({fecha}). {estado}.",
+  "informe.salto.motivo_rapido": "because of quick mastery of “{de}” ({aciertos} of {n} on the first try, median {med}, threshold {umbral})",
+  "informe.salto.motivo_otro": "origin: {por}",
+  "informe.salto.est_pendiente": "it will be re-checked in the next weekly check without help",
+  "informe.salto.est_confirmada": "CONFIRMED in the check on {fecha} ({ok}/{n})",
+  "informe.salto.est_confirmada_impl": "CONFIRMED in the check on {fecha} (because they passed a more advanced one that needs it)",
+  "informe.salto.est_revertida": "WENT BACK TO PRACTICE after the check on {fecha} ({ok}/{n})",
+  "informe.salto.est_revertida_dep": "WENT BACK TO PRACTICE (it depends on another one that failed)",
+  "informe.salto.est_revertida_sola": "WENT BACK TO PRACTICE",
+  "informe.hab_saltada": "• {nombre}: skipped (no practice of its own)",
+  "adultos.hab_linea_saltada": "• {emoji} {nombre}: skipped ({pct}% correct, {n, plural, one{# attempt} other{# attempts}}, help level {nivel})"
+});
 Gioval.dominio = (function () {
   const P = { minIntentos: 6, minAciertos: 0.9, ventana: 10, itemsChequeoSalto: 3, maxSaltadasPorChequeo: 4, topeChequeo: 12, minChequeo: 2 };
   const habilidad = id => (PACK ? PACK.skills : Gioval.islas.habilidades()).find(s => s.id === id) || Gioval.islas.habilidades().find(s => s.id === id);

@@ -14,7 +14,7 @@ function reportText(){
     const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
     const pk=PACKS.find(p=>p.skills.includes(s)); if(pk&&pk!==lastPk){ lines.push(pk.emoji+" "+pk.name.toLocaleUpperCase(loc)); lastPk=pk; }
     const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
-    lines.push(t("informe.hab",{nombre:s.name,estado:st.mast?(Gioval.dominio.pendiente(st)?"saltada":"dominado"):"practica"}));
+    lines.push(Gioval.dominio.pendiente(st)?t("informe.hab_saltada",{nombre:s.name}):t("informe.hab",{nombre:s.name,estado:st.mast?"dominado":"practica"}));
     lines.push(t("informe.primeros",{a:pc(first.slice(0,5)),b:pc(first.slice(-5))}));
     lines.push(t("informe.retencion",{r:pc(ret)}));
     Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l));
@@ -32,7 +32,7 @@ function renderParent(){
   const ds=store.days[KID]||[];
   const used=Math.round((store.time[KID+"|"+today()]||0)/60);
   let h=KID?t("adultos.resumen",{nombre:KID,dias:ds.length,usados:used,limite:store.limit[KID]||15})+"<br>":"";
-  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) h+=t("adultos.hab_linea",{emoji:(PACKS.find(p=>p.skills.includes(s))||{}).emoji||"",nombre:s.name,estado:st.mast?(Gioval.dominio.pendiente(st)?"saltada":"dominado"):"practica",pct:Math.round(st.score*100),n:st.att,nivel:st.lvl})+"<br>"; });
+  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) h+=t(Gioval.dominio.pendiente(st)?"adultos.hab_linea_saltada":"adultos.hab_linea",{emoji:(PACKS.find(p=>p.skills.includes(s))||{}).emoji||"",nombre:s.name,estado:st.mast?"dominado":"practica",pct:Math.round(st.score*100),n:st.att,nivel:st.lvl})+"<br>"; });
   $("parentSum").innerHTML=h||"";
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo(); renderIdioma();
