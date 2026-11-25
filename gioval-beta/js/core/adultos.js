@@ -20,6 +20,7 @@ function reportText(){
     Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l));
   });
   PACKS.forEach(p=>{ if(!p.informe) return; const l=p.informe(KID); if(l&&l.length) lines.push("", ...l); });   /* gancho opcional: cada isla puede sumar sus propias líneas */
+  (Gioval.modos||[]).forEach(m=>{ if(!m.informe) return; const l=m.informe(KID); if(l&&l.length) lines.push("", ...l); });   /* gancho genérico: modos que no son una isla (p. ej. De a dos) suman su sección */
   const sal=Gioval.dominio.lineasSaltos(PACKS); if(sal.length) lines.push("",...sal);
   const ck=store.checks[KID]||[];
   lines.push("", t("informe.chequeos"));

@@ -33,14 +33,63 @@ const SONGS = [
 
 /* ---- estado propio de la isla (el motor solo conoce lo genérico de S) ---- */
 const mic=Gioval.entrada.proveedores.microfono;
+const panelAbierto=()=>{ const p=$("panel"); return !!(p&&p.classList.contains("show")); };
 const MIC_OPTS={
   umbral:()=>(+$("sens").value)/1000,
   nivel:r=>{ $("dbgLevel").style.width=Math.min(100,r*600)+"%"; },
-  alDetectar:b=>{ $("dbgNote").textContent=midiName(b)+" ("+b+")"; },
+  alDetectar:(b,d)=>{ $("dbgNote").textContent=midiName(b)+" ("+b+")"; },
   alEncender:()=>{ $("btnMic").classList.add("on"); setBubble(t("musica.mic.encendido")); },
   alError:()=>{ $("btnMic").classList.remove("on"); setBubble(t("musica.mic.error")); },
-  alApagar:()=>{ $("btnMic").classList.remove("on"); },
+  alApagar:()=>{ $("btnMic").classList.remove("on"); mostrarCue(false); pintarVivo(); },
+  /* lo que el micrófono "ve" en cada cuadro: alimenta la lectura en vivo del panel de adultos y la señal "te escucho" de los chicos */
+  envivo:()=>panelAbierto(),
+  diagnostico:v=>{ mostrarCue(!v.silenciado&&S.mode==="play"&&!!document.querySelector("#play.active")); if(panelAbierto()) pintarVivo(); },
+  alAfinar:()=>{ pintarAfinacion(); },
 };
+/* nombre con octava: Do 4 = Do central (midi 60) */
+const oct=m=>Math.floor(m/12)-1;
+const nombreConOctava=m=>midiName(m)+" "+oct(m);
+function mostrarCue(on){
+  const c=$("micCue"); if(!c) return;
+  if(c.classList.contains("on")!==!!on){ c.classList.toggle("on",!!on); $("btnMic").classList.toggle("oyendo",!!on); if(on) c.textContent=t("musica.cue.escucho"); }
+}
+const num=(x,d=0)=>x==null?"–":x.toLocaleString(Gioval.i18n.meta().locale,{maximumFractionDigits:d,minimumFractionDigits:d});
+function textoDesvio(c){ return Math.abs(c)<5?t("musica.vivo.afinada"):t(c>0?"musica.vivo.aguda":"musica.vivo.grave",{c:Math.abs(c)}); }
+/* lectura en vivo del panel: nota, Hz, desvío, octava, volumen contra el mínimo, y el motivo si se ignoró un sonido */
+function pintarVivo(){
+  const el=$("micVivoNota"); if(!el) return;
+  const V=mic.vivo, ahora=performance.now();
+  let nota="–", det="", est;
+  if(!mic.activo) est=t("musica.vivo.estado.apagado");
+  else if(V.silenciado) est=t("musica.vivo.estado.silenciado");
+  else est=t("musica.vivo.estado.escuchando");
+  if(mic.activo&&V.midi!=null){ nota=nombreConOctava(V.midi); det=t("musica.vivo.detalle",{hz:num(V.hz,1),desvio:textoDesvio(V.cents),oct:oct(V.midi)}); }
+  else if(V.ultimaNota&&ahora-V.ultimaNota.t<4000){ const u=V.ultimaNota; nota=nombreConOctava(u.midi); det=t("musica.vivo.ultima",{hz:num(u.hz,1),desvio:textoDesvio(u.cents)}); }
+  el.textContent=nota; $("micVivoDet").textContent=det||t("musica.vivo.nada");
+  $("micVivoEstado").textContent=est;
+  const thr=V.umbral||MIC_OPTS.umbral();
+  $("dbgThr").style.left=Math.min(100,thr*600)+"%";
+  $("dbgLevelTxt").textContent=t("musica.vivo.volumen",{v:num(V.rms*1000,0),m:num(thr*1000,0)});
+  const mo=$("micVivoMotivo"); let txt="";
+  if(V.motivo&&ahora-V.motivoT<5000) txt=t("musica.motivo."+V.motivo,{hz:num(V.fueraHz,0)});
+  mo.textContent=txt; mo.style.display=txt?"block":"none";
+}
+const textoAfinacion=()=>{
+  const c=mic.afinacion(); let h=Math.abs(c)<1?t("musica.afin.valor0"):t("musica.afin.valor",{c:num(Math.abs(c),0),dir:t(c<0?"musica.afin.grave":"musica.afin.aguda")});
+  h+=" "+t(mic.afinacionManual()?"musica.afin.manual":(mic.afinacionAuto()?"musica.afin.auto_si":"musica.afin.auto_no")); return h;
+};
+function pintarAfinacion(){ const e=$("afinInfo"); if(e){ e.textContent=textoAfinacion(); $("afinAuto").checked=mic.afinacionAuto(); } }
+async function calibrarLa(){
+  const msg=$("afinMsg"); msg.style.display="block"; msg.textContent=t("musica.afin.esperando"); ensureCtx();
+  if(!mic.activo) await mic.iniciar(MIC_OPTS);
+  if(!mic.activo){ msg.textContent=t("musica.mic.error"); return; }
+  const r=await mic.calibrarLa();
+  if(r.ok) msg.textContent=t(Math.abs(r.afinacion)<1?"musica.afin.listo_cero":"musica.afin.listo",{c:num(Math.abs(r.afinacion),0),dir:t(r.afinacion<0?"musica.afin.grave":"musica.afin.aguda")})+(r.limitada?" "+t("musica.afin.limitada"):"");
+  else if(r.motivo==="no_es_la") msg.textContent=t("musica.afin.no_es_la",{nota:nombreConOctava(r.escuche)});
+  else if(r.motivo==="tiempo") msg.textContent=t("musica.afin.tiempo");
+  else if(r.motivo==="sin_nota") msg.textContent=t("musica.afin.sin_nota");
+  pintarAfinacion();
+}
 function midiName(m){ return Gioval.i18n.nombreNota(m); }
 Object.assign(S,{song:null,chunks:[],ci:0,ni:0,missPhrase:0,missNote:0,learnIdx:0});
 const starsOf=id=>store.stars[KID+"|"+id]||0;
@@ -137,12 +186,23 @@ async function startFull(){
   if(run!==S.run) return; S.mode="play"; renderDots();
 }
 function stars3(m){ return m===0?3:(m<=3?2:1); }
-async function handleInput(midi){
+async function handleInput(midi,src,ev){
   if(S.mode!=="play"||S.tap) return;
   const now=performance.now(); if(now-S.lastWrong<300) return;
   const nt=chunk()[S.ni]; if(!nt) return;
   const anyOct=$("anyOctave").checked;
-  const ok = anyOct ? (midi%12===nt.midi%12) : (midi===nt.midi);
+  let ok = anyOct ? (midi%12===nt.midi%12) : (midi===nt.midi);
+  /* micrófono: un piano de casa casi nunca está a 440 exactos. Si la altura medida (con la afinación ya aplicada) cae a menos de
+     ~12 cents del borde de la nota que se pidió, cuenta como esa nota: no se castiga al chico por la afinación del piano. */
+  if(!ok&&src==="mic"&&ev&&typeof ev.midiFloat==="number"){
+    const aj=ev.midiFloat-(ev.afinacion||0)/100;
+    let d=Math.abs(aj-nt.midi); if(anyOct){ d=Math.abs(((aj-nt.midi)%12+18)%12-6); }
+    if(d<=.62) ok=true;
+  }
+  /* con "cualquier octava" apagado: la nota correcta en otra octava no es un error, solo se avisa (y no resta estrellas) */
+  if(!ok&&src==="mic"&&!anyOct&&midi%12===nt.midi%12){
+    S.lastWrong=now; setBubble(t("musica.otra_octava",{nota:noteName(PCLET[nt.midi%12])})); return;
+  }
   const run=S.run;
   if(ok){
     S.missNote=0; if(!S.check) flash(nt.midi,"ok",300); S.ni++; renderDots();
@@ -257,16 +317,25 @@ const DOM={
     <div class="prog" id="prog"></div>
     <div class="dots" id="dots"></div>
     <div class="stage">
+      <div class="micCue" id="micCue" aria-live="polite"></div>
       <div class="kb" id="kb"></div>
     </div>
   </div>
 `,
   herramientas:`<button class="iconbtn" id="btnMic" title="Escuchar mi piano" data-i18n-title="musica.mic_titulo">🎤</button>`,
   panelTexto:`<span data-i18n="musica.panel.texto"> — el 🎤 hace que la app escuche el piano. Tocar el teclado de la pantalla también funciona.</span>`,
-  panelArriba:`<label><span data-i18n="musica.panel.nota">Nota que escucho:</span> <b id="dbgNote">–</b></label>
-    <label><span data-i18n="musica.panel.volumen">Volumen</span> <div class="meter"><i id="dbgLevel"></i></div></label>
+  panelArriba:`<div class="micVivo"><b data-i18n="musica.panel.vivo_titulo">Lo que escucha el micrófono</b>
+      <div class="micVivoFila"><span class="micNota" id="micVivoNota">–</span><span id="micVivoDet"></span></div>
+      <div id="micVivoEstado"></div><div class="micMotivo" id="micVivoMotivo" style="display:none"></div></div>
+    <label><span data-i18n="musica.panel.nota">Nota que escucho:</span> <b id="dbgNote">–</b></label>
+    <label><span data-i18n="musica.panel.volumen">Volumen</span> <div class="meter"><i id="dbgLevel"></i><u id="dbgThr"></u></div> <span id="dbgLevelTxt"></span></label>
     <label><span data-i18n="musica.panel.sensibilidad">Sensibilidad</span> <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
-    <label><span data-i18n="musica.panel.octava">Aceptar la nota en cualquier octava</span> <input type="checkbox" id="anyOctave" checked></label>`,
+    <label><span data-i18n="musica.panel.octava">Aceptar la nota en cualquier octava</span> <input type="checkbox" id="anyOctave" checked></label>
+    <div class="afin"><b data-i18n="musica.afin.titulo">Afinación del piano</b>
+      <div id="afinInfo"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn" id="afinLa" style="padding:6px 14px;font-size:16px" data-i18n="musica.afin.btn_la">🎵 Tocá un La</button><button class="btn alt" id="afinCero" style="padding:6px 14px;font-size:16px" data-i18n="musica.afin.btn_reset">↺ Volver a cero</button></div>
+      <div class="psum" id="afinMsg" style="display:none"></div>
+      <label><span data-i18n="musica.afin.auto">Ajustar sola mientras se toca</span> <input type="checkbox" id="afinAuto" checked></label></div>`,
   panelPie:`<div class="note-hint" data-i18n="musica.panel.tip">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>`,
 };
 function iniciar(){
@@ -279,11 +348,16 @@ function iniciar(){
     if(!S.song) return; S.run++; if(S.full||S.learnIdx+1>=S.song.chunks.length) startFull(); else learnPhrase(S.learnIdx+1); };
   $("sens").oninput=e=>{ $("sensVal").textContent=e.target.value; };
   $("sensVal").textContent=$("sens").value;
+  $("afinLa").onclick=()=>calibrarLa();
+  $("afinCero").onclick=()=>{ mic.reiniciarAfinacion(); const m=$("afinMsg"); m.style.display="block"; m.textContent=t("musica.afin.reiniciada"); pintarAfinacion(); };
+  $("afinAuto").onchange=e=>{ mic.afinacionAuto(e.target.checked); pintarAfinacion(); };
+  Gioval.on("panel",()=>{ pintarAfinacion(); pintarVivo(); });
+  pintarAfinacion(); pintarVivo();
   $("btnMic").onclick=async()=>{ ensureCtx(); if(mic.activo){ mic.detener(); } else { await mic.iniciar(MIC_OPTS); } };
   Gioval.entrada.suscribir("toque",ev=>{ ensureCtx(); Gioval.sonido.tocar(ev.midi,.6); handleInput(ev.midi,"touch"); });
-  Gioval.entrada.suscribir("nota",ev=>{ handleInput(ev.midi,"mic"); });
+  Gioval.entrada.suscribir("nota",ev=>{ handleInput(ev.midi,"mic",ev); });
   buildKeyboard();
-  Gioval.on("idioma",d=>{ if(!d||!d.cambio) return; buildKeyboard(); if(S.chunks&&S.chunks.length&&document.querySelector("#play.active")) renderDots(); });
+  Gioval.on("idioma",d=>{ if(!d||!d.cambio) return; pintarAfinacion(); pintarVivo(); buildKeyboard(); if(S.chunks&&S.chunks.length&&document.querySelector("#play.active")) renderDots(); });
   Gioval.on("mapa",()=>{ $("btnMic").style.display=""; });
   Gioval.on("menu",p=>{ if(p!==ISLA){ if(mic.activo) mic.detener(); $("btnMic").style.display="none"; } else $("btnMic").style.display=""; });
 }

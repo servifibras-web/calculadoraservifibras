@@ -4,13 +4,15 @@
    make/view/okMsgs/tip/reveal (ver js/islas/numeros.js) y se registran con tap:true. Este archivo dibuja la pantalla
    (#act), recibe los toques, da ayudas progresivas tras errores y reporta el resultado al motor (S.onDone). */
 function entrarToques(title){ $("actTitle").textContent=title; show("act"); }
+/* tope del tamaño de los dibujos: 76 px en teléfonos; en tablets (pantalla ancha y alta) puede llegar a 130 px */
+const TOPE_ES=()=>matchMedia("(min-width:700px) and (min-height:560px)").matches?130:76;
 function fitAll(){
   document.querySelectorAll("#act [data-fit]").forEach(el=>{
     const p=el.parentElement; el.style.setProperty("--es","12px");
     const w=p.clientWidth-16,h=p.clientHeight-16; if(w<=0||h<=0) return;
     const [c,r]=el.dataset.fit.split(",").map(Number); let es;
     if(el.dataset.area) es=Math.sqrt(w*h/((+el.dataset.area+3)*2.2)); else es=Math.min(w/(c*1.3),h/(r*1.35));
-    es=Math.max(14,Math.min(es,76)); el.style.setProperty("--es",es+"px");
+    es=Math.max(14,Math.min(es,TOPE_ES())); el.style.setProperty("--es",es+"px");
     for(let g=0;g<14&&es>14&&(el.offsetHeight>p.clientHeight-8||el.offsetWidth>p.clientWidth-8);g++){ es*=.9; el.style.setProperty("--es",es+"px"); }
   });
 }
@@ -73,5 +75,6 @@ async function tapPick(i){
 }
 $("btnActHear").onclick=()=>{ if(S.tap&&S.tap.v) speak(S.tap.v.say); };
 $("btnActSkip").onclick=()=>{ if(!S.session) return; const run=++S.run; S.session.i++; renderProg(); nextItem(run); };
-$("btnActBack").onclick=()=>{ S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow(); goMenuIsla(); };
+$("btnActBack").onclick=()=>{ if(S.session&&S.session.alVolver) return S.session.alVolver();   /* gancho genérico: un modo con sesión propia decide a dónde vuelve */
+  S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow(); goMenuIsla(); };
 
