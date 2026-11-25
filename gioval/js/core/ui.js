@@ -79,7 +79,7 @@ function renderLogros(){
     const st=SK(s.id), open=s.req.every(mastered);
     const pct=st.mast?100:Math.round(Math.min(1,st.att/6)*st.score*100);
     const d=document.createElement("div"); d.className="skill"+(open?"":" lock");
-    d.innerHTML=`<div class="em">${open?s.icon:"🔒"}</div><div style="flex:1">${s.name}<small>${st.mast?t("menu.dominado"):(open?t("menu.practicando"):t("menu.bloqueado"))}</small><div class="bar2"><i style="width:${open?pct:0}%"></i></div></div>`;
+    d.innerHTML=`<div class="em">${open?s.icon:"🔒"}</div><div style="flex:1">${s.name}<small>${st.mast?t(Gioval.dominio.pendiente(st)?"menu.saltada":"menu.dominado"):(open?t("menu.practicando"):t("menu.bloqueado"))}</small><div class="bar2"><i style="width:${open?pct:0}%"></i></div></div>`;
     box.appendChild(d);
   });
 }

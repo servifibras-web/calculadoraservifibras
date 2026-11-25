@@ -8,8 +8,8 @@
    Al arrancar se usa la copia más reciente (meta.guardado). Las migraciones están numeradas: v0 = formato
    antiguo de localStorage (sin campo version). NUNCA se borra nada si una migración falla: se guarda copia
    previa y se sigue con los datos originales. */
-const ALMACEN_VERSION = 2;
-const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+const ALMACEN_VERSION = 3;
+const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
 
 Gioval.almacen = (function () {
   const DB = "gioval-db" + (Gioval.espacio ? "-" + Gioval.espacio : ""), DB_V = 1, LS = Gioval.clave("gioval"), LS_PRE = Gioval.clave("gioval_pre_migracion");
@@ -31,7 +31,9 @@ Gioval.almacen = (function () {
       } },
     { a: 2, nombre: "v1 → v2: idioma elegido por jugador (idioma: { Nombre: \"es-AR\" })",
       fn(s) { s.idioma = obj(s.idioma); return s; } },
-    /* v3 (próxima): { a: 3, nombre:"…", fn(s){ …; return s; } } */
+    { a: 3, nombre: "v2 → v3: intake (preguntas iniciales al adulto y punto de partida por niño; lo usa la isla Números)",
+      fn(s) { s.intake = obj(s.intake); return s; } },   /* intake[niño] = { v, edad, resp, ubicacion?, inicio? }; lo escriben las islas que lo usan */
+    /* v4 (próxima): { a: 4, nombre:"…", fn(s){ …; return s; } } */
   ];
   A.migraciones = MIGRACIONES;
   function migrar(s) {
@@ -82,7 +84,7 @@ Gioval.almacen = (function () {
         try { localStorage.getItem(LS_PRE) || localStorage.setItem(LS_PRE, origenTxt); } catch (e) {}
         await idbPut("respaldo", { id: "pre-migracion-v" + versionAntes + "-" + Date.now(), motivo: "antes de migrar de v" + versionAntes, ts: Date.now(), json: origenTxt });
         try { elegido = migrar(JSON.parse(origenTxt)); hechoMigracion = true; }
-        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {} }, JSON.parse(origenTxt)); }
+        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {} }, JSON.parse(origenTxt)); }
       } else { elegido = migrar(elegido); }
       const base = JSON.parse(JSON.stringify(store)); /* defaults */
       reemplazar(Object.assign(base, elegido));
@@ -160,7 +162,7 @@ Gioval.almacen = (function () {
       await idbPut("respaldo", { id: "pre-restauracion-fotos-" + Date.now(), motivo: "fotos de antes de restaurar un respaldo", ts: Date.now(), fotos: await A.fotos.todas() });
       await A.fotos.reemplazarTodas(fotos);
     }
-    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
     reemplazar(Object.assign(base, datos)); store.meta = Object.assign(base.meta, obj(store.meta));
     store.meta.guardado = Date.now(); await A.guardarYa(); return true;
   };

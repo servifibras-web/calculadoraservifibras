@@ -229,9 +229,50 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
    Se usan propiedades lógicas (inicio/fin) para que la interfaz se espeje sola con dir="rtl".
    Lo que NO se espeja: el teclado del piano y la fila de notas (la música se lee siempre de izquierda a derecha),
    las cuentas y los dibujos de objetos, y los números. */
-#kb,#dots,.eq,.eqt,.og,.bignum,.opt .bignum{direction:ltr;unicode-bidi:isolate}
+#kb,#dots,.eq,.eqt,.og,.bq,.slots,.bignum,.opt .bignum{direction:ltr;unicode-bidi:isolate}
 .arr{display:inline-block}
 html[dir=rtl] .arr{transform:scaleX(-1)}
 html[dir=rtl] .bubble:before{transform:none}
 /* cartel de tope: si con otro idioma o con botones extra el contenido no entra en pantalla, se puede desplazar (antes se cortaba) */
 #capBox{overflow-y:auto;justify-content:safe center}
+
+
+
+/* ---- bloques de base 10 (Isla Números: valor posicional, sumas de dos cifras) ---- */
+.bq{display:flex;align-items:flex-end;justify-content:center;gap:.5em;flex-wrap:wrap;font-size:var(--es,24px);line-height:1}
+.bq .bg{display:flex;align-items:flex-end;gap:.1em}
+.bq .bg.bu{display:grid;grid-template-columns:repeat(5,.26em);gap:.08em}
+.b100,.b10,.b1{display:block;position:relative;flex:none}
+.b100{width:1.3em;height:1.3em;background:#d9ccff;border:.05em solid #7c4dff;border-radius:.1em;background-image:linear-gradient(#7c4dff44 .03em,transparent .03em),linear-gradient(90deg,#7c4dff44 .03em,transparent .03em);background-size:.13em .13em}
+.b10{width:.26em;height:1.3em;background:#ffd08a;border:.04em solid #e67e22;border-radius:.05em;background-image:linear-gradient(#e67e2255 .025em,transparent .025em);background-size:100% .13em}
+.b1{width:.26em;height:.26em;background:#6fdc8c;border:.04em solid #2e9b4b;border-radius:.05em}
+.bq .x{background:#e3e3e3!important;border-color:#b5b5b5!important;background-image:none!important}
+.bq .x:after{content:"";position:absolute;left:-.06em;right:-.06em;top:50%;border-top:.07em solid #ff5a5f;transform:rotate(-35deg)}
+
+/* ---- pantallas para adultos de la Isla Números (preguntas iniciales, resumen del punto de partida) ---- */
+.ncard{background:#fff;color:#2b2350;text-align:left;border-radius:20px;padding:14px 18px;width:min(94vw,600px);max-height:90vh;max-height:90dvh;overflow:auto;font-size:16px;line-height:1.4;user-select:text;-webkit-user-select:text}
+.ncard h3{margin:0 0 6px;font-size:21px}
+.ncard p{margin:6px 0}
+.ncard .nbig{font-size:18px;background:#f3eeff;border-radius:14px;padding:8px 12px}
+.nfila{display:flex;flex-direction:column;gap:3px;margin:9px 0}
+.nfila select,.nrow select{font-size:16px;padding:7px;border-radius:10px;border:2px solid #d9ccff;background:#fff;color:#2b2350;font-family:inherit;max-width:100%}
+.neje{margin:12px 0 2px;font-weight:900;color:#7c4dff;border-bottom:2px solid #eadfff}
+.nrow{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0eaff}
+.nrow .nn{flex:1;min-width:0;font-weight:700}
+.nrow .nn small{display:block;font-weight:600;opacity:.65;font-size:13px}
+.nrow .ni{font-size:18px}
+.nrow select{flex:0 0 46%}
+.nrow select.e-saltada{border-color:#4cc86a}
+.nrow select.e-encurso{border-color:#ffb03a}
+.nbtns{position:sticky;bottom:-14px;background:#fff;padding:8px 0 4px;display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.nbtns .btn,.nbtns2 .btn{padding:8px 14px;font-size:16px}
+.nbtns2{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 4px}
+@media (max-height:420px){
+  .ncard{padding:8px 14px;font-size:14px;line-height:1.3}
+  .ncard h3{font-size:17px;margin-bottom:2px}
+  .ncard .nbig{font-size:14px;padding:4px 10px}
+  .ncard p{margin:3px 0}
+  .ncard .note-hint{font-size:12px}
+  .nbtns{padding:4px 0 2px;margin-top:4px}
+  .nbtns .btn,.nbtns2 .btn{padding:5px 12px;font-size:14px}
+}
