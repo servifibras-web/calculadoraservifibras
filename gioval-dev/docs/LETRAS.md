@@ -9,7 +9,7 @@ Isla para chicos que empiezan con las letras (desde los 4 años) y siguen hasta 
 |---|---|
 | `gioval/js/datos/letras.js` | Textos (tabla es-AR, arriba de todo), las 30 habilidades (`HABILIDADES`), las listas de contenido (palabras con dibujo, rimas, frases, comprensión, oraciones, grupos, ortografía), el mapeo de las preguntas para adultos (`INICIO`) y la tabla de letras que se confunden de oído (`CONFUNDEN`). **Editable sin tocar la lógica.** |
 | `gioval/js/islas/letras.js` | Los 20 tipos de actividad, las preguntas para adultos, el juego de ubicación, el resumen y el informe. |
-| `gioval/js/core/dominio.js` | Genérico: salto por dominio rápido y re-evaluación (ver `AGREGAR_ISLA.md`). |
+| `gioval/js/core/dominio.js` | Genérico (compartido con Números): salto por dominio rápido y re-evaluación semanal (ver `AGREGAR_ISLA.md`, "dominio rápido"). Letras solo declara `rapido:{rt, salta}` en cada habilidad y marca lo sabido con `Gioval.dominio.saltar`. |
 | `gioval/css/letras.css` | Estilos propios (letras grandes, pantallas para adultos). |
 
 ## La escalera (8 tramos, 30 habilidades)
@@ -36,7 +36,7 @@ Cada habilidad lleva `nivel` (tramo 0 a 7), `edad` típica (orientativa, **nunca
 
 ## Preguntas para adultos (una sola vez, 2 minutos)
 
-Edad, cuántas letras reconoce, qué lee y si escribe su nombre. Se guardan en `store.intake[Jugador].letras`. El tramo de arranque es el **mayor** de:
+Edad, cuántas letras reconoce, qué lee y si escribe su nombre. Se guardan en `store.intake["letras|<Jugador>"]` (Números guarda las suyas en `store.intake[<Jugador>]` y reemplaza ese objeto entero, por eso no se comparte). El tramo de arranque es el **mayor** de:
 
 - letras: ninguna/algunas -> 1; casi todas mayúsculas -> 3; todas -> 4
 - lee: no -> 1; sílabas -> 4; palabras -> 5; frases -> 6; textos -> 7
@@ -55,7 +55,7 @@ Adaptativo y sin ayudas, con botón "No sé" (que cuenta como no saber, sin cast
 
 ## Salto por dominio rápido
 
-Umbrales (todos ajustables): >= 6 intentos, >= 90 % al primer intento (últimos 10), >= 5 tiempos medidos y mediana del tiempo <= `rtRapido` de **esa habilidad** (en milisegundos, en `HABILIDADES`). Si se cumple al dominar una habilidad, se salta la siguiente que se abre. **Los `rtRapido` son estimaciones hechas sin chicos reales: hay que calibrarlos** mirando el "Tiempo de respuesta típico" del informe de varios chicos (A REVISAR por Marcos).
+Lo hace el núcleo (`dominio.js`, el mismo de Números). Umbrales (a revisar con datos reales): en los últimos 10 intentos, al menos 6 intentos, al menos 90 % al primer intento y mediana del tiempo de respuesta **menor** que el `rt` de esa habilidad (en milisegundos; en Letras sale de `rtRapido` en `HABILIDADES`). Si se cumple al dominar una habilidad, se salta **solo la primera** que se destraba (Letras declara una sola en `salta`, a propósito conservador). En el chequeo semanal sin ayuda cada saltada recibe 3 ítems: con al menos 2 de 3 queda confirmada; si no, vuelve a práctica. **Los `rtRapido` son estimaciones hechas sin chicos reales: hay que calibrarlos** mirando el "Tiempo de respuesta" del informe de varios chicos (A REVISAR por Marcos).
 
 ## Informe para adultos
 
