@@ -36,11 +36,14 @@ function tapRender(){
 $("actStage").onclick=e=>{ const T=S.tap; if(!T||S.mode!=="play") return; const A=ACTIVITIES[T.it.skill.type]; const ob=e.target.closest(".ob"); if(ob&&A.stageTap) A.stageTap(T.it,T,+ob.dataset.i); };
 async function tapItem(run,it,A,ss){
   let aid=S.hint; if(A.noVoiceAid!=null&&!voiceReady()) aid=Math.min(aid,A.noVoiceAid);
-  S.tap={it,run,aid,pos:it.start||0,miss:0,used:new Set(),dead:new Set(),help:false,reveal:false,revealed:false,cnt:[],v:null};
+  const T=S.tap={it,run,aid,pos:it.start||0,miss:0,used:new Set(),dead:new Set(),help:false,reveal:false,revealed:false,cnt:[],v:null,t0:0,tVoz:null};
   renderProg(); tapRender();
-  S.mode="play";
+  S.mode="play"; T.t0=performance.now();   /* t0: el ítem ya se ve; tVoz: cuándo terminó de hablar la app (el tiempo de respuesta se mide desde ahí) */
   await speak(S.tap.v.say);
+  if(S.tap===T) T.tVoz=performance.now();
 }
+/* tiempo de respuesta (ms) de un ítem resuelto sin errores: desde que terminó de hablar la app (o desde que se ve, si tocó antes) */
+function tapRt(T,tFin){ const base=(T.tVoz!=null&&T.tVoz<=tFin)?T.tVoz:T.t0; return Math.max(200,Math.round(tFin-base)); }
 async function tapPick(i){
   const T=S.tap; if(!T||S.mode!=="play") return;
   const v=T.v, o=v.opts[i], it=T.it, A=ACTIVITIES[it.skill.type], id=o.id!=null?o.id:i;
@@ -53,11 +56,11 @@ async function tapPick(i){
     const fin=T.pos>=it.seq.length;
     if(fin) S.mode="between";
     T.reveal=false; tapRender();
-    if(fin){ const b2=$("actOpts").children[i]; if(b2) b2.classList.add("ok"); await sleep(520); if(run!==S.run) return; S.onDone({miss:T.miss,revealed:T.revealed}); }
+    if(fin){ const rt=T.miss===0?tapRt(T,now):null; const b2=$("actOpts").children[i]; if(b2) b2.classList.add("ok"); await sleep(520); if(run!==S.run) return; S.onDone({miss:T.miss,revealed:T.revealed,rt,aid:T.aid}); }
     return;
   }
   S.lastWrong=now; T.miss++;
-  if(S.check){ S.mode="between"; btn.classList.add("near"); await sleep(380); if(run!==S.run) return; S.onDone({miss:1}); return; }
+  if(S.check){ S.mode="between"; btn.classList.add("near"); await sleep(380); if(run!==S.run) return; S.onDone({miss:1,rt:null,aid:T.aid}); return; }
   btn.classList.add("near"); setTimeout(()=>btn.classList.remove("near"),450);
   if(T.miss===1){ setBubble(rnd(["Mmm, probá distinto 🤔","Fijate de nuevo, despacito.","¡Casi! Probá de otra manera."])); }
   else if(T.miss===2){

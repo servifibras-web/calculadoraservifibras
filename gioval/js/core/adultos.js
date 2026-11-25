@@ -7,31 +7,35 @@ function reportText(){
   lines.push("INFORME DE "+KID.toUpperCase()+" — Mundo Gioval", new Date().toLocaleDateString("es-AR"),
     "Días practicados: "+ds.length+" · Minutos en la app: "+mins, "");
   const pc=a=>a.length?Math.round(100*a.filter(Boolean).length/a.length)+"% (n="+a.length+")":"–";
+  PACKS.forEach(p=>{ if(p.informeInicio){ const l=p.informeInicio(KID); if(l&&l.length) lines.push(...l,""); } });   /* punto de partida u otros datos propios de la isla */
   let lastPk=null;
   Gioval.islas.habilidades().forEach(s=>{
     const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
     const pk=PACKS.find(p=>p.skills.includes(s)); if(pk&&pk!==lastPk){ lines.push(pk.emoji+" "+pk.name.toUpperCase()); lastPk=pk; }
     const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
-    lines.push("• "+s.name+": "+(st.mast?"dominado":"en práctica"));
+    lines.push("• "+s.name+": "+(st.mast?(Gioval.dominio.pendiente(st)?"saltada (sin práctica propia)":"dominado"):"en práctica"));
     lines.push("   Aciertos al primer intento: primeros "+pc(first.slice(0,5))+" → últimos "+pc(first.slice(-5)));
     lines.push("   Retención (acierto ≥1 día después de practicar): "+pc(ret));
+    Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l));
   });
+  const sal=Gioval.dominio.lineasSaltos(PACKS); if(sal.length) lines.push("",...sal);
   const ck=store.checks[KID]||[];
   lines.push("", "CHEQUEOS SIN AYUDA (1 por semana y por isla)");
   if(!ck.length) lines.push("   (todavía no hizo ninguno)");
   ck.slice(-12).forEach(c=>{ const pk=PACKS.find(x=>x.id===c.p); lines.push("   "+c.d+" · "+(pk?pk.name:"")+": "+c.ok+"/"+c.n+" ("+Math.round(100*c.ok/c.n)+"%)"); });
-  lines.push("", "Cómo leerlo: la retención mide si recuerda tras dormir y pasar días; el chequeo semanal se hace sin pistas ni ayuda. "+Gioval.islas.notasInforme());
+  lines.push("", "Cómo leerlo: la retención mide si recuerda tras dormir y pasar días; el chequeo semanal se hace sin pistas ni ayuda; el tiempo de respuesta se mide desde que la app termina de hablar. "+Gioval.islas.notasInforme());
   return lines.join("\n");
 }
 function renderParent(){
   const ds=store.days[KID]||[];
   const used=Math.round((store.time[KID+"|"+today()]||0)/60);
   let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados · hoy ${used} de ${store.limit[KID]||15} min.<br>`:"";
-  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${(PACKS.find(p=>p.skills.includes(s))||{}).emoji||""} ${s.name}: ${st.mast?"dominado":"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
+  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${(PACKS.find(p=>p.skills.includes(s))||{}).emoji||""} ${s.name}: ${st.mast?(Gioval.dominio.pendiente(st)?"saltada":"dominado"):"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
   $("parentSum").innerHTML=t||"";
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo();
   $("skipSel").innerHTML=PACKS.flatMap(p=>p.skills.map(s=>`<option value="${s.id}">${p.emoji} ${s.name}</option>`)).join("");
+  Gioval.emit("panel",KID);   /* las islas pueden actualizar lo suyo dentro del panel (panelPie, panelArriba…) */
 }
 function markKnown(id){
   const mark=sid=>{ const s=Gioval.islas.habilidades().find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
