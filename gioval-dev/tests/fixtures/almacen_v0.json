@@ -1,0 +1,11 @@
+{"profiles":["Valentino","Giovanni"],
+ "stars":{"Valentino|Estrellita":3,"Valentino|Himno a la Alegría":2,"Giovanni|Estrellita":1},
+ "sk":{"Valentino|n1":{"score":0.93,"att":9,"box":2,"due":1790000000000,"lvl":2,"rec":[1,1,1],"mast":true,"last":1789000000000},
+       "Valentino|e1":{"score":0.6,"att":3,"box":0,"due":0,"lvl":0,"rec":[1,0,1],"mast":false,"last":1789000100000},
+       "Giovanni|n1":{"score":0.85,"att":7,"box":1,"due":1789500000000,"lvl":1,"rec":[1,1],"mast":true,"last":1789000200000}},
+ "days":{"Valentino":["2026-11-20","2026-11-21","2026-11-23"],"Giovanni":["2026-11-22"]},
+ "time":{"Valentino|2026-11-23":610,"Giovanni|2026-11-22":300},
+ "log":{"Valentino":[{"t":1789000000000,"s":"n1","o":1,"f":1,"g":0,"k":"learn"},{"t":1789000100000,"s":"n1","o":0,"f":0,"g":1.2,"k":"review"},{"t":1789000200000,"s":"e1","o":1,"f":1,"g":0,"k":"learn"}]},
+ "checks":{"Valentino":[{"d":"2026-11-16","n":4,"ok":3},{"d":"2026-11-23","n":6,"ok":5,"p":"musica"}]},
+ "extra":{"Valentino|2026-11-23":900},
+ "limit":{"Valentino":30,"Giovanni":20}}
