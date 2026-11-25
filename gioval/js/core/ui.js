@@ -9,7 +9,7 @@ function renderMap(){
   $("mapTitle").textContent="Mundo Gioval · ¡A jugar, "+KID+"!";
   const box=$("islands"); box.innerHTML="";
   const islas=[
-    ...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMenuIsla(); speak("¡"+p.name+"! Empezamos con la sesión de hoy, o elegí otra cosa."); }})),
+    ...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMenuIsla(); speak(p.hablaMenu||("¡"+p.name+"! Empezamos con la sesión de hoy, o elegí otra cosa.")); }})),
     ...(Gioval.datos.proximas||[]).map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:false})),
   ];
   islas.forEach(is=>{
@@ -45,10 +45,11 @@ $("btnFinHome").onclick=()=>{ $("finish").classList.remove("show");
 function goMenuIsla(){ S.run++; S.tap=null; Gioval.emit("menu",PACK); show("menuIsla"); renderMenuIsla(); setBubble("¡"+PACK.name+"! ¿Qué hacemos?"); }
 function renderMenuIsla(){
   $("menuIslaTitle").textContent=PACK.emoji+" "+PACK.name;
-  const left=capLeft(); $("streak").textContent="⏱ "+(left>0?Math.ceil(left/60)+" min":"listo por hoy");
+  const left=capLeft(); $("streak").textContent=PACK.etiquetaTiempo||("⏱ "+(left>0?Math.ceil(left/60)+" min":"listo por hoy"));
   const box=$("menuIslaItems"); box.innerHTML="";
   const done=left<=0, ci=checkInfo();
-  const cards=[
+  /* una isla sin sesiones (p. ej. Misiones, que no cuenta como pantalla) declara menuPropio():[{em,t,s,on,go}] y etiquetaTiempo */
+  const cards=PACK.menuPropio?PACK.menuPropio():[
     {em:"▶️",t:"Sesión de hoy",s:done?"Mañana seguimos 🌙":sessionPreview(),on:!done,go:()=>startSession()},
     ...(PACK.tarjetas?PACK.tarjetas(done):[]),
     {em:"🌟",t:"Mis logros",s:"Mirá todo lo que aprendiste",on:true,go:()=>{ show("logros"); renderLogros(); }},

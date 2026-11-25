@@ -31,6 +31,7 @@ function renderParent(){
   $("parentSum").innerHTML=t||"";
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo();
+  Gioval.emit("panel"); /* las islas con ajustes propios en el panel (ver panelPie) se refrescan acá */
   $("skipSel").innerHTML=PACKS.flatMap(p=>p.skills.map(s=>`<option value="${s.id}">${p.emoji} ${s.name}</option>`)).join("");
 }
 function markKnown(id){
@@ -67,20 +68,21 @@ function renderRespaldo(){
   $("respaldoInfo").innerHTML=t;
 }
 let restauracionPendiente=null;
-$("btnExport").onclick=()=>{ Gioval.almacen.exportar(); renderRespaldo(); setBubble("¡Respaldo descargado!"); };
+$("btnExport").onclick=async()=>{ await Gioval.almacen.exportar(); renderRespaldo(); setBubble("¡Respaldo descargado!"); };
 $("btnRestore").onclick=()=>$("fileRestore").click();
 $("fileRestore").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
-  const r=await Gioval.almacen.leerRespaldo(f); restauracionPendiente=r.ok?r.datos:null;
+  const r=await Gioval.almacen.leerRespaldo(f); restauracionPendiente=r.ok?r:null;
   const box=$("restoreTxt");
   if(!r.ok){ box.textContent=r.error; $("restoreOk").style.display="none"; }
   else {
     const R=r.resumen; $("restoreOk").style.display="";
     box.innerHTML="<b>Vista previa del respaldo</b><br>Guardado: "+(R.exportado?new Date(R.exportado).toLocaleString("es-AR"):"(sin fecha)")+"<br>"+
       (R.perfiles.length?R.perfiles.map(p=>"• "+p+": "+R.dias[p]+" día(s), "+R.dominadas[p]+" habilidad(es) dominada(s)").join("<br>"):"(sin perfiles)")+
+      (R.fotos!=null?"<br>Fotos: "+R.fotos:"")+
       "<br><br>Esto <b>reemplaza</b> lo que hay hoy en este aparato (se guarda una copia de seguridad antes). ¿Restaurar?";
   }
   $("restoreBox").classList.add("show");
 };
 $("restoreNo").onclick=()=>{ restauracionPendiente=null; $("restoreBox").classList.remove("show"); };
-$("restoreOk").onclick=async()=>{ if(!restauracionPendiente) return; await Gioval.almacen.restaurar(restauracionPendiente); location.reload(); };
+$("restoreOk").onclick=async()=>{ if(!restauracionPendiente) return; await Gioval.almacen.restaurar(restauracionPendiente.datos,restauracionPendiente.fotos); location.reload(); };
