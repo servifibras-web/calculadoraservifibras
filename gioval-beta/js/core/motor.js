@@ -81,8 +81,8 @@ function checkInfo(){
   return days>=7?{ok:true,sub:t("menu.chequeo_abierto")}:{ok:false,sub:t("menu.chequeo_dias",{n:7-days})};
 }
 function renderProg(){
-  ["prog","prog2"].forEach(id=>{
-    const box=$(id); box.innerHTML="";
+  document.querySelectorAll(".prog").forEach(box=>{   /* todas las barras de progreso (cada pantalla de juego tiene la suya) */
+    box.innerHTML="";
     if(!S.session){ box.style.display="none"; return; }
     box.style.display="flex";
     S.session.items.forEach((_,i)=>{ const d=document.createElement("i"); const r=S.session.log[i];
@@ -111,6 +111,7 @@ async function startCheck(){
   ensureCtx(); S.run++; const run=S.run;
   let items=[]; PACK.skills.filter(s=>SK(s.id).mast).forEach(s=>{ const n=ACTIVITIES[s.type].chequeoItems||2; for(let i=0;i<n;i++) items.push(makeItem(s)); });
   items=shuffle(items).slice(0,10);
+  if(Gioval.dominio) items=Gioval.dominio.armarChequeo(PACK,items,makeItem);   /* genérico: las habilidades saltadas se reevalúan primero */
   if(PACK.antesDeSesion) PACK.antesDeSesion(); S.finMode="session"; S.check=true; S.capShown=false;
   S.session={items,i:0,log:[],t0:Date.now(),streak:0,newly:[],seen:{},checkRes:[]};
   enterPlay(t("menu.chequeo"));
@@ -119,27 +120,32 @@ async function startCheck(){
 }
 async function nextItem(run){
   const ss=S.session; if(!ss||run!==S.run) return;
+  if(ss.guia) return ss.guia.siguiente(run);   /* sesión guiada (p. ej. test de ubicación): la isla decide el próximo ítem */
   if(ss.i>=ss.items.length || capLeft()<=0 || (Date.now()-ss.t0>10*60e3 && ss.i>=4)) return endSession(run);
   const it=ss.items[ss.i], sk=it.skill, st=SK(sk.id);
   S.reveal=false; S.kind=sk.type; S.hint=S.check?2:st.lvl; S.mode="demo";
   S.onDone=res=>itemDone(run,it,res);
   return ACTIVITIES[sk.type].jugar(run,it,ss);
 }
-function logEvent(sk,ok,first,kind){
+function logEvent(sk,ok,first,kind,res){
   const st=SK(sk.id), now=Date.now(); const g=st.last?+((now-st.last)/DAY).toFixed(2):0; st.last=now;
-  const l=store.log[KID]||(store.log[KID]=[]); l.push({t:now,s:sk.id,o:ok?1:0,f:first?1:0,g,k:kind}); if(l.length>800) l.splice(0,l.length-800);
+  const l=store.log[KID]||(store.log[KID]=[]), e={t:now,s:sk.id,o:ok?1:0,f:first?1:0,g,k:kind};
+  if(res&&typeof res.rt==="number") e.rt=res.rt;   /* ms hasta responder (solo ítems sin errores); lo usa Gioval.dominio */
+  if(res&&res.aid!=null) e.a=res.aid;              /* nivel de ayuda visual con que se jugó (0 más ayuda … 2 sin ayuda) */
+  l.push(e); if(l.length>800) l.splice(0,l.length-800);
 }
 async function itemDone(run,it,res){
   if(run!==S.run) return;
+  if(S.session&&S.session.guia) return S.session.guia.respuesta(run,it,res);   /* sesión guiada: la isla registra el resultado */
   const sk=it.skill, st=SK(sk.id), ss=S.session, AT=ACTIVITIES[sk.type];
   const first=res.miss===0, ok=first||(AT.tolerancia&&res.miss<=AT.tolerancia&&!S.check);
   if(S.check){
-    logEvent(sk,first,first,"check"); ss.checkRes.push({s:sk.id,o:first?1:0}); save();
+    logEvent(sk,first,first,"check",res); ss.checkRes.push({s:sk.id,o:first?1:0}); save();
     ss.log[ss.i]=4; ss.i++; renderProg();
     setBubble(rnd(tl("motor.chequeo.anotado"))); await sleep(600);
     if(run!==S.run) return; return nextItem(run);
   }
-  const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn");
+  const wasMast=st.mast; logEvent(sk,ok,first,wasMast?"review":"learn",res);
   st.att++; st.score=st.score*.7+(ok?1:0)*.3; st.rec=st.rec.concat(ok?1:0).slice(-5);
   const rc=st.rec;
   if(rc.length>=3&&rc.slice(-3).every(x=>x)&&st.lvl<2){ st.lvl++; st.rec=[]; }
@@ -147,6 +153,7 @@ async function itemDone(run,it,res){
   let achievement=null;
   if(!st.mast){ if(st.att>=6&&st.score>=.8){ st.mast=true; st.box=1; st.due=Date.now()+INTERVALS[1]*DAY; achievement=sk.name; ss.newly.push(sk.name); } }
   else { st.box=ok?Math.min(3,st.box+1):Math.max(0,st.box-1); st.due=Date.now()+INTERVALS[st.box]*DAY; }
+  const saltos=Gioval.dominio?Gioval.dominio.alResponder(sk,st,ss):[];   /* genérico: dominio rápido → se saltean las siguientes (ver js/core/dominio.js) */
   save();
   ss.log[ss.i]=first?1:2; ss.i++; ss.streak=first?ss.streak+1:0;
   if(!ok&&!it.retry){ ss.items.splice(Math.min(ss.i+2,ss.items.length),0,{...makeItem(sk),retry:true}); }
@@ -156,6 +163,7 @@ async function itemDone(run,it,res){
   else if(!PACK.plain&&(ss.streak===3||ss.streak===6)) msg=t("motor.seguidas",{n:ss.streak});
   else if(!first&&ok) msg=rnd(tl("motor.reintento_ok"));
   else if(!ok) msg=(AT.tap&&!res.revealed&&res.miss<3)?t("motor.probaste_distinto"):t("motor.dificil");
+  if(saltos.length) msg=(msg?msg+" ":"")+Gioval.dominio.mensajeSaltos(saltos);
   if(msg){ await speak(msg); } else { setBubble(rnd(AT.okMsgs||tl("motor.ok_general"))); await sleep(550); }
   if(run!==S.run) return; nextItem(run);
 }
@@ -170,6 +178,8 @@ async function endSession(run){
     if(n){ const l=store.checks[KID]||(store.checks[KID]=[]); l.push({d:day,n,ok:okc,p:PACK.id}); store.checks[KID]=l.slice(-60); }
     $("finStars").textContent=t("motor.fin.chequeo_res",{ok:okc,n}); $("finTitle").textContent=t("motor.fin.chequeo_titulo");
     speech=t("motor.fin.chequeo_voz",{nombre:KID});
+    const rev=Gioval.dominio?Gioval.dominio.alTerminarChequeo(PACK,ss.checkRes):null;   /* confirma o devuelve las habilidades saltadas */
+    if(rev&&(rev.confirmadas.length||rev.volvieron.length)) speech+=" "+Gioval.dominio.mensajeChequeo(rev);
   } else {
     const okc=ss.log.filter(x=>x===1).length, tot=Math.max(1,ss.log.length), ratio=okc/tot;
     const stars=ratio>=.85?3:(ratio>=.6?2:1);
@@ -184,7 +194,9 @@ async function endSession(run){
 function showCap(){
   S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
   $("capBox").classList.add("show");
-  const min=(store.limit[KID]||15), tail=PACK.capTail||t("motor.tope.cola");
+  /* gancho genérico: un módulo opcional (p. ej. Ayudantes) puede sumar una frase (d.extra) y botones a #capAcc */
+  const d={kid:KID,pack:PACK,extra:""}; Gioval.emit("tope",d);
+  const min=(store.limit[KID]||15), tail=(PACK.capTail||t("motor.tope.cola"))+(d.extra?" "+d.extra:"");
   $("capTxt").textContent=t("motor.tope.texto",{n:min,cola:tail});
   speak(t("motor.tope.voz",{n:min,nombre:KID,cola:tail}));
 }

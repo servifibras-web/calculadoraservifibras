@@ -8,8 +8,8 @@
    Al arrancar se usa la copia más reciente (meta.guardado). Las migraciones están numeradas: v0 = formato
    antiguo de localStorage (sin campo version). NUNCA se borra nada si una migración falla: se guarda copia
    previa y se sigue con los datos originales. */
-const ALMACEN_VERSION = 2;
-const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+const ALMACEN_VERSION = 3;
+const store = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
 
 Gioval.almacen = (function () {
   const DB = "gioval-db" + (Gioval.espacio ? "-" + Gioval.espacio : ""), DB_V = 1, LS = Gioval.clave("gioval"), LS_PRE = Gioval.clave("gioval_pre_migracion");
@@ -31,7 +31,9 @@ Gioval.almacen = (function () {
       } },
     { a: 2, nombre: "v1 → v2: idioma elegido por jugador (idioma: { Nombre: \"es-AR\" })",
       fn(s) { s.idioma = obj(s.idioma); return s; } },
-    /* v3 (próxima): { a: 3, nombre:"…", fn(s){ …; return s; } } */
+    { a: 3, nombre: "v2 → v3: intake (preguntas iniciales al adulto y punto de partida por niño; lo usa la isla Números)",
+      fn(s) { s.intake = obj(s.intake); return s; } },   /* intake[niño] = { v, edad, resp, ubicacion?, inicio? }; lo escriben las islas que lo usan */
+    /* v4 (próxima): { a: 4, nombre:"…", fn(s){ …; return s; } } */
   ];
   A.migraciones = MIGRACIONES;
   function migrar(s) {
@@ -58,7 +60,7 @@ Gioval.almacen = (function () {
   }
   const idbGet = (n, k) => tx(n, "readonly", st => st.get(k)).catch(() => null);
   const idbPut = (n, v) => tx(n, "readwrite", st => st.put(v)).catch(() => null);
-  const idbAll = n => tx(n, "readonly", st => st.getAll()).catch(() => []);
+  const idbAll = n => tx(n, "readonly", st => st.getAll()).then(r => r || []).catch(() => []); /* sin IndexedDB devuelve [] */
   const idbDel = (n, k) => tx(n, "readwrite", st => st.delete(k)).catch(() => null);
 
   /* ---- carga ---- */
@@ -82,7 +84,7 @@ Gioval.almacen = (function () {
         try { localStorage.getItem(LS_PRE) || localStorage.setItem(LS_PRE, origenTxt); } catch (e) {}
         await idbPut("respaldo", { id: "pre-migracion-v" + versionAntes + "-" + Date.now(), motivo: "antes de migrar de v" + versionAntes, ts: Date.now(), json: origenTxt });
         try { elegido = migrar(JSON.parse(origenTxt)); hechoMigracion = true; }
-        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {} }, JSON.parse(origenTxt)); }
+        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {} }, JSON.parse(origenTxt)); }
       } else { elegido = migrar(elegido); }
       const base = JSON.parse(JSON.stringify(store)); /* defaults */
       reemplazar(Object.assign(base, elegido));
@@ -119,8 +121,10 @@ Gioval.almacen = (function () {
   document.addEventListener("pointerdown", () => { A.pedirPersistencia(); }, { once: true, capture: true });
 
   /* ---- exportar / restaurar ---- */
-  A.exportar = function () {
-    const d = { app: "gioval", formato: 1, version: store.version, exportado: new Date().toISOString(), store };
+  A.exportar = async function () {
+    /* las fotos (Blob) viajan en el mismo archivo como data URL; el JSON de un respaldo viejo (sin "fotos") sigue siendo válido */
+    const fotos = await A.fotos.exportarTodas();
+    const d = { app: "gioval", formato: 1, version: store.version, exportado: new Date().toISOString(), store, fotos };
     const txt = JSON.stringify(d, null, 1), nombre = "gioval-respaldo-" + today() + ".json";
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "application/json" })); a.download = nombre;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
@@ -134,16 +138,31 @@ Gioval.almacen = (function () {
     const v = Number.isInteger(o.store.version) ? o.store.version : 0;
     if (v > ALMACEN_VERSION) return { ok: false, error: t("almacen.err.futura") };
     let s; try { s = migrar(JSON.parse(JSON.stringify(o.store))); } catch (e) { return { ok: false, error: t("almacen.err.convertir", { detalle: e.message }) }; }
+    /* fotos: si el archivo no trae la clave "fotos" (respaldo viejo) vale null y al restaurar no se toca nada */
+    let fotos = null;
+    if (Array.isArray(o.fotos)) {
+      fotos = [];
+      for (const f of o.fotos) {
+        if (!esObj(f) || typeof f.id !== "string" || typeof f.datos !== "string" || !f.datos.startsWith("data:")) return { ok: false, error: t("almacen.err.foto_danada") };
+        try { fotos.push({ id: f.id, meta: obj(f.meta), ts: +f.ts || 0, blob: await (await fetch(f.datos)).blob() }); } catch (e) { return { ok: false, error: t("almacen.err.foto_leer") }; }
+      }
+    }
     const resumen = {
+      fotos: fotos ? fotos.length : null,
       exportado: o.exportado || "", perfiles: s.profiles.slice(),
       dias: Object.fromEntries(s.profiles.map(p => [p, (s.days[p] || []).length])),
       dominadas: Object.fromEntries(s.profiles.map(p => [p, Object.entries(s.sk).filter(([k, x]) => k.startsWith(p + "|") && x && x.mast).length])),
     };
-    return { ok: true, datos: s, resumen };
+    return { ok: true, datos: s, fotos, resumen };
   };
-  A.restaurar = async function (datos) {
+  A.restaurar = async function (datos, fotos) {
     await idbPut("respaldo", { id: "pre-restauracion-" + Date.now(), motivo: "antes de restaurar un respaldo", ts: Date.now(), json: JSON.stringify(store) });
-    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
+    if (Array.isArray(fotos)) {
+      /* las fotos de hoy se guardan (como Blob) en la copia de seguridad y después se reemplazan por las del respaldo */
+      await idbPut("respaldo", { id: "pre-restauracion-fotos-" + Date.now(), motivo: "fotos de antes de restaurar un respaldo", ts: Date.now(), fotos: await A.fotos.todas() });
+      await A.fotos.reemplazarTodas(fotos);
+    }
+    const base = { version: ALMACEN_VERSION, profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, idioma: {}, intake: {}, meta: { ultimoRespaldo: 0, guardado: 0, desde: 0 } };
     reemplazar(Object.assign(base, datos)); store.meta = Object.assign(base.meta, obj(store.meta));
     store.meta.guardado = Date.now(); await A.guardarYa(); return true;
   };
@@ -155,12 +174,21 @@ Gioval.almacen = (function () {
   };
   A.respaldos = () => idbAll("respaldo");
 
-  /* ---- fotos (Blob) para el futuro álbum ---- */
+  /* ---- fotos (Blob): álbum de logros reales (isla Misiones). Solo en este aparato; entran en el respaldo ---- */
   A.fotos = {
     guardar: async (blob, meta) => { const id = "f" + Date.now() + "-" + Math.floor(Math.random() * 1e6); await idbPut("fotos", { id, blob, meta: meta || {}, ts: Date.now() }); return id; },
     obtener: id => idbGet("fotos", id),
     listar: async () => (await idbAll("fotos")).map(f => ({ id: f.id, meta: f.meta, ts: f.ts })),
     borrar: id => idbDel("fotos", id),
+    /* respaldo: registros completos {id, blob, meta, ts} */
+    todas: () => idbAll("fotos"),
+    exportarTodas: async () => {
+      const aURL = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+      const out = [];
+      for (const f of await idbAll("fotos")) { try { out.push({ id: f.id, meta: f.meta || {}, ts: f.ts, datos: await aURL(f.blob) }); } catch (e) {} }
+      return out;
+    },
+    reemplazarTodas: async lista => { await tx("fotos", "readwrite", st => st.clear()).catch(() => null); for (const f of lista) await idbPut("fotos", { id: f.id, blob: f.blob, meta: f.meta || {}, ts: f.ts || Date.now() }); },
   };
   return A;
 })();
