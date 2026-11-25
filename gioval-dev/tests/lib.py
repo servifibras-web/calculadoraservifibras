@@ -59,7 +59,11 @@ CONGELAR_CSS = "*{animation:none!important;transition:none!important}"
 
 class Banco:
     """Un navegador con contextos móviles (emulación real: toque, pixel ratio, user agent)."""
-    VISTAS = {"pixel7": None, "360x700": {"width": 360, "height": 700}, "740x330": {"width": 740, "height": 330}}
+    VISTAS = {"pixel7": None, "360x700": {"width": 360, "height": 700}, "740x330": {"width": 740, "height": 330},
+              # tablets (pantalla ancha y alta, con toque): vertical y horizontal
+              "768x1024": {"width": 768, "height": 1024}, "820x1180": {"width": 820, "height": 1180},
+              "1024x768": {"width": 1024, "height": 768}, "1280x800": {"width": 1280, "height": 800}}
+    TABLETS = ("768x1024", "820x1180", "1024x768", "1280x800")
 
     def __init__(self, pw, extra_args=None):
         self.pw = pw

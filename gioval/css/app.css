@@ -276,3 +276,116 @@ html[dir=rtl] .bubble:before{transform:none}
   .nbtns{padding:4px 0 2px;margin-top:4px}
   .nbtns .btn,.nbtns2 .btn{padding:5px 12px;font-size:14px}
 }
+
+
+/* =====================================================================================================================
+   PULIDO PARA TABLETS (rama pulido-tablet)
+   Todo lo de abajo vive dentro de UNA media query: solo se activa en pantallas anchas Y altas (>=700 de ancho y >=560 de alto).
+   Ningún teléfono la cumple (360x700 y 412x915 son angostos; 740x330 y 915x412 en horizontal son bajos), así que los teléfonos
+   quedan exactamente igual. Las pantallas de isla que traen su CSS propio (Ritmo, Misiones) se corrigen acá con #app delante para
+   ganarles en especificidad sin tocar sus archivos. Mantener este bloque al final del archivo.
+   ===================================================================================================================== */
+@media (min-width:700px) and (min-height:560px){
+  #app{padding-inline:clamp(18px,2.6vw,36px)}
+  .mascot{font-size:clamp(72px,9vmin,96px)}
+  .bubble{min-height:84px;border-radius:26px}
+  .iconbtn{width:60px;height:60px;font-size:30px;border-radius:18px}
+  h2{font-size:clamp(26px,3.4vmin,38px)}
+  .btn{min-height:52px}
+
+  /* --- Mapa y menús de isla: tarjetas grandes que aprovechan el alto. 3 columnas; filas altas pero con tope. --- */
+  .islands{grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(clamp(200px,22vh,280px),clamp(260px,33vh,400px));gap:clamp(16px,2.4vmin,28px);align-content:safe center;padding:10px 2px 16px}
+  .island{border-radius:38px;gap:clamp(8px,1.6vmin,16px);padding:18px 14px;justify-content:center;text-align:center;font-size:clamp(26px,min(3.6vw,4.2vh),40px);line-height:1.15;box-shadow:0 9px 0 rgba(0,0,0,.16)}
+  .island .em{font-size:clamp(84px,min(15vw,13vh),150px)}
+  .island small{font-size:clamp(18px,min(2.3vw,2.6vh),24px);line-height:1.25}
+  .island.off{box-shadow:0 5px 0 rgba(0,0,0,.1)}
+  /* con 7 islas o más, en pantallas muy anchas conviene una cuarta columna */
+  @media (min-width:1100px){ .islands:has(>:nth-child(7)){grid-template-columns:repeat(4,minmax(0,1fr))} }
+}
+
+@media (min-width:700px) and (min-height:560px){
+  /* --- Actividades por toque (Números, Letras): más grande el contenido y las respuestas --- */
+  .actBody{gap:clamp(10px,1.6vmin,20px)}
+  .actStage{border-radius:34px}
+  .actOpts{height:min(30vh,340px);gap:clamp(10px,1.8vmin,22px)}
+  .opt{font-size:clamp(44px,10vmin,100px);border-radius:30px;box-shadow:0 8px 0 rgba(0,0,0,.16)}
+  .opt.syl{font-size:clamp(32px,7.4vmin,72px)}
+  .actStage.sm .bignum{font-size:clamp(70px,13vh,160px)}
+  .bignum{font-size:clamp(80px,min(26vw,26vh),240px)}
+  .pic{font-size:clamp(70px,min(24vw,20vh),220px)}
+  .slots{font-size:clamp(40px,min(11vw,10vh),110px)}
+  .lmodel{font-size:clamp(70px,min(22vw,19vh),200px)}
+  .eqt{font-size:clamp(40px,9vmin,100px)}
+  .ocap{font-size:calc(var(--es,24px)*1.1)}
+  #app .slots.pal{font-size:clamp(22px,5.4vmin,56px)}
+  #app .lpal{font-size:clamp(36px,9vmin,96px)}
+  #app .lpal.fr{font-size:clamp(26px,6.2vmin,64px)}
+  #app .letTexto,#app .letPreg{font-size:clamp(22px,4.6vmin,52px)}
+  #app .letTexto.lg{font-size:clamp(20px,4vmin,44px)}
+  #app .opt.nose{font-size:clamp(26px,6vmin,56px)}
+  #app .opt.pal2{font-size:clamp(22px,5.4vmin,56px)}
+  .prog{gap:9px;padding:4px 0 8px}
+  .prog i{width:18px;height:18px}
+
+  /* --- Música: piano más alto y notas más grandes --- */
+  .kb{max-height:min(50vh,600px);padding:12px 12px 14px;border-radius:32px 32px 22px 22px}
+  .key{font-size:clamp(18px,2.4vw,30px);padding-bottom:16px;border-radius:0 0 18px 18px}
+  .key span{border-radius:16px;padding:3px 10px}
+  .dots{min-height:130px;gap:12px}
+  .dot{width:clamp(56px,9vmin,92px);height:clamp(56px,9vmin,92px);font-size:clamp(18px,2.6vmin,26px)}
+
+  /* --- Ritmo (su CSS está dentro de js/islas/ritmo.js; se sube la especificidad con #app) --- */
+  #app #rit .rtCards{max-width:min(860px,100%);gap:clamp(8px,1.4vmin,16px)}
+  #app #rit .rcd{min-height:clamp(60px,10vh,120px);font-size:clamp(34px,6vh,60px);border-radius:24px}
+  #app #rit .rc.tt .rcd{font-size:clamp(26px,4.6vh,48px)}
+  #app #rit .rc span{font-size:clamp(18px,3vh,28px)}
+  #app #rit .rtMsg{font-size:clamp(26px,4.2vh,48px)}
+  #app #rit .rtBeats i{width:clamp(34px,5vh,48px);height:clamp(34px,5vh,48px);font-size:18px}
+  #app #rit .rtBeats{gap:18px}
+  #app #rit .rtPad,#app #rit .rtMic{height:min(32vh,360px);border-radius:40px;font-size:clamp(70px,11vh,120px)}
+  #app #rit.comp .rtPad,#app #rit.comp .rtMic{height:min(18vh,150px);font-size:clamp(40px,6vh,64px)}
+  #app #rit .rtPad small{font-size:clamp(20px,3vh,32px)}
+  #app #rit .rtMic .big1{font-size:clamp(60px,10vh,100px)}
+  #app #rit .rtMic{font-size:clamp(24px,3.8vh,36px)}
+  #app #rit .rtPal button{min-height:84px;min-width:120px;max-width:200px;font-size:clamp(20px,3.4vh,30px)}
+  #app #rit .rtCards .slot{min-height:clamp(60px,10vh,120px)}
+}
+
+/* =====================================================================================================================
+   TOQUES DE AL MENOS 48 px (todos los tamaños)
+   Elementos tocables que quedaban por debajo de 48 px en pantallas que no están en la comparación visual de teléfonos:
+   los filtros y el resumen "para adultos" de Misiones. Se usa #app delante para ganarle al CSS de esa isla.
+   ===================================================================================================================== */
+#app .mis-filtros .mis-chip{min-height:48px}
+#app .mis-ad summary{min-height:48px}
+#app .mis-tg{min-height:48px}
+#app .mis-mini{min-height:48px}
+/* panel para adultos (engranaje): selectores, botones, resúmenes desplegables y el deslizador, a 48 px de alto */
+.panel .btn,.panel select,.panel summary{min-height:48px}
+.panel summary{display:flex;align-items:center}
+.panel #sens,.panel #rtSens{height:48px}
+.ayPanel label.ayChk{min-height:48px}
+.ncard .btn,.ncard select{min-height:48px}
+
+@media (min-width:700px) and (min-height:560px){
+  /* --- Misiones (CSS propio en js/islas/misiones.js): texto y botones a escala de tablet --- */
+  #app .mis-cont{font-size:clamp(22px,min(3.2vw,3.5vh),34px);padding:18px 22px;border-radius:30px}
+  #app .mis-chip{min-height:60px;padding:12px 20px;border-radius:22px}
+  #app .mis-mat{min-height:64px;padding:12px 18px;border-radius:20px}
+  #app .mis-acc .btn{max-width:480px;min-height:60px}
+  #app .mis-in{min-height:110px}
+  #app .mis-filtros .mis-chip{min-height:52px;font-size:20px;padding:8px 18px}
+  #app .mis-fin .em{font-size:110px}
+  #app .mis-grid{grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px}
+  #app .mis-card{font-size:clamp(22px,min(3vw,3.4vh),32px);padding:20px 20px;border-radius:30px}
+  #app .mis-card .em{font-size:64px}
+  #app .mis-card small{font-size:18px}
+  #app .mis-txt{font-size:clamp(20px,min(2.8vw,3vh),28px)}
+  #app .mis-ent{gap:20px;padding:16px;border-radius:28px}
+  #app .mis-foto{width:140px;height:140px;border-radius:22px}
+  #app .mis-foto .em{font-size:72px}
+  #app .mis-tag{font-size:18px}
+}
+/* botones de las pantallas y carteles que NO están en la comparación visual de teléfonos (Mis canciones, Logros, Misiones, Ayudantes, Ritmo,
+   carteles de adultos y de fin de sesión): 48 px de alto mínimo también en teléfonos (en horizontal bajaban a 28-42 px) */
+#home .btn,#logros .btn,#misAlbum .btn,#misJuego .btn,#misLista .btn,#ayudantes .btn,#rit .btn,.big .btn,.letCard .btn,.ncard .btn,#app .mis-acc .btn{min-height:48px;min-width:48px}
