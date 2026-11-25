@@ -16,5 +16,6 @@
   }
   const meta = { prueba: true, sinVoz: true, locale: "es-AR", moneda: "ARS", voz: [], fallback: [] };
   Gioval.i18n.registrarDerivado("qps-ploc", "es-AR", Object.assign({ nombre: "Pseudo-language (test)", nombreNativo: "Pseudo (prueba)", dir: "ltr" }, meta), pseudo);
-  Gioval.i18n.registrarDerivado("qps-plocm", "es-AR", Object.assign({ nombre: "Pseudo-language RTL (test)", nombreNativo: "Pseudo RTL (prueba)", dir: "rtl" }, meta), pseudo);
+  /* en RTL la flecha de "Seguir" mira hacia el otro lado (un idioma RTL real la traduciría ya con ⬅) */
+  Gioval.i18n.registrarDerivado("qps-plocm", "es-AR", Object.assign({ nombre: "Pseudo-language RTL (test)", nombreNativo: "Pseudo RTL (prueba)", dir: "rtl" }, meta), s => pseudo(s).replace(/➜/g, "⬅"));
 })();

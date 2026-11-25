@@ -46,7 +46,8 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 .big h1{margin:0;font-size:clamp(30px,6vw,56px)}
 .panel{display:none;background:#fff;border-radius:20px;padding:14px 18px;margin-top:10px;font-size:18px}
 .panel.show{display:block}
-.panel label{display:flex;gap:10px;align-items:center;margin-top:8px}
+.panel label{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:8px}
+.panel select{max-width:100%;min-width:0;text-overflow:ellipsis}
 .meter{height:12px;background:#eee;border-radius:6px;overflow:hidden;flex:1}
 .meter i{display:block;height:100%;width:0;background:#4cc86a}
 .islands{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;overflow:auto;padding:6px 2px 12px}

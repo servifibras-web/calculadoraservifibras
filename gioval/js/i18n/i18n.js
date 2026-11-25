@@ -106,6 +106,11 @@ Gioval.i18n = (function () {
     return out;
   }
   I.formatear = (s, p) => render(parsear(s), p || {}, null);
+  /* nombres de los huecos que usa un texto (para verificar que todos los idiomas pidan los mismos datos) */
+  I.parametros = function (s) {
+    const out = new Set(), rec = ns => ns.forEach(n => { if (typeof n === "string") return; out.add(n.v); if (n.ops) Object.values(n.ops).forEach(rec); });
+    rec(parsear(s)); return [...out].sort();
+  };
 
   /* ---- API de uso ---- */
   I.t = function (clave, p) {
