@@ -11,7 +11,7 @@ detector de palmas o instrumentos con muestras sin tocar las islas ni el motor.
 | Evento | Campos | Quién lo emite |
 |---|---|---|
 | `{ tipo:"nota" }` | `midi`, `t`, `fuerza` | micrófono (YIN, una nota por vez); MIDI (reservado) |
-| `{ tipo:"golpe" }` | `t`, `fuerza` | detector de golpes/palmas (reservado) |
+| `{ tipo:"golpe" }` | `t`, `fuerza`, `fuente` (`"mic"` o `"toque"`) | detector de golpes/palmas (`golpes.js`); el tambor de la pantalla emite lo mismo con `fuente:"toque"` |
 | `{ tipo:"acorde" }` | `notas:[midi…]`, `t` | cromagrama o MIDI (reservado) |
 | `{ tipo:"toque" }` | `midi?`, `tecla?`, `x?`, `y?`, `t` | toque en pantalla |
 
@@ -36,9 +36,15 @@ Una isla declara lo que usa al registrarse: `{ instrumento:"piano", entradas:["n
 |---|---|
 | `toque.js` | Implementado. Siempre disponible. La interfaz llama `pulsar({midi,...})`. |
 | `microfono.js` | Implementado. Es el detector YIN de siempre, **con los mismos umbrales y tiempos** (hay una prueba que compara las frecuencias con la versión anterior). Opciones de `iniciar`: `umbral()`, `nivel(rms)`, `alDetectar(midi)`, `alEncender()`, `alApagar()`, `alError(e)`. |
-| `golpes.js` | Reservado, vacío y documentado (energía/onsets de volumen para ritmo y palmas; debe compartir el permiso del micrófono). |
+| `golpes.js` | Implementado (lo usa la isla Ritmo). Detecta CUÁNDO empieza un golpe (energía con umbral adaptativo, período refractario, calibración de 3 s del ruido de fondo, silencio mientras la app suena, máscaras para el clic de la propia isla) y cuánto de fuerte fue. Comparte el micrófono con `microfono.js`: Música y Ritmo pueden estar encendidos a la vez con un solo permiso. Alternativa sin micrófono: `pulsar({t,fuerza})`. No emite `"toque"`. Detalle, parámetros y límites: `RITMO.md`. |
 | `acordes.js` | Reservado (varias notas a la vez; cromagrama). |
 | `midi.js` | Reservado (Web MIDI por USB/OTG en Chrome para Android). |
+
+### Micrófono compartido
+
+`microfono.js` expone `flujo()` y `soltar()` (cuenta de usos): el primero que pide abre el micrófono, los demás reutilizan el mismo
+flujo (un solo permiso), y el micrófono se apaga cuando nadie lo usa. `golpes.js` lo usa así; `iniciar`/`detener` de `microfono.js`
+siguen funcionando igual para Música.
 
 ### Cómo agregar un proveedor
 
