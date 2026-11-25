@@ -133,6 +133,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
     <label>Aceptar la nota en cualquier octava <input type="checkbox" id="anyOctave" checked></label>
     <div class="psum" id="parentSum"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px">📄 Informe</button></div>
+    <label>Tiempo por día: <select id="limSel" style="font-size:16px;padding:6px;border-radius:10px"><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option></select></label>
     <label>Ya sabe hasta: <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px">Marcar</button></label>
     <div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>
   </div>
@@ -195,7 +196,7 @@ h2{margin:6px 0 10px;font-size:clamp(22px,3vw,30px)}
 <div class="big" id="capBox">
   <div class="stars">🌙</div>
   <h1>¡Terminamos por hoy!</h1>
-  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0">Ya jugaste 15 minutos. Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</p>
+  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0">Ya jugaste <span id="capMin">15</span> minutos. Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</p>
   <button class="btn" id="capOk">¡Chau, zorro! 👋</button>
 </div>
 
@@ -244,8 +245,8 @@ const $ = id=>document.getElementById(id);
 const sleep = ms=>new Promise(r=>setTimeout(r,ms));
 let S = {song:null, mode:"idle", chunks:[], ci:0, ni:0, run:0, missPhrase:0, missNote:0, learnIdx:0, lastWrong:0};
 let ctx=null, analyser=null, micStream=null, micOn=false, voiceOn=true, muteUntil=0;
-let store = {profiles:[],stars:{},sk:{},days:{},time:{},log:{},checks:{},extra:{}};
-try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{},sk:s.sk||{},days:s.days||{},time:s.time||{},log:s.log||{},checks:s.checks||{},extra:s.extra||{}}; }catch(e){}
+let store = {profiles:[],stars:{},sk:{},days:{},time:{},log:{},checks:{},extra:{},limit:{}};
+try{ const s=JSON.parse(localStorage.getItem("gioval")||"{}"); store={profiles:s.profiles||[],stars:s.stars||{},sk:s.sk||{},days:s.days||{},time:s.time||{},log:s.log||{},checks:s.checks||{},extra:s.extra||{},limit:s.limit||{}}; }catch(e){}
 function save(){ try{ localStorage.setItem("gioval", JSON.stringify(store)); }catch(e){} }
 const starsOf=t=>store.stars[KID+"|"+t]||0;
 
@@ -569,7 +570,8 @@ function frame(){
    2) Registrar sus tipos de actividad en ACTIVITIES (make = genera un ítem, present = lo muestra).
    3) Agregar la isla a PACKS. El resto (sesión diaria, repaso espaciado, dificultad adaptativa,
       chequeo semanal, logros, informe y tope de tiempo) funciona igual para todas. */
-const DAY=864e5, INTERVALS=[.2,1,3,7], CAP=15*60;
+const DAY=864e5, INTERVALS=[.2,1,3,7];
+const capBase=()=>(store.limit[KID]||15)*60; /* minutos por día; lo cambian los adultos desde el panel */
 const SK_ALL=[60,62,64,65,67,69,71,72];
 const SKILLS_MUSICA=[
   {id:"n1",name:"Do, Re y Mi",icon:"🔴🟠🟡",type:"find",notes:[60,62,64],prior:[],req:[]},
@@ -584,7 +586,7 @@ const PACKS=[{id:"musica",name:"Isla Música",emoji:"🎹",sub:"¡A tocar el pia
 const ALL_SKILLS=PACKS.flatMap(p=>p.skills);
 let PACK=PACKS[0];
 const today=()=>new Date().toLocaleDateString("en-CA");
-const capLeft=()=>CAP+(store.extra[KID+"|"+today()]||0)-(store.time[KID+"|"+today()]||0);
+const capLeft=()=>capBase()+(store.extra[KID+"|"+today()]||0)-(store.time[KID+"|"+today()]||0);
 function SK(id){ const k=KID+"|"+id; return store.sk[k]||(store.sk[k]={score:.5,att:0,box:0,due:0,lvl:0,rec:[],mast:false,last:0}); }
 const mastered=id=>SK(id).mast;
 const unlockedList=()=>PACK.skills.filter(s=>s.req.every(mastered));
@@ -739,7 +741,7 @@ async function endSession(run){
 function showCap(){
   S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
   $("capBox").classList.add("show");
-  speak("¡Llegamos a los 15 minutos de hoy, "+KID+"! Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!");
+  $("capMin").textContent=(store.limit[KID]||15); speak("¡Llegamos a los "+(store.limit[KID]||15)+" minutos de hoy, "+KID+"! Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!");
 }
 $("capOk").onclick=()=>{ $("capBox").classList.remove("show"); S.capShown=false; resetFlow(); goMusic(); };
 /* contador de tiempo: solo cuenta mientras se juega (pantalla de actividad abierta) */
@@ -797,9 +799,10 @@ function reportText(){
 function renderParent(){
   const ds=store.days[KID]||[];
   const used=Math.round((store.time[KID+"|"+today()]||0)/60);
-  let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados · hoy ${used} de 15 min.<br>`:"";
+  let t=KID?`<b>${KID}</b>: ${ds.length} día(s) jugados · hoy ${used} de ${store.limit[KID]||15} min.<br>`:"";
   ALL_SKILLS.forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) t+=`• ${s.name}: ${st.mast?"dominado":"en práctica"} (${Math.round(st.score*100)}% de aciertos, ${st.att} intentos, ayuda nivel ${st.lvl})<br>`; });
   $("parentSum").innerHTML=t||"";
+  if(KID) $("limSel").value=String(store.limit[KID]||15);
   $("skipSel").innerHTML=ALL_SKILLS.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
 }
 function markKnown(id){
@@ -820,6 +823,7 @@ $("btnGear").onclick=()=>{
   if($("panel").classList.contains("show")){ $("panel").classList.remove("show"); return; }
   gate(()=>{ renderParent(); $("panel").classList.add("show"); });
 };
+$("limSel").onchange=()=>{ if(!KID) return; store.limit[KID]=+$("limSel").value; save(); renderParent(); setBubble("Listo: "+$("limSel").value+" minutos por día."); if($("music").classList.contains("active")) renderMusic(); };
 $("btnExtra").onclick=()=>{ if(!KID) return; const k=KID+"|"+today(); store.extra[k]=(store.extra[k]||0)+900; save(); renderParent(); setBubble("¡Sumé 15 minutos más para hoy!"); if($("music").classList.contains("active")) renderMusic(); };
 $("btnReport").onclick=()=>{ if(!KID) return; $("reportTxt").textContent=reportText(); $("reportBox").classList.add("show"); };
 $("repClose").onclick=()=>$("reportBox").classList.remove("show");
