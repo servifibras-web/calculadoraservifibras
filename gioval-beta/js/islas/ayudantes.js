@@ -220,7 +220,7 @@
     const wake = ("wakeLock" in navigator) ? L("ayudantes.panel.wake_si") : L("ayudantes.panel.wake_no");
     const perm = ("Notification" in window) ? Notification.permission : "no";
     const notif = perm === "granted" ? L("ayudantes.panel.notif_granted") : perm === "denied" ? L("ayudantes.panel.notif_denied") : perm === "default" ? L("ayudantes.panel.notif_default") : L("ayudantes.panel.notif_no");
-    const nat = (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) ? L("ayudantes.panel.nativa_si") : L("ayudantes.panel.nativa_no");
+    const nat = ((window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications) || (Gioval.alarmaNativa && Gioval.alarmaNativa.activa)) ? L("ayudantes.panel.nativa_si") : L("ayudantes.panel.nativa_no");
     return `<div class="ayAlarma"><b>${L("ayudantes.panel.alarma_titulo")}</b><div>${L("ayudantes.panel.alarma_detalle")}</div><ul><li>${wake}</li><li>${notif}${perm === "default" ? ` <button class="btn alt" data-p="permiso" style="padding:3px 10px;font-size:15px">${L("ayudantes.panel.permitir")}</button>` : ""}</li><li>${nat}</li></ul></div>`;
   }
   function renderPanel() {

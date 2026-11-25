@@ -23,7 +23,7 @@
 .letCard p{margin:6px 0}
 .letQ{margin:10px 0}
 .letOpts{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-.letBtn{border:0;border-radius:14px;padding:10px 14px;font-size:16px;font-weight:700;background:#efeaff;color:#2b2350;font-family:inherit;min-height:44px;text-align:left}
+.letBtn{border:0;border-radius:14px;padding:10px 14px;font-size:16px;font-weight:700;background:#efeaff;color:#2b2350;font-family:inherit;min-height:48px;text-align:left}
 .letBtn.sel{background:#7c4dff;color:#fff}
 .letRow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
 .letRow.col{flex-direction:column}
