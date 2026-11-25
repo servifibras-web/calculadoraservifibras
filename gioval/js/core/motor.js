@@ -81,8 +81,8 @@ function checkInfo(){
   return days>=7?{ok:true,sub:"Sin ayuda: ¡mostrá lo que sabés!"}:{ok:false,sub:"Disponible en "+(7-days)+" día(s)"};
 }
 function renderProg(){
-  ["prog","prog2"].forEach(id=>{
-    const box=$(id); box.innerHTML="";
+  document.querySelectorAll(".prog").forEach(box=>{   /* todas las barras de progreso (cada pantalla de juego tiene la suya) */
+    box.innerHTML="";
     if(!S.session){ box.style.display="none"; return; }
     box.style.display="flex";
     S.session.items.forEach((_,i)=>{ const d=document.createElement("i"); const r=S.session.log[i];

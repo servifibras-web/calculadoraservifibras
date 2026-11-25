@@ -16,6 +16,7 @@ function reportText(){
     lines.push("   Aciertos al primer intento: primeros "+pc(first.slice(0,5))+" → últimos "+pc(first.slice(-5)));
     lines.push("   Retención (acierto ≥1 día después de practicar): "+pc(ret));
   });
+  PACKS.forEach(p=>{ if(!p.informe) return; const l=p.informe(KID); if(l&&l.length) lines.push("", ...l); });   /* gancho opcional: cada isla puede sumar sus propias líneas */
   const ck=store.checks[KID]||[];
   lines.push("", "CHEQUEOS SIN AYUDA (1 por semana y por isla)");
   if(!ck.length) lines.push("   (todavía no hizo ninguno)");
