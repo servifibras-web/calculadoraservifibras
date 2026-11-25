@@ -1,0 +1,13 @@
+{"version":1,
+ "profiles":["Valentino","Giovanni"],
+ "stars":{"Valentino|Estrellita":3},
+ "sk":{"Valentino|n1":{"score":0.93,"att":9,"box":2,"due":1790000000000,"lvl":2,"rec":[1,1,1],"mast":true,"last":1789000000000},
+       "Valentino|num_c10":{"score":0.9,"att":8,"box":1,"due":1790000000000,"lvl":2,"rec":[1,1,1],"mast":true,"last":1789000300000},
+       "Giovanni|num_c10":{"score":0.6,"att":4,"box":0,"due":0,"lvl":0,"rec":[1,0],"mast":false,"last":1789000400000}},
+ "days":{"Valentino":["2026-11-20","2026-11-23"],"Giovanni":["2026-11-22"]},
+ "time":{"Valentino|2026-11-23":610},
+ "log":{"Valentino":[{"t":1789000000000,"s":"n1","o":1,"f":1,"g":0,"k":"learn"},{"t":1789000300000,"s":"num_c10","o":1,"f":1,"g":0,"k":"learn"}]},
+ "checks":{"Valentino":[{"d":"2026-11-23","n":6,"ok":5,"p":"musica"},{"d":"2026-11-24","n":4,"ok":4,"p":"numeros"}]},
+ "extra":{"Valentino|2026-11-23":900},
+ "limit":{"Valentino":30,"Giovanni":20},
+ "meta":{"ultimoRespaldo":0,"guardado":1789000500000,"desde":1789000000000}}
