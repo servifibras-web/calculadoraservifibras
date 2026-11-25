@@ -101,6 +101,90 @@ def t_mapa(C):
         igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🔤|Isla Letras|¡A jugar con las letras!", "🧭|Isla Misiones|¡Cosas de verdad!", "🥁|Isla Ritmo|¡A marcar el ritmo!", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
         foto(pg, v + "_02_mapa"); CAPTURAS.append(v + "_02_mapa.png"); ctx.close()
 
+# ---------------------------------------------------------------- tablets
+# Revisión de una pantalla: sin desborde horizontal, nada tocable cortado por la pantalla (salvo dentro de una lista que se desplaza),
+# y todo lo tocable de al menos 48 px CSS de ancho y de alto.
+JS_TABLET = r"""(()=>{
+ const vw=innerWidth, vh=innerHeight, out=[];
+ const sel='button,a[href],input,select,textarea,summary,[role=button],.key,.opt,.island,.song,.mis-chip,.mis-mat,.ayCard';
+ const vis=e=>{ for(let d=e.closest('details');d;d=d.parentElement&&d.parentElement.closest('details')){ if(!d.open&&!(e.closest('summary')&&e.closest('summary').parentElement===d)) return false; } const cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden'||cs.pointerEvents==='none') return false; const r=e.getBoundingClientRect(); if(r.width<1||r.height<1) return false;
+   for(let p=e;p&&p!==document.body;p=p.parentElement){ const c=getComputedStyle(p); if(c.display==='none'||c.visibility==='hidden'||(c.opacity==='0')) return false; } return true; };
+ const scrollAnc=e=>{ for(let p=e.parentElement;p&&p!==document.body;p=p.parentElement){ const c=getComputedStyle(p); if(/(auto|scroll)/.test(c.overflowY)&&p.scrollHeight>p.clientHeight+1) return p; } return null; };
+ const name=e=>(e.id?'#'+e.id:'')+(e.className&&typeof e.className==='string'?'.'+e.className.trim().split(/\s+/).join('.'):'')||e.tagName;
+ if(document.documentElement.scrollWidth>vw+1||document.body.scrollWidth>vw+1) out.push('desborde horizontal '+document.documentElement.scrollWidth+'>'+vw);
+ document.querySelectorAll(sel).forEach(e=>{
+   if(!vis(e)) return; if(e.type==='file'||e.type==='checkbox'&&false) return;
+   const r=e.getBoundingClientRect();
+   if(e.closest('.aviso')&&!document.getElementById('avisoVersion').classList.contains('show')) return;
+   if(r.width<47.5||r.height<47.5){ if(!(e.tagName==='INPUT'&&e.type==='checkbox'&&e.closest('label'))) out.push('chico '+name(e)+' '+Math.round(r.width)+'x'+Math.round(r.height)); }
+   const sa=scrollAnc(e);
+   if(!sa&&(r.right>vw+1||r.left<-1||r.bottom>vh+1||r.top<-1)) out.push('cortado '+name(e)+' '+[r.left,r.top,r.right,r.bottom].map(Math.round));
+   if(sa){ const c=sa.getBoundingClientRect(); if(r.right>c.right+1||r.left<c.left-1) out.push('cortado en lateral '+name(e)); }
+ });
+ return out;
+})()"""
+
+def revisar_tablet(pg, donde, mal):
+    pg.wait_for_timeout(120)
+    for m in pg.evaluate(JS_TABLET): mal.append("%s: %s" % (donde, m))
+
+@prueba("tablets (768x1024, 820x1180, 1024x768, 1280x800): mapa, menú de cada isla y una actividad por isla sin desborde, sin cortes y con toques de 48 px")
+def t_tablets(C):
+    for v in Banco.TABLETS:
+        ctx = C.banco.contexto(v); err = []; mal = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=5, congelar=True); instalar_speak(pg)
+        pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
+        pg.evaluate("renderWho(); show('who')"); revisar_tablet(pg, v + " quién juega", mal); CAPTURAS.append(foto(pg, v + "_90_tablet_quien"))
+        entrar(pg, "Vale"); revisar_tablet(pg, v + " mapa", mal); CAPTURAS.append(foto(pg, v + "_91_tablet_mapa"))
+        # el mapa aprovecha la pantalla: tarjetas grandes, emoji grande y las filas llegan por lo menos a la mitad del alto
+        g = pg.evaluate("""(()=>{ const c=[...document.querySelectorAll('#islands .island')].map(b=>b.getBoundingClientRect()); const e=parseFloat(getComputedStyle(document.querySelector('#islands .island .em')).fontSize);
+          return {ancho:Math.min(...c.map(r=>r.width)), alto:Math.min(...c.map(r=>r.height)), fondo:Math.max(...c.map(r=>r.bottom)), emoji:e, vh:innerHeight, cols:new Set(c.map(r=>Math.round(r.left))).size}; })()""")
+        verificar(g["alto"] >= 180 and g["emoji"] >= 84 and g["fondo"] >= g["vh"] * 0.55, "%s: el mapa no aprovecha la pantalla %s" % (v, g))
+        verificar(g["cols"] in (3, 4), "%s: columnas del mapa %s" % (v, g))
+        for isla in ("Música", "Números", "Letras", "Misiones", "Ritmo"):
+            abrir_isla(pg, isla)
+            if isla == "Letras" and pg.evaluate("document.getElementById('letOv').classList.contains('show')"): pg.click("#letOv [data-a=cerrar]"); pg.wait_for_timeout(80)
+            revisar_tablet(pg, "%s menú %s" % (v, isla), mal)
+            if isla == "Música": CAPTURAS.append(foto(pg, v + "_92_tablet_menu_musica"))
+            if isla == "Misiones":
+                pg.click("#menuIslaItems .island:has-text('Elegir')"); pg.wait_for_timeout(150); revisar_tablet(pg, v + " misiones lista", mal)
+                pg.click(".mis-card >> nth=0"); pg.wait_for_timeout(200); revisar_tablet(pg, v + " misión", mal); CAPTURAS.append(foto(pg, v + "_93_tablet_mision"))
+            else:
+                tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(700); revisar_tablet(pg, "%s actividad %s" % (v, isla), mal); CAPTURAS.append(foto(pg, "%s_94_tablet_actividad_%s" % (v, isla)))
+            ir_mapa(pg)
+        abrir_isla(pg, "Números"); pg.click(".island:has-text('Mis logros')"); pg.wait_for_timeout(200); revisar_tablet(pg, v + " logros", mal); ir_mapa(pg)
+        abrir_isla(pg, "Música"); tarjeta(pg, "Mis canciones"); revisar_tablet(pg, v + " canciones", mal); ir_mapa(pg)
+        pg.evaluate("document.getElementById('letOv').classList.remove('show')")
+        abrir_panel(pg); revisar_tablet(pg, v + " panel de adultos", mal); pg.evaluate("document.getElementById('panel').classList.remove('show')")
+        # Ritmo: lectura con tarjetas y composición con paleta (las dos pantallas más cargadas de la isla)
+        for sid, fase, tag in (("rit_lee2", "turno", "lectura"), ("rit_compone", "componer", "componer")):
+            abrir_isla(pg, "Ritmo"); solo_habilidad(pg, sid); tarjeta(pg, "Sesión de hoy"); esperar_fase(pg, fase); pg.wait_for_timeout(500)
+            revisar_tablet(pg, "%s ritmo %s" % (v, tag), mal); CAPTURAS.append(foto(pg, "%s_95_tablet_ritmo_%s" % (v, tag)))
+            pg.evaluate("S.run++; resetFlow(); goMenuIsla()")
+        # Misiones: el recorrido completo de un experimento, paso a paso
+        ir_mapa(pg); abrir_isla(pg, "Misiones"); pg.click("#menuIslaItems .island:has-text('Elegir')"); pg.wait_for_timeout(100)
+        pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150); revisar_tablet(pg, v + " misión aviso", mal)
+        pg.click("#misAcc .btn:last-child"); revisar_tablet(pg, v + " misión materiales", mal)
+        for k in range(pg.locator("#misCont .mis-mat").count()): pg.click("#misCont .mis-mat >> nth=%d" % k)
+        pg.click("#misTodo"); revisar_tablet(pg, v + " misión predicción", mal)
+        pg.click("#misCont .mis-chip >> nth=0"); pg.click("#misAcc .btn")
+        for k in range(2): pg.click("#misAcc .btn:last-child")
+        revisar_tablet(pg, v + " misión hacer", mal)
+        while mis_paso(pg) == "hacer": pg.click("#misAcc .btn:last-child"); pg.wait_for_timeout(40)
+        pg.click("#misCont .mis-chip >> nth=1"); revisar_tablet(pg, v + " misión qué pasó", mal); pg.click("#misAcc .btn")
+        pg.fill("#misCont textarea[data-in=porque]", "porque"); pg.click("#misAcc .btn:has-text('explicación')"); revisar_tablet(pg, v + " misión por qué", mal); pg.click("#misAcc .btn:last-child")
+        pg.fill("#misCont textarea[data-in=frase]", "El del sol"); pg.click("#misCont [data-res=distinto]"); revisar_tablet(pg, v + " misión registro", mal)
+        pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'"); revisar_tablet(pg, v + " misión fin", mal)
+        pg.click("#misAcc .btn:has-text('álbum')"); pg.wait_for_timeout(250); revisar_tablet(pg, v + " álbum", mal); CAPTURAS.append(foto(pg, v + "_96_tablet_album"))
+        # Hora de ayudantes (aparece al llegar al tope diario): tope, lista, detalle, cronómetro, tiempo cumplido y fin
+        llegar_al_tope(pg, directo=True); revisar_tablet(pg, v + " tope diario", mal); pg.click("#capAyud"); pg.wait_for_timeout(100); revisar_tablet(pg, v + " ayudantes lista", mal)
+        pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(80); revisar_tablet(pg, v + " ayudantes detalle", mal)
+        pg.click("[data-a='empezar']"); pg.wait_for_timeout(120); revisar_tablet(pg, v + " ayudantes cronómetro", mal)
+        pg.evaluate("window.__OFF=400000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(120); revisar_tablet(pg, v + " ayudantes tiempo", mal)
+        pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); revisar_tablet(pg, v + " ayudantes fin", mal)
+        verificar(not err, "%s: %s" % (v, err)); verificar(not mal, "tablet: " + "; ".join(mal[:8])); ctx.close()
+    return "4 tamaños, 5 islas (menú + actividad), Ritmo lectura/composición, misión completa, Hora de ayudantes, logros, canciones y panel de adultos"
+
 # ---------------------------------------------------------------- islas
 def pasar_sesiones(pg, isla, n, cada_error=0, perfecto=False):
     for _ in range(n):
