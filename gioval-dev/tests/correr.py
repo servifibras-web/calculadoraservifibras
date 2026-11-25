@@ -449,6 +449,104 @@ def t_alarma3(C):
     pg.wait_for_timeout(1500); igual(pg.evaluate("window.__not"), [["Fin", "Listo"]], "notificación vía service worker")
     verificar(not err, str(err)); ctx.close()
 
+# ---------------------------------------------------------------- alarma nativa (envoltorio Android)
+JS_PLUGIN_NATIVO = """
+  window.__nat=[]; window.__perm='prompt';
+  var est=function(){ return {sdk:34,exacta:false,notificaciones:window.__perm==='granted',permisoNotificaciones:window.__perm,pantallaCompleta:true,sinRestriccionBateria:false}; };
+  window.Capacitor={Plugins:{
+    GiovalAlarma:{
+      programar:function(o){ window.__nat.push(['programar',o]); return Promise.resolve({exacta:true}); },
+      cancelar:function(o){ window.__nat.push(['cancelar',o]); return Promise.resolve(); },
+      detener:function(){ window.__nat.push(['detener']); return Promise.resolve(); },
+      estado:function(){ return Promise.resolve(est()); },
+      pedirNotificaciones:function(){ window.__nat.push(['pedirNotificaciones']); window.__perm='granted'; return Promise.resolve(est()); },
+      abrirAjustes:function(o){ window.__nat.push(['abrirAjustes',o.tipo]); return Promise.resolve(); },
+      mantenerPantalla:function(o){ window.__nat.push(['pantalla',o.activo]); return Promise.resolve(); }
+    },
+    App:{ addListener:function(n,f){ window.__back=f; return Promise.resolve({remove:function(){}}); }, minimizeApp:function(){ window.__nat.push(['minimizar']); return Promise.resolve(); } }
+  }};
+"""
+
+@prueba("alarma nativa: fuera del envoltorio (navegador, PWA, o solo LocalNotifications) el puente NO cambia nada")
+def t_nativa_sin_capacitor(C):
+    for init in (None, "window.Capacitor={Plugins:{LocalNotifications:{schedule:function(){},cancel:function(){}}}};"):
+        ctx = C.banco.contexto("360x700"); err = []
+        pg = abrir(ctx, C.url + "/index.html", errores=err, extra_init=init)
+        igual(pg.evaluate("[Gioval.alarmaNativa.activa, Gioval.envoltorio.activo]"), [False, False], "el puente se activó sin el plugin nativo")
+        igual(pg.evaluate("'serviceWorker' in navigator"), True, "no hay que tocar el service worker en la web")
+        igual(pg.evaluate("!!document.getElementById('nativaPanel')"), False, "sección nativa en el panel sin envoltorio")
+        verificar(not pg.evaluate("Alarma.programar.toString().includes('pantalla()')"), "Alarma.programar fue envuelta sin el envoltorio")
+        # la alarma web sigue funcionando igual
+        pg.evaluate("window.__fin=[]; Alarma.onFin(function(i){ window.__fin.push(i); }); Alarma.programar(60,{titulo:'T'}); 0")
+        verificar(58 <= pg.evaluate("Alarma.restante()") <= 60, "restante"); pg.evaluate("window.__OFF=61000; Alarma._revisar()")
+        igual(pg.evaluate("window.__fin.length"), 1, "no disparó"); verificar(not err, str(err)); ctx.close()
+    # los archivos del puente están en index.html y en la precarga del service worker (ya lo exige también la prueba "sw")
+    html = (APP / "index.html").read_text(encoding="utf-8"); F = lista_sw()
+    for f in ("js/core/alarma_nativa.js", "js/core/envoltorio.js"):
+        verificar('<script src="%s">' % f in html and f in F, "falta registrar " + f)
+    verificar(html.index("js/core/alarma.js") < html.index("js/core/alarma_nativa.js"), "alarma_nativa.js tiene que cargar DESPUÉS de alarma.js")
+
+@prueba("alarma nativa: con el plugin simulado programa/cancela la alarma del sistema, pide permiso, mantiene la pantalla y la web sigue andando")
+def t_nativa_con_plugin(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, extra_init=JS_PLUGIN_NATIVO, semilla=91); instalar_speak(pg)
+    pg.wait_for_timeout(200)
+    igual(pg.evaluate("[Gioval.alarmaNativa.activa, Gioval.envoltorio.activo]"), [True, True])
+    igual(pg.evaluate("'serviceWorker' in navigator"), False, "en el envoltorio no se registra el service worker")
+    # programar: alarma web (igual que siempre) + alarma del sistema con la hora ABSOLUTA
+    pg.evaluate("window.__fin=[]; Alarma.onFin(function(i){ window.__fin.push(i); }); Alarma.programar(120,{titulo:'Hola',texto:'Cuerpo'}); 0"); pg.wait_for_timeout(150)
+    verificar(118 <= pg.evaluate("Alarma.restante()") <= 120, "la alarma web dejó de andar")
+    prog = [x for x in pg.evaluate("window.__nat") if x[0] == "programar"]; igual(len(prog), 1, "una sola llamada a programar")
+    o = prog[0][1]; igual((o["id"], o["titulo"], o["texto"]), (7001, "Hola", "Cuerpo")); verificar(abs(o["fin"] - pg.evaluate("Date.now()") - 120000) < 3000, "hora absoluta de fin: %s" % o["fin"])
+    verificar(["pantalla", True] in pg.evaluate("window.__nat"), "no pidió mantener la pantalla encendida con una alarma en marcha")
+    # reprogramar reemplaza (mismo id) y cancelar cancela en el sistema
+    pg.evaluate("Alarma.programar(300)"); verificar(len([x for x in pg.evaluate("window.__nat") if x[0] == "programar"]) == 2)
+    pg.evaluate("Alarma.cancelar()"); pg.wait_for_timeout(100)
+    verificar(["cancelar", {"id": 7001}] in pg.evaluate("window.__nat"), "no canceló la alarma del sistema"); igual(pg.evaluate("Alarma.activa()"), False)
+    verificar(["pantalla", False] in pg.evaluate("window.__nat"), "no soltó la pantalla al cancelar")
+    # permiso de avisos: Notification refleja el permiso nativo
+    igual(pg.evaluate("Notification.permission"), "default")
+    igual(pg.evaluate("Alarma.pedirPermiso()"), "granted"); igual(pg.evaluate("Notification.permission"), "granted"); verificar(["pedirNotificaciones"] in pg.evaluate("window.__nat"))
+    # panel de adultos: sección "Alarma del teléfono" con el estado y los botones
+    pg.evaluate("window.__perm='prompt'"); abrir_panel(pg); pg.wait_for_timeout(200)
+    tp = pg.evaluate("document.getElementById('nativaPanel').innerText")
+    verificar("Alarma del teléfono" in tp and "Alarmas exactas NO permitidas" in tp and "ahorro de batería" in tp and "Probar alarma" in tp, tp[:400])
+    pg.click("#nativaPanel [data-nativa=exacta]"); pg.click("#nativaPanel [data-nativa=bateria]"); pg.wait_for_timeout(100)
+    verificar(["abrirAjustes", "exacta"] in pg.evaluate("window.__nat") and ["abrirAjustes", "bateria"] in pg.evaluate("window.__nat"), "los botones no abren los ajustes")
+    pg.click("#nativaPanel [data-nativa=probar]"); pg.wait_for_timeout(100); verificar(8 <= pg.evaluate("Alarma.restante()") <= 10, "la prueba de alarma no programó 10 s")
+    pg.evaluate("Alarma.cancelar()")
+    # el texto también sale en inglés (y sin español)
+    pg.evaluate("Gioval.i18n.usar('en')"); pg.wait_for_timeout(100)
+    te = pg.evaluate("document.getElementById('nativaPanel').innerText"); verificar("Phone alarm" in te and not sin_espanol(te.split("\n")), te[:300])
+    pg.evaluate("Gioval.i18n.usar('es-AR')"); verificar(not pg.evaluate("[...Gioval.i18n.faltantes]"), "claves faltantes: %s" % pg.evaluate("[...Gioval.i18n.faltantes]"))
+    # pantalla encendida durante una actividad
+    pg.evaluate("document.getElementById('btnGear').click()"); pg.evaluate("window.__nat=[]"); pg.evaluate("document.getElementById('act').classList.add('active')"); pg.wait_for_timeout(150)
+    verificar(["pantalla", True] in pg.evaluate("window.__nat"), "no mantuvo la pantalla encendida en una actividad"); pg.evaluate("document.getElementById('act').classList.remove('active')"); pg.wait_for_timeout(150)
+    verificar(["pantalla", False] in pg.evaluate("window.__nat"), "no soltó la pantalla al salir de la actividad")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("envoltorio Android: el botón atrás cierra carteles, vuelve de pantalla en pantalla y en el inicio minimiza (sin cerrar)")
+def t_envoltorio_atras(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, extra_init=JS_PLUGIN_NATIVO, semilla=92); instalar_speak(pg)
+    activa = lambda: pg.evaluate("document.querySelector('.screen.active').id")
+    atras = lambda: (pg.evaluate("window.__back({canGoBack:false})"), pg.wait_for_timeout(120))
+    verificar(pg.evaluate("typeof window.__back") == "function", "no se registró el listener de backButton")
+    igual(activa(), "who"); atras(); verificar(["minimizar"] in pg.evaluate("window.__nat"), "en el inicio tiene que minimizar la app")
+    entrar(pg, "Vale"); igual(activa(), "map")
+    atras(); igual(activa(), "who", "del mapa vuelve a '¿Quién juega?'")
+    entrar(pg, "Vale"); pg.click(".island >> nth=0"); pg.wait_for_timeout(150); verificar(activa() in ("menuIsla", "home", "ayudantes", "misLista"), activa())
+    for _ in range(4):
+        if activa() == "map": break
+        atras()
+    igual(activa(), "map", "de la isla vuelve al mapa")
+    # un cartel abierto se cierra primero
+    pg.evaluate("document.getElementById('reportBox').classList.add('show')"); atras()
+    igual(pg.evaluate("document.getElementById('reportBox').classList.contains('show')"), False, "no cerró el cartel"); igual(activa(), "map", "cerró también la pantalla")
+    abrir_panel(pg); igual(pg.evaluate("document.getElementById('panel').classList.contains('show')"), True); atras()
+    igual(pg.evaluate("document.getElementById('panel').classList.contains('show')"), False, "no cerró el panel de adultos")
+    verificar(not err, str(err)); ctx.close()
+
 # ---------------------------------------------------------------- aviso de versión
 @prueba("aviso de versión nueva: solo en menús, nunca en sesión; Actualizar recarga con la versión nueva")
 def t_version(C):

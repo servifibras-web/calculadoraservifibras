@@ -1,0 +1,11 @@
+{
+  "appId": "ar.servifibras.gioval",
+  "appName": "Mundo Gioval",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

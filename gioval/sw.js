@@ -19,6 +19,8 @@ const F=["./","index.html","manifest.json","apple-touch-icon.png","icon-192.png"
   "js/core/sonido.js",
   "js/core/almacen.js",
   "js/core/alarma.js",
+  "js/core/alarma_nativa.js",
+  "js/core/envoltorio.js",
   "js/core/entrada/entrada.js",
   "js/core/entrada/toque.js",
   "js/core/entrada/microfono.js",

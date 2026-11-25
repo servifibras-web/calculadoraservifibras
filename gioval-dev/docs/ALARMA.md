@@ -27,10 +27,12 @@ Lo que sí hace la versión web, y lo que no:
 | Pantalla apagada / teléfono bloqueado | **No garantizado.** Al volver a abrir la app se recalcula con la hora absoluta y, si ya venció, suena en ese momento ("tarde" indica cuánto pasó). |
 | App cerrada o descartada por el sistema | **No garantizado.** Al reabrir, la alarma vencida se avisa igual. |
 
-La solución real es el envoltorio nativo (Capacitor + `LocalNotifications` con `allowWhileIdle`), **Android primero**.
-El código ya está preparado: si existe `window.Capacitor.Plugins.LocalNotifications`, además de la alarma web se
-programa una notificación local exacta del sistema operativo, y `cancelar()` la cancela. La app **no depende** de eso:
-sin Capacitor funciona como PWA con la limitación de arriba. Todavía falta confirmar el aparato Android donde se probará.
+La solución real es el envoltorio nativo, **Android primero**: ver `ANDROID.md` (APK armado con GitHub Actions). Dentro del
+envoltorio, `js/core/alarma_nativa.js` (que se activa solo si existe el plugin propio `Capacitor.Plugins.GiovalAlarma`) suma
+a la alarma web una alarma EXACTA del sistema (AlarmManager + servicio de sonido + pantalla sobre el bloqueo), y `cancelar()` la
+cancela. `alarma.js` no cambia: la app **no depende** del envoltorio y, sin él, funciona como PWA con la limitación de arriba.
+Además, si existe `window.Capacitor.Plugins.LocalNotifications`, `alarma.js` sigue programando una notificación local exacta
+(camino alternativo; el envoltorio de Android no lo usa). Falta probar la alarma nativa en un aparato real.
 
 ## Cómo funciona la versión web
 

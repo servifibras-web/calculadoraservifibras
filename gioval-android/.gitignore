@@ -1,0 +1,8 @@
+node_modules/
+# copia de gioval/ que arma preparar_web.py (se genera, no se commitea)
+www/
+# restos de compilación
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

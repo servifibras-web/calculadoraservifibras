@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- app_name y title_activity_main se definen en app/build.gradle (resValue) para poder cambiarlos en la variante beta -->
+    <string name="package_name">ar.servifibras.gioval</string>
+    <string name="custom_url_scheme">ar.servifibras.gioval</string>
+    <string name="alarma_listo">¡Listo!</string>
+    <string name="alarma_titulo_defecto">Mundo Gioval</string>
+    <string name="alarma_parar">Parar</string>
+    <string name="alarma_canal_sonando">Alarma sonando</string>
+    <string name="alarma_canal_aviso">Aviso de alarma</string>
+    <string name="alarma_perdida">Sonó la alarma</string>
+</resources>
