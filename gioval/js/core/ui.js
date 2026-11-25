@@ -24,7 +24,7 @@ function renderMap(){
   $("mapTitle").textContent=t("app.mapa_titulo",{nombre:KID});
   const box=$("islands"); box.innerHTML="";
   const islas=[
-    ...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMenuIsla(); speak(t("app.isla_entrada",{isla:p.name})); }})),
+    ...PACKS.map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:true,go:()=>{ PACK=p; goMenuIsla(); speak(p.hablaMenu?p.hablaMenu():t("app.isla_entrada",{isla:p.name})); }})),
     ...(Gioval.datos.proximas||[]).map(p=>({name:p.name,emoji:p.emoji,sub:p.sub,on:false})),
   ];
   islas.forEach(is=>{
@@ -60,12 +60,14 @@ $("btnFinHome").onclick=()=>{ $("finish").classList.remove("show");
 function goMenuIsla(){ S.run++; S.tap=null; Gioval.emit("menu",PACK); show("menuIsla"); renderMenuIsla(); setBubble(t("app.isla_menu",{isla:PACK.name})); }
 function renderMenuIsla(){
   $("menuIslaTitle").textContent=PACK.emoji+" "+PACK.name;
-  const left=capLeft(); $("streak").textContent=left>0?t("menu.tiempo",{n:Math.ceil(left/60)}):t("menu.listo_hoy");
+  const left=capLeft(); $("streak").textContent=PACK.etiquetaTiempo?PACK.etiquetaTiempo():(left>0?t("menu.tiempo",{n:Math.ceil(left/60)}):t("menu.listo_hoy"));
   const box=$("menuIslaItems"); box.innerHTML="";
   const done=left<=0, ci=checkInfo();
-  const cards=[
+  /* una isla sin sesiones (p. ej. Misiones, que no cuenta como pantalla) declara menuPropio():[{em,t,s,on,go}], etiquetaTiempo() y hablaMenu() */
+  const cards=PACK.menuPropio?PACK.menuPropio():[
     {em:"▶️",t:t("menu.sesion"),s:done?t("menu.manana"):sessionPreview(),on:!done,go:()=>startSession()},
     ...(PACK.tarjetas?PACK.tarjetas(done):[]),
+    ...(Gioval.tarjetasMenu||[]).flatMap(f=>f(done)||[]), /* gancho genérico: módulos opcionales suman tarjetas a todos los menús */
     {em:"🌟",t:t("menu.logros"),s:t("menu.logros_sub"),on:true,go:()=>{ show("logros"); renderLogros(); }},
     {em:"🧪",t:t("menu.chequeo"),s:done&&ci.ok?t("menu.manana"):ci.sub,on:ci.ok&&!done,go:()=>startCheck()},
   ];

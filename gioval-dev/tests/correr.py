@@ -92,13 +92,13 @@ def t_perfiles(C):
     foto(pg, "360x700_01_perfiles"); CAPTURAS.append("360x700_01_perfiles.png")
     entrar(pg, "Vale"); igual(pg.evaluate("KID"), "Vale"); ctx.close()
 
-@prueba("mapa: muestra Música, Números y las islas con candado")
+@prueba("mapa: muestra Música, Números, Misiones y las islas con candado")
 def t_mapa(C):
     for v in ("pixel7", "360x700", "740x330"):
         ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err); instalar_speak(pg)
         entrar(pg, "Vale")
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.replace(/\\n/g,'|')+(x.classList.contains('off')?'|off':''))")
-        igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🔒|Isla Letras|Pronto|off", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
+        igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🧭|Isla Misiones|¡Cosas de verdad!", "🔒|Isla Letras|Pronto|off", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
         foto(pg, v + "_02_mapa"); CAPTURAS.append(v + "_02_mapa.png"); ctx.close()
 
 # ---------------------------------------------------------------- islas
@@ -400,7 +400,7 @@ def t_entradas(C):
     ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=71); instalar_speak(pg)
     igual(sorted(pg.evaluate("Object.keys(Gioval.entrada.proveedores)")), ["microfono", "toque"], "proveedores")
     igual(pg.evaluate("Gioval.entrada.necesito(['toque','golpe','acorde'])"), {"disponibles": ["toque"], "faltan": ["golpe", "acorde"]}, "necesito")
-    igual(pg.evaluate("PACKS.map(p=>[p.id,p.instrumento,p.entradas])"), [["musica", "piano", ["nota", "toque"]], ["numeros", None, ["toque"]]], "declaración de las islas")
+    igual(pg.evaluate("PACKS.map(p=>[p.id,p.instrumento,p.entradas])"), [["musica", "piano", ["nota", "toque"]], ["numeros", None, ["toque"]], ["misiones", None, []]], "declaración de las islas")
     r = pg.evaluate("(()=>{ const got=[]; const off=Gioval.entrada.suscribir('golpe',e=>got.push(e)); Gioval.entrada.emitir({tipo:'golpe',fuerza:.5}); off(); Gioval.entrada.emitir({tipo:'golpe'}); return [got.length,got[0].tipo,typeof got[0].t]; })()")
     igual(r, [1, "golpe", "number"], "emitir/suscribir")
     for f in ("golpes", "acordes", "midi"):   # archivos reservados documentados
@@ -493,7 +493,8 @@ def t_pixeles(C):
             ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + ruta, store=STORE_KID, semilla=777, errores=None, congelar=True); instalar_speak(pg)
             pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
             def f(tag): foto(pg, "cmp_%s_%s_%s" % (v, tag, nombre))
-            pg.evaluate("renderWho(); show('who')"); f("who"); entrar(pg, "Vale"); f("mapa")
+            pg.evaluate("renderWho(); show('who')"); f("who"); entrar(pg, "Vale")
+            pg.evaluate("document.querySelectorAll('#islands .island').forEach(b=>{ if(b.innerText.includes('Misiones')) b.style.display='none'; })"); f("mapa")   # Misiones es nueva: se oculta su tarjeta para comparar el resto del mapa
             pg.click(".island:has-text('Música')"); pg.wait_for_timeout(150); f("menu_musica")
             pg.click(".island:has-text('Sesión de hoy')"); pg.wait_for_timeout(500); pg.evaluate("clearTimeout(0)"); f("musica_sesion")
             jugar(pg, perfecto=True, limite=3); pg.wait_for_timeout(300); f("musica_sesion2")
@@ -523,7 +524,7 @@ def t_agregar_isla(C):
         ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, url2 + "/index.html", store=STORE_KID, errores=err, semilla=3); instalar_speak(pg); entrar(pg, "Vale")
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n')[1])")
         verificar("Isla Colores" in islas, str(islas))
-        igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "colores"], "islas registradas")
+        igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "colores", "misiones"], "islas registradas")
         for i in range(3):
             abrir_isla(pg, "Colores"); tarjeta(pg, "Sesión de hoy"); verificar(jugar(pg, cada_error=4 if i == 0 else 0) == "fin"); cerrar_fin(pg)
         pg.evaluate("PACK=PACKS.find(p=>p.id==='colores')"); verificar(pg.evaluate("SK('col_nom').mast"), "no dominó la primera habilidad")
@@ -543,6 +544,427 @@ def t_agregar_isla(C):
     finally:
         srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
 
+# ---------------------------------------------------------------- Misiones reales + Álbum de logros reales
+import unicodedata
+# Lista PROPIA de la prueba (independiente de la que usa la app): fuego/calor, filo y corte, químicos del hogar, electricidad de red, resina/epoxi/solventes
+PROHIBIDAS_PY = [r"fuego", r"fogata", r"llamarada", r"encend\w*", r"fosforo\w*", r"hornalla\w*", r"horno\w*", r"estufa\w*", r"microondas", r"hervi\w*", r"hirvi\w*", r"calient\w*", r"calent\w*", r"quem\w*", r"soplete\w*",
+    r"cuchill\w*", r"tijera\w*", r"filos?", r"afilad\w*", r"navaja\w*", r"trincheta\w*", r"cutter", r"cuter", r"serrucho\w*", r"cortar", r"cortad\w*", r"martillo\w*", r"taladro\w*",
+    r"lavandina", r"cloro", r"amoniaco", r"solvente\w*", r"thinner", r"aguarras", r"nafta", r"acetona", r"alcohol", r"desinfectante\w*", r"limpiador\w*", r"acido\w*", r"veneno\w*",
+    r"resina\w*", r"epoxi\w*", r"poliester", r"catalizador\w*", r"enchufe\w*", r"electric\w*", r"tomacorriente\w*", r"cargador\w*", r"cable\w*"]
+# Lo mismo para inglés (lista propia de la prueba; "heat" como sustantivo se permite, igual que "calor" en español)
+PROHIBIDAS_EN_PY = [r"fire\w*", r"flame\w*", r"match(es|box\w*)", r"lighter\w*", r"candle\w*", r"stove\w*", r"oven\w*", r"microwave\w*", r"boil\w*", r"burn\w*", r"hot", r"heating", r"heated", r"heater\w*",
+    r"knife", r"knives", r"scissors", r"sharp\w*", r"blade\w*", r"razor\w*", r"cutter\w*", r"cut(s|ting)?", r"hammer\w*", r"drill\w*",
+    r"bleach", r"chlorine", r"ammonia", r"solvent\w*", r"thinner", r"gasoline", r"petrol", r"acetone", r"alcohol", r"disinfectant\w*", r"cleaner\w*", r"acid\w*", r"poison\w*",
+    r"resin\w*", r"epoxy", r"polyester", r"catalyst\w*", r"outlet\w*", r"socket\w*", r"electric\w*", r"charger\w*", r"cable\w*"]
+def sin_tildes(t): return "".join(c for c in unicodedata.normalize("NFD", t.lower()) if unicodedata.category(c) != "Mn")
+def textos_de(x, out=None):
+    out = [] if out is None else out
+    if isinstance(x, str): out.append(x)
+    elif isinstance(x, list): [textos_de(y, out) for y in x]
+    elif isinstance(x, dict): [textos_de(y, out) for y in x.values()]
+    return out
+
+def jpeg_prueba(nombre, w=3000, h=2000, color=(200, 80, 40)):
+    """JPEG grande con EXIF (marca de cámara) para comprobar que la app lo achica y le saca los metadatos."""
+    from PIL import Image
+    SALIDA.mkdir(exist_ok=True); ruta = SALIDA / nombre
+    im = Image.new("RGB", (w, h), color); ex = Image.Exif(); ex[0x010F] = "CamaraDePrueba"; ex[0x0110] = "Modelo-X"
+    im.save(str(ruta), "JPEG", quality=92, exif=ex); return ruta
+
+def mis_abrir(pg, mid):
+    abrir_isla(pg, "Misiones"); pg.click("#menuIslaItems .island:has-text('Elegir')"); pg.wait_for_timeout(100)
+    pg.click(".mis-card[data-id='%s']" % mid); pg.wait_for_timeout(120)
+def mis_paso(pg): return pg.evaluate("(Gioval.misiones.estado()||{}).paso||null")
+def pasar_gate(pg):
+    pg.wait_for_selector("#gateBox.show"); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_timeout(120)
+def mis_hasta(pg, objetivo):
+    """Avanza una misión por la interfaz (como lo haría un niño con un adulto) hasta llegar al paso pedido."""
+    for _ in range(80):
+        p = mis_paso(pg)
+        if p == objetivo: return
+        if p == "listo":
+            pg.click("#misAcc .btn:last-child")
+            if pg.evaluate("document.getElementById('gateBox').classList.contains('show')"): pasar_gate(pg)
+        elif p == "materiales":
+            for k in range(pg.locator("#misCont .mis-mat").count()): pg.click("#misCont .mis-mat >> nth=%d" % k)
+            pg.click("#misTodo")
+        elif p == "antes":
+            if pg.locator("#misCont .mis-chip").count(): pg.click("#misCont .mis-chip >> nth=0")
+            pg.click("#misAcc .btn:last-child")
+        elif p in ("hacer", "porque", "espera"): pg.click("#misAcc .btn:last-child")
+        elif p == "quepaso": pg.click("#misCont .mis-chip >> nth=0"); pg.click("#misAcc .btn:last-child")
+        else: raise Falla("paso inesperado: %s" % p)
+        pg.wait_for_timeout(50)
+    raise Falla("no se llegó al paso " + objetivo)
+def mis_foto_on(pg, ruta):
+    pg.click("#misCont details summary"); pg.click("#misCont [data-act=tgFoto]"); pasar_gate(pg)
+    pg.set_input_files("#misFile", str(ruta)); pg.wait_for_selector("#misCont .mis-fotoprev img")
+def mis_registrar(pg, frase, res="pensaba", foto=None):
+    pg.fill("#misCont textarea[data-in=frase]", frase); pg.click("#misCont [data-res=%s]" % res)
+    if foto: mis_foto_on(pg, foto)
+    pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'", timeout=8000)
+def mis_completa(pg, mid, frase, res="pensaba", foto=None):
+    mis_abrir(pg, mid); mis_hasta(pg, "registro"); mis_registrar(pg, frase, res, foto)
+def n_fotos(pg): return pg.evaluate("Gioval.almacen.fotos.listar().then(l=>l.length)")
+def album(pg): return pg.evaluate("JSON.parse(JSON.stringify((store.misiones&&store.misiones.album&&store.misiones.album[KID])||[]))")
+def mis_textos(pg):
+    """{id: textos de la misión} en el idioma que está usando la app (salen de la tabla de idioma, por clave misiones.m.<id>.*)."""
+    return json.loads(pg.evaluate("JSON.stringify(Object.fromEntries(Gioval.datos.misiones.MISIONES.map(m=>[m.id,Gioval.datos.misiones.textos(m)])))"))
+def U(pg, clave, **p):
+    """Texto de la interfaz de Misiones (clave misiones.ui.<clave>) en el idioma actual."""
+    return pg.evaluate("([k,p])=>t('misiones.ui.'+k,p)", [clave, p])
+def tabla_mis(pg, codigo):
+    """Todas las claves misiones.* de una tabla de idioma, sin formatear."""
+    return json.loads(pg.evaluate("c=>JSON.stringify(Object.fromEntries(Object.entries(Gioval.i18n.tablas[c].textos).filter(([k])=>k.startsWith('misiones.'))))", codigo))
+
+@prueba("misiones: contenido válido (≥12, 2 por categoría, desde 4 años, materiales + supervisión + aviso, sin palabras prohibidas)")
+def t_mis_datos(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    d = json.loads(pg.evaluate("JSON.stringify({M:Gioval.datos.misiones.MISIONES, ok:Gioval.datos.misiones.MISIONES.map(m=>Gioval.datos.misiones.validar(m)), vis:Gioval.misiones.lista().length, cat:Gioval.datos.misiones.CATEGORIAS})"))
+    Ms, T = d["M"], mis_textos(pg)
+    verificar(len(Ms) >= 12, "hay %d misiones" % len(Ms)); igual(d["vis"], len(Ms), "misiones visibles")
+    igual(len({m["id"] for m in Ms}), len(Ms), "ids repetidos"); igual(set(T), {m["id"] for m in Ms}, "textos y estructura no coinciden")
+    # los textos están SOLO en las tablas de idioma: es-AR y en tienen exactamente las mismas claves misiones.*
+    es, en = tabla_mis(pg, "es-AR"), tabla_mis(pg, "en"); igual(sorted(en), sorted(es), "en y es-AR: mismas claves misiones.*")
+    ids_tabla = {k.split(".")[2] for k in es if k.startswith("misiones.m.")}; igual(ids_tabla, {m["id"] for m in Ms}, "misiones con textos en la tabla")
+    cats = sorted(d["cat"]); igual(cats, sorted(["construir", "experimentos", "cocina", "huerta", "arte", "hogar"]), "categorías")
+    for c in cats: verificar(sum(1 for m in Ms if m["cat"] == c) >= 2, "menos de 2 misiones en " + c); verificar("misiones.cat." + c in es and "misiones.cat." + c in en, "falta el nombre de la categoría " + c)
+    verificar(min(m["minEdad"] for m in Ms) == 4 and all(m["minEdad"] >= 4 for m in Ms), "edad mínima desde 4")
+    # cada u("…") del código de la isla existe en la tabla (no hay claves inventadas ni faltantes)
+    codigo = (APP / "js" / "islas" / "misiones.js").read_text(encoding="utf-8")
+    usadas = set(re.findall(r'\bul?\("([a-z0-9_.]+)"', codigo)); usadas = {k for k in usadas if not k.endswith(".")}; verificar(len(usadas) > 80, "pocas claves detectadas: %d" % len(usadas))
+    faltan = sorted(k for k in usadas if "misiones.ui." + k not in es); verificar(not faltan, "u(\"…\") sin clave en es-AR: %s" % faltan)
+    for k in ("supervision.cerca.corto", "supervision.junto.detalle", "burbuja.listo", "burbuja.fin", "fin.pensaba", "fin.distinto", "fin.cierre"): verificar("misiones.ui." + k in es, "falta " + k)
+    sin_coment = re.sub(r"(?m)^\s*//.*$", "", re.sub(r"/\*.*?\*/", "", codigo, flags=re.S))
+    esp = [m.group(0)[:60] for m in re.finditer(r"""(["'`])((?:\\.|(?!\1)[^\\\n])*)\1""", sin_coment) if re.search(r"[¿¡áéíóúñÁÉÍÓÚÑ]", m.group(2))]
+    verificar(not esp, "texto en español escrito en el código de la isla (tiene que ir en la tabla): %s" % esp[:3])
+    nprohib = 0
+    for m, probs in zip(Ms, d["ok"]):
+        t = T[m["id"]]; igual(probs, [], "validar " + m["id"])
+        verificar(m["sup"] in ("cerca", "junto"), m["id"] + " sin supervisión"); verificar(len(t["materiales"]) >= 1, m["id"] + " sin materiales")
+        verificar(len(t["aviso"].strip()) >= 20, m["id"] + " sin aviso de seguridad"); verificar(len(t["pasos"]) >= 2, m["id"] + " sin pasos")
+        if m["tipo"] != "hacer": verificar(t["prediccion"]["pregunta"] and len(t["prediccion"]["opciones"]) >= 2 and t["observacion"] and t["explicacion"] and t["guia"], m["id"] + " sin estructura científica")
+        else: verificar(t.get("imaginar"), m["id"] + " sin imaginar")
+        verificar("A REVISAR" not in json.dumps(t) and not m.get("revisar"), m["id"] + " tiene datos sin confirmar")
+        for tx in textos_de(t):
+            nprohib += 1
+            for pat in PROHIBIDAS_PY: verificar(not re.search(r"(^|[^a-z])(%s)($|[^a-z])" % pat, sin_tildes(tx)), "%s: palabra prohibida /%s/ en «%s»" % (m["id"], pat, tx[:60]))
+    # lo mismo en inglés (lista PROPIA de la prueba, distinta de la de la app) sobre TODAS las claves misiones.m.* y misiones.ui.* de la tabla en
+    nen = 0
+    for k, v in en.items():
+        for tx in textos_de(v):
+            nen += 1
+            for pat in PROHIBIDAS_EN_PY: verificar(not re.search(r"(^|[^a-z])(%s)($|[^a-z])" % pat, tx.lower()), "en/%s: palabra prohibida /%s/ en «%s»" % (k, pat, tx[:60]))
+    nexp = sum(1 for m in Ms if m["tipo"] != "hacer"); verificar(nexp >= 5, "pocos experimentos")
+    # el elogio es al proceso: nada de "genio", rachas ni puntos en ningún texto de la interfaz
+    ui = sin_tildes(json.dumps({k: v for k, v in es.items() if k.startswith("misiones.ui.")}, ensure_ascii=False))
+    for mala in ("genio", "inteligent", "talento", "brillante", "el mejor", "la mejor", "campe", "racha", "puntos", "ranking"): verificar(mala not in ui, "texto de la interfaz con «%s»" % mala)
+    uien = json.dumps({k: v for k, v in en.items() if k.startswith("misiones.ui.")}).lower()
+    for mala in ("genius", "smart", "talent", "brilliant", "the best", "champion", "streak", "points", "ranking"): verificar(mala not in uien, "texto de la interfaz en inglés con «%s»" % mala)
+    # el validador de verdad rechaza lo malo (prueba de la prueba)
+    r = pg.evaluate("""(()=>{ const D=Gioval.datos.misiones, m=D.MISIONES.find(x=>x.id==='exp_flota'), I=Gioval.i18n.tablas, k='misiones.m.exp_flota.';
+      const copia=x=>JSON.parse(JSON.stringify(x)), cod=c=>Object.keys(I[c].textos).filter(x=>x.startsWith(k)), bak={};
+      ['es-AR','en'].forEach(c=>{ bak[c]=Object.fromEntries(cod(c).map(x=>[x,copia(I[c].textos[x])])); });
+      const v=(mut,mm,c)=>{ const T=I[c||'es-AR'].textos; mut(T); const n=D.validar(Object.assign({},m,mm||{})).length; Object.assign(T,copia(bak[c||'es-AR'])); return n; };
+      const fr=()=>{ Gioval.i18n.registrar('fr',{textos:{[k+'nombre']:'Flotte'}}); const n=D.validar(m).length; delete I.fr; return n; };
+      return { aviso:v(T=>{T[k+'aviso']='';}), mats:v(T=>{T[k+'materiales']=[];}), sup:v(T=>{},{sup:'solo'}), edad:v(T=>{},{minEdad:3}), lav:v(T=>{T[k+'pasos'][1]='Mezclá con lavandina.';}), cuch:v(T=>{T[k+'materiales'].push('Un cuchillo');}),
+        epoxi:v(T=>{T[k+'aviso']='Con epoxi, cuidado, mucho cuidado.';}), fuego:v(T=>{T[k+'pasos'][0]='Prendé fuego';}),
+        en_fuego:v(T=>{T[k+'pasos'][0]='Light a fire';},{},'en'), en_cuchillo:v(T=>{T[k+'materiales'].push('A sharp knife');},{},'en'), idioma_sin_lista:fr(), ok:v(T=>{}), ok_en:v(T=>{},{},'en') }; })()""")
+    igual(r, {"aviso": 1, "mats": 1, "sup": 1, "edad": 1, "lav": 1, "cuch": 1, "epoxi": 1, "fuego": 1, "en_fuego": 1, "en_cuchillo": 1, "idioma_sin_lista": 1, "ok": 0, "ok_en": 0}, "el validador (también rechaza lo malo escrito en inglés o en un idioma sin lista)")
+    # una misión inválida queda oculta (no se le muestra al niño)
+    pg.evaluate("console.warn=()=>{}")
+    visible = pg.evaluate("""(()=>{ const D=Gioval.datos.misiones, T=Gioval.i18n.tablas['es-AR'].textos, k='misiones.m.mala.'; Object.assign(T,{[k+'nombre']:'Mala',[k+'resumen']:'x',[k+'aviso']:'',[k+'materiales']:['a'],[k+'pasos']:['a','b'],[k+'imaginar']:'x'});
+      D.MISIONES.push({id:'mala',cat:'arte',emoji:'💥',minEdad:4,sup:'cerca',tipo:'hacer'}); const n=Gioval.misiones.recargar().some(m=>m.id==='mala'); D.MISIONES.pop(); Object.keys(T).filter(x=>x.startsWith(k)).forEach(x=>delete T[x]); Gioval.misiones.recargar(); return n; })()""")
+    igual(visible, False, "una misión sin aviso no debe mostrarse")
+    ctx.close(); return "%d misiones (%d experimentos), %d textos es-AR contra %d palabras prohibidas y %d textos en inglés contra %d" % (len(Ms), nexp, nprohib, len(PROHIBIDAS_PY), nen, len(PROHIBIDAS_EN_PY))
+
+@prueba("misiones: flujo completo de un experimento (aviso → materiales → predicción → hacer + temporizador → ¿qué pasó? → ¿por qué? → registro) en 360x700 y 740x330")
+def t_mis_flujo(C):
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=81); instalar_speak(pg); entrar(pg, "Vale")
+        t = mis_textos(pg)["exp_hielo"]
+        t0 = pg.evaluate("JSON.stringify(store.time)")
+        abrir_isla(pg, "Misiones")
+        txt = pg.inner_text("#menuIslaItems")
+        verificar("Misión de la semana" in txt and "Elegir una misión" in txt and "Mi álbum" in txt, txt)
+        verificar("Sesión de hoy" not in txt and "Chequeo" not in txt, "Misiones no tiene sesión ni chequeo: " + txt)
+        verificar("Sin tope de pantalla" in pg.inner_text("#streak"), "etiqueta de tiempo")
+        CAPTURAS.append(foto(pg, v + "_60_misiones_menu"))
+        pg.click("#menuIslaItems .island:has-text('Elegir')"); pg.wait_for_timeout(100); CAPTURAS.append(foto(pg, v + "_61_misiones_lista"))
+        pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150)
+        # 1) el aviso de seguridad y el nivel de supervisión se ven ANTES de empezar (y se dicen en voz alta)
+        igual(mis_paso(pg), "listo", "primer paso")
+        verificar(pg.is_visible("#misAviso") and t["aviso"] in pg.inner_text("#misAviso"), "aviso no visible")
+        arriba = pg.evaluate("(()=>{ const r=document.getElementById('misAviso').getBoundingClientRect(), c=document.getElementById('misCont').getBoundingClientRect(); return r.top>=c.top-1 && r.top<c.bottom; })()")
+        verificar(arriba, "el aviso no está a la vista al abrir la misión")
+        verificar(U(pg, "supervision.cerca.corto") in pg.inner_text("#misCont"), "falta el nivel de supervisión")
+        verificar(any(t["aviso"] in x for x in pg.evaluate("window.__LOG")), "el aviso no se dijo en voz alta")
+        CAPTURAS.append(foto(pg, v + "_62_mision_aviso"))
+        pg.click("#misAcc .btn:last-child"); igual(mis_paso(pg), "materiales")
+        # 2) checklist: no se avanza hasta tener todo
+        verificar(pg.is_disabled("#misTodo"), "avanza sin materiales")
+        n = len(t["materiales"])
+        for k in range(n - 1): pg.click("#misCont .mis-mat >> nth=%d" % k)
+        verificar(pg.is_disabled("#misTodo"), "avanza con materiales a medias")
+        CAPTURAS.append(foto(pg, v + "_63_mision_materiales"))
+        pg.click("#misCont .mis-mat >> nth=%d" % (n - 1)); verificar(not pg.is_disabled("#misTodo")); pg.click("#misTodo")
+        # 3) predicción obligatoria
+        igual(mis_paso(pg), "antes"); verificar(pg.is_disabled("#misAcc .btn"), "avanza sin predecir")
+        igual(pg.locator("#misCont .mis-chip").count(), len(t["prediccion"]["opciones"]) + 2, "opciones + otra idea + no sé")
+        CAPTURAS.append(foto(pg, v + "_64_mision_prediccion"))
+        pg.click("#misCont .mis-chip >> nth=0"); pg.click("#misAcc .btn")
+        # 4) hacer, paso a paso, con voz y temporizador
+        igual(mis_paso(pg), "hacer"); verificar(t["pasos"][0] in pg.evaluate("window.__LOG"), "el paso 1 no se dijo")
+        for k in range(1, 3): pg.click("#misAcc .btn:last-child"); verificar(t["pasos"][k] in pg.evaluate("window.__LOG"), "el paso %d no se dijo" % (k + 1))
+        verificar(pg.is_visible("[data-act=timer]"), "falta el temporizador en el paso 3")
+        pg.click("[data-act=timer]"); r = pg.evaluate("Alarma.restante()"); verificar(598 <= r <= 600, "temporizador de 10 min: %s" % r)
+        pg.wait_for_function("document.getElementById('misTimerEstado').innerText.includes('Falta')"); CAPTURAS.append(foto(pg, v + "_65_mision_temporizador"))
+        pg.evaluate("window.__OFF=601000; Alarma._revisar()"); pg.wait_for_timeout(100)
+        verificar(U(pg, "timer.fin") in pg.evaluate("window.__LOG"), "no avisó que terminó el temporizador"); igual(pg.evaluate("Gioval.misiones.estado().timer"), False)
+        pg.evaluate("window.__OFF=0")
+        while mis_paso(pg) == "hacer": pg.click("#misAcc .btn:last-child"); pg.wait_for_timeout(40)
+        # 5) ¿qué pasó? y ¿por qué creés?
+        igual(mis_paso(pg), "quepaso"); verificar(pg.is_disabled("#misAcc .btn"), "avanza sin observar")
+        verificar(pg.inner_text("#bubble").strip() and len(pg.inner_text("#bubble")) < 60, "el globito debe llevar una frase corta, no el texto largo: " + pg.inner_text("#bubble"))
+        pg.click("#misCont .mis-chip >> nth=1"); CAPTURAS.append(foto(pg, v + "_66_mision_quepaso")); pg.click("#misAcc .btn")
+        igual(mis_paso(pg), "porque"); igual(pg.locator(".mis-exp").count(), 0, "la explicación no se muestra hasta pedirla")
+        pg.fill("#misCont textarea[data-in=porque]", "porque el sol calienta"); pg.click("#misAcc .btn:has-text('explicación')")
+        verificar(t["explicacion"] in pg.inner_text(".mis-exp"), "no muestra la explicación al adulto"); verificar(U(pg, "porque.para_adulto") in pg.inner_text(".mis-exp"))
+        CAPTURAS.append(foto(pg, v + "_67_mision_porque")); pg.click("#misAcc .btn:last-child")
+        # 6) registrar: sin elegir pensaba/distinto no se guarda
+        igual(mis_paso(pg), "registro"); verificar(pg.is_disabled("#misGuardar")); verificar(U(pg, "adulto.foto_off") in pg.inner_text("#misCont"), "debería decir que la foto necesita al adulto")
+        igual(pg.locator("#misSacar").count(), 0, "botón de foto sin consentimiento")
+        pg.fill("#misCont textarea[data-in=frase]", "El del sol se derritió primero"); pg.click("#misCont [data-res=distinto]"); CAPTURAS.append(foto(pg, v + "_68_mision_registro"))
+        pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'")
+        msg = pg.inner_text("#misFinTxt"); CAPTURAS.append(foto(pg, v + "_69_mision_fin"))
+        verificar("distinto" in msg and ("Miraste" in msg or "Observaste" in msg), "mensaje de proceso: " + msg)
+        for mala in ("genio", "inteligente", "mejor", "racha", "puntos"): verificar(mala not in msg.lower(), "elogio a la persona: " + msg)
+        a = album(pg); igual(len(a), 1, "entradas del álbum"); e = a[0]
+        igual((e["m"], e["res"], e["frase"], e["porque"], e["foto"], e["pred"], e["obs"]), ("exp_hielo", "distinto", "El del sol se derritió primero", "porque el sol calienta", None, t["prediccion"]["opciones"][0], t["observacion"][1]), "entrada")
+        igual(n_fotos(pg), 0, "sin consentimiento no se guarda foto")
+        # el tiempo de misiones NO cuenta como pantalla
+        pg.wait_for_timeout(2300); igual(pg.evaluate("JSON.stringify(store.time)"), t0, "las misiones no deben sumar tiempo de pantalla")
+        pg.click("#misAcc .btn:has-text('álbum')"); pg.wait_for_timeout(250)
+        verificar("El del sol se derritió primero" in pg.inner_text("#misAlbLista") and "Hielo" in pg.inner_text("#misAlbLista"), "el álbum no muestra la entrada")
+        CAPTURAS.append(foto(pg, v + "_70_album_nino"))
+        verificar(not err, "%s: %s" % (v, err)); ctx.close()
+
+@prueba("misiones: sin tope diario de pantalla (Números sí lo respeta) y sin sesión/chequeo en la isla")
+def t_mis_sin_tope(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=82); instalar_speak(pg); entrar(pg, "Vale")
+    pg.evaluate("store.time['Vale|'+today()]=99999"); verificar(pg.evaluate("capLeft()") < 0)
+    abrir_isla(pg, "Misiones"); verificar("Elegir una misión" in pg.inner_text("#menuIslaItems"))
+    mis_abrir(pg, "hogar_medias"); mis_hasta(pg, "registro"); mis_registrar(pg, "Había 5 pares")
+    verificar(not pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "el tope de pantalla no debe frenar misiones")
+    abrir_isla(pg, "Números"); verificar("Mañana seguimos" in pg.inner_text("#menuIslaItems"), "Números sí respeta el tope")
+    igual(pg.evaluate("PACKS.find(p=>p.id==='misiones').skills.length"), 0, "Misiones no declara habilidades")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("misiones: foto con permiso del adulto (achicada, sin metadatos, solo en el aparato), álbum y borrado por adultos")
+def t_mis_foto(C):
+    ruta = jpeg_prueba("foto_grande.jpg"); original = ruta.stat().st_size; verificar(b"Exif" in ruta.read_bytes()[:100], "la foto de prueba debería traer EXIF")
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []; reqs = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=83); instalar_speak(pg); entrar(pg, "Vale")
+        pg.on("request", lambda r: reqs.append((r.method, r.url)))
+        mis_abrir(pg, "arte_dibujo_secreto"); mis_hasta(pg, "registro")
+        pg.fill("#misCont textarea[data-in=frase]", "¡Apareció mi estrella!"); pg.click("#misCont [data-res=pensaba]")
+        # el permiso de la foto exige al adulto (candado) y se puede volver a apagar
+        pg.click("#misCont details summary"); pg.click("#misCont [data-act=tgFoto]")
+        verificar(pg.evaluate("document.getElementById('gateBox').classList.contains('show')"), "no pidió el candado de adultos")
+        igual(pg.evaluate("Gioval.misiones.estado().consent"), False, "no debe activarse sin el candado")
+        pg.click("#gateNo"); igual(pg.evaluate("Gioval.misiones.estado().consent"), False)
+        pg.click("#misCont [data-act=tgFoto]"); pasar_gate(pg); igual(pg.evaluate("Gioval.misiones.estado().consent"), True)
+        verificar(pg.is_visible("#misSacar"), "falta el botón de foto"); CAPTURAS.append(foto(pg, v + "_71_mision_foto_permiso"))
+        pg.set_input_files("#misFile", str(ruta)); pg.wait_for_selector("#misCont .mis-fotoprev img"); CAPTURAS.append(foto(pg, v + "_72_mision_foto_prev"))
+        igual(n_fotos(pg), 0, "la foto no se guarda hasta tocar Guardar")
+        pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'", timeout=8000)
+        a = album(pg); igual(len(a), 1); fid = a[0]["foto"]; verificar(fid, "la entrada no tiene foto"); igual(n_fotos(pg), 1)
+        info = pg.evaluate("""Gioval.almacen.fotos.obtener(%s).then(async r=>{ const b=await createImageBitmap(r.blob); const bytes=new Uint8Array(await r.blob.arrayBuffer());
+          let exif=false; for(let i=0;i<bytes.length-4;i++){ if(bytes[i]===69&&bytes[i+1]===120&&bytes[i+2]===105&&bytes[i+3]===102){ exif=true; break; } } return {tipo:r.blob.type,w:b.width,h:b.height,peso:r.blob.size,exif:exif,meta:r.meta}; })""" % json.dumps(fid))
+        igual(info["tipo"], "image/jpeg"); verificar(max(info["w"], info["h"]) <= 1024, "no se achicó: %sx%s" % (info["w"], info["h"])); verificar(info["peso"] < original / 5, "pesa mucho: %d" % info["peso"])
+        verificar(not info["exif"], "la foto guardada conserva metadatos (EXIF)"); igual(info["meta"]["perfil"], "Vale")
+        fuera = [u for _, u in reqs if not (u.startswith(C.url) or u.startswith("blob:") or u.startswith("data:"))]
+        verificar(not fuera, "pedidos de red fuera del aparato: %s" % fuera[:3])
+        verificar(not any(m != "GET" for m, _ in reqs), "no debe haber pedidos que suban datos: %s" % [r for r in reqs if r[0] != "GET"])
+        # álbum del niño: ve la foto y NO puede borrar
+        pg.click("#misAcc .btn:has-text('álbum')"); pg.wait_for_selector("#misAlbLista .mis-foto img"); verificar("¡Apareció mi estrella!" in pg.inner_text("#misAlbLista"))
+        igual(pg.locator("[data-del]").count(), 0, "el niño no debería ver los botones de borrar"); CAPTURAS.append(foto(pg, v + "_73_album_foto_nino"))
+        # vista de adultos: pide candado, permite borrar
+        pg.click("#misAlbModo"); pasar_gate(pg); verificar(pg.locator("[data-del]").count() == 1 and pg.locator("[data-delfoto]").count() == 1)
+        verificar("solo en este aparato" in pg.inner_text("#misAlbInfo")); CAPTURAS.append(foto(pg, v + "_74_album_adultos"))
+        pg.click("[data-del]"); verificar(pg.is_visible("#misConfirm")); pg.click("#misConfirmNo"); igual(len(album(pg)), 1, "cancelar no borra"); igual(n_fotos(pg), 1)
+        pg.click("[data-delfoto]"); pg.click("#misConfirmSi"); pg.wait_for_timeout(300)
+        igual(n_fotos(pg), 0, "borrar solo la foto"); a = album(pg); igual(len(a), 1, "la entrada queda"); igual(a[0]["foto"], None)
+        pg.click("[data-del]"); pg.click("#misConfirmSi"); pg.wait_for_timeout(300)
+        igual(len(album(pg)), 0, "borrar el recuerdo"); verificar("Todavía no hay recuerdos" in pg.inner_text("#misAlbLista")); igual(n_fotos(pg), 0)
+        verificar(not err, "%s: %s" % (v, err)); ctx.close()
+
+@prueba("misiones: respaldo exportar → borrar todo → restaurar recupera álbum Y fotos (y un respaldo viejo sin fotos no las borra)")
+def t_mis_respaldo(C):
+    f1 = jpeg_prueba("foto_a.jpg", 1600, 1200, (10, 120, 200)); f2 = jpeg_prueba("foto_b.jpg", 800, 1100, (200, 200, 20))
+    ctx = C.banco.contexto("360x700", accept_downloads=True); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=84); instalar_speak(pg); entrar(pg, "Vale")
+    mis_completa(pg, "construir_casita", "Mi casita con techo", "pensaba", f1); mis_completa(pg, "exp_flota", "La piedra se hundió", "distinto", f2); mis_completa(pg, "hogar_medias", "Sin foto", "pensaba")
+    antes = album(pg); igual(len(antes), 3); igual(n_fotos(pg), 2)
+    sha = "Gioval.almacen.fotos.listar().then(async l=>{ const o={}; for(const f of l){ const r=await Gioval.almacen.fotos.obtener(f.id); const h=await crypto.subtle.digest('SHA-256',await r.blob.arrayBuffer()); o[f.id]=Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,'0')).join(''); } return o; })"
+    hashes = pg.evaluate(sha); igual(len(hashes), 2)
+    abrir_panel(pg)
+    with pg.expect_download() as d: pg.click("#btnExport")
+    ruta = SALIDA / "respaldo_misiones.json"; d.value.save_as(str(ruta)); pg.wait_for_timeout(300)
+    arch = json.loads(ruta.read_text(encoding="utf-8")); igual(len(arch["fotos"]), 2, "el respaldo debe llevar las fotos"); igual(sorted(f["id"] for f in arch["fotos"]), sorted(hashes), "ids de fotos")
+    verificar(all(f["datos"].startswith("data:image/jpeg;base64,") for f in arch["fotos"]))
+    igual(len(arch["store"]["misiones"]["album"]["Vale"]), 3, "el álbum viaja dentro del store")
+    # borrar TODO (localStorage + las 3 bases de IndexedDB) y comprobar que no queda nada
+    pg.evaluate("localStorage.clear()")
+    pg.evaluate("new Promise(r=>{ const q=indexedDB.open('gioval-db'); q.onsuccess=()=>{ const d=q.result; const t=d.transaction(['estado','respaldo','fotos'],'readwrite'); ['estado','respaldo','fotos'].forEach(n=>t.objectStore(n).clear()); t.oncomplete=()=>{ d.close(); r(1); }; }; })")
+    pg.reload(); esperar_listo(pg); igual(pg.evaluate("store.profiles"), [], "después de borrar"); igual(n_fotos(pg), 0, "fotos después de borrar")
+    pg.evaluate("document.getElementById('nameBox').classList.remove('show')"); abrir_panel(pg); pg.set_input_files("#fileRestore", str(ruta)); pg.wait_for_selector("#restoreBox.show")
+    verificar("Fotos: 2" in pg.inner_text("#restoreTxt"), pg.inner_text("#restoreTxt"))
+    with pg.expect_navigation(): pg.click("#restoreOk")
+    esperar_listo(pg); pg.wait_for_timeout(300); instalar_speak(pg); entrar(pg, "Vale"); despues = album(pg); igual(despues, antes, "álbum restaurado"); igual(n_fotos(pg), 2, "fotos restauradas")
+    igual(pg.evaluate(sha), hashes, "las fotos restauradas deben ser idénticas byte a byte")
+    pg.evaluate("Gioval.misiones.abrirAlbum(false)"); pg.wait_for_function("document.querySelectorAll('#misAlbLista .mis-foto img').length===2", timeout=8000)
+    CAPTURAS.append(foto(pg, "360x700_76_album_restaurado"))
+    # un respaldo viejo (sin la clave "fotos") no toca las fotos existentes
+    viejo = dict(arch); viejo.pop("fotos"); rv = SALIDA / "respaldo_sin_fotos.json"; rv.write_text(json.dumps(viejo), encoding="utf-8")
+    abrir_panel(pg); pg.set_input_files("#fileRestore", str(rv)); pg.wait_for_selector("#restoreBox.show"); verificar("Fotos:" not in pg.inner_text("#restoreTxt"))
+    with pg.expect_navigation(): pg.click("#restoreOk")
+    esperar_listo(pg); igual(n_fotos(pg), 2, "restaurar sin fotos no debe borrar las de hoy")
+    rs = pg.evaluate("Gioval.almacen.respaldos().then(l=>l.filter(r=>r.id.startsWith('pre-restauracion-fotos')).length)"); verificar(rs >= 1, "falta la copia previa de fotos")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("misiones: misión de la semana (automática por edad, elegida por adultos, rota semana a semana) y misiones bloqueadas por edad")
+def t_mis_semana(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=85); instalar_speak(pg); entrar(pg, "Vale")
+    Ms = {m["id"]: m for m in json.loads(pg.evaluate("JSON.stringify(Gioval.datos.misiones.MISIONES)"))}
+    abrir_isla(pg, "Misiones"); verificar("Misión de la semana" in pg.inner_text("#menuIslaItems"))
+    abrir_panel(pg); verificar("Misiones" in pg.inner_text("#panel")); CAPTURAS.append(foto(pg, "360x700_77_panel_misiones"))
+    pg.select_option("#misPEdad", "4"); igual(pg.evaluate("store.misiones.edad.Vale"), 4)
+    vistas = set()
+    for k in range(10):
+        pg.evaluate("window.__OFF=%d" % (k * 7 * 864e5)); sid = pg.evaluate("Gioval.misiones.semana().id"); vistas.add(sid)
+        verificar(Ms[sid]["minEdad"] <= 4, "misión de la semana para 4 años con edad mínima %d: %s" % (Ms[sid]["minEdad"], sid))
+    verificar(len(vistas) >= 4, "la misión de la semana no rota: %s" % vistas)
+    pg.evaluate("window.__OFF=0"); a = pg.evaluate("Gioval.misiones.semana().id"); igual(pg.evaluate("Gioval.misiones.semana().id"), a, "estable dentro de la semana")
+    pg.click("#btnGear"); abrir_isla(pg, "Misiones"); pg.click("#menuIslaItems .island:has-text('Elegir')")
+    verificar(pg.locator(".mis-card.off").count() == 1 and "Puente de papel" in pg.locator(".mis-card.off").inner_text(), "con 4 años el puente (desde 5) debería estar bloqueado")
+    igual(pg.locator(".mis-tagsem").count(), 1, "marca de la semana")
+    # el adulto elige la misión de la semana
+    abrir_panel(pg); pg.select_option("#misPSem", "exp_flota"); igual(pg.evaluate("Gioval.misiones.semana().id"), "exp_flota"); pg.click("#btnGear")
+    abrir_isla(pg, "Misiones"); verificar("¿Flota o se hunde?" in pg.inner_text("#menuIslaItems"), "la tarjeta debería mostrar la elegida")
+    pg.click("#menuIslaItems .island >> nth=0"); pg.wait_for_timeout(150); igual(pg.evaluate("Gioval.misiones.estado().m.id"), "exp_flota")
+    # a la semana siguiente vuelve a ser automática
+    pg.evaluate("window.__OFF=7*864e5+3600e3"); pg.evaluate("Gioval.misiones.semana()"); igual(pg.evaluate("store.misiones.semana.Vale.auto"), True, "la semana siguiente debería ser automática")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("misiones: una misión de espera (poroto) queda empezada y se retoma días después con su predicción")
+def t_mis_espera(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=86); instalar_speak(pg); entrar(pg, "Vale")
+    t = mis_textos(pg)["huerta_poroto"]
+    mis_abrir(pg, "huerta_poroto"); mis_hasta(pg, "espera"); verificar("3 días" in pg.inner_text("#misCont")); CAPTURAS.append(foto(pg, "360x700_78_mision_espera"))
+    pg.click("#misAcc .btn"); pg.wait_for_timeout(200)
+    igual(len(album(pg)), 0, "todavía no es un recuerdo"); igual(pg.evaluate("store.misiones.pend.Vale.length"), 1)
+    verificar("Mirar: Un poroto que despierta" in pg.inner_text("#menuIslaItems") and "Empezaste hoy" in pg.inner_text("#menuIslaItems"), pg.inner_text("#menuIslaItems"))
+    pg.evaluate("Gioval.almacen.guardarYa()"); pg.wait_for_timeout(200); pg.reload(); esperar_listo(pg); instalar_speak(pg); entrar(pg, "Vale")
+    pg.evaluate("window.__OFF=3*864e5+1000"); abrir_isla(pg, "Misiones"); verificar("hace 3 días" in pg.inner_text("#menuIslaItems"), pg.inner_text("#menuIslaItems"))
+    pg.click("#menuIslaItems .island:has-text('Mirar')"); pg.wait_for_timeout(150); igual(mis_paso(pg), "quepaso")
+    verificar(t["prediccion"]["opciones"][0] in pg.inner_text(".mis-recuerda"), "debería recordar lo que pensó")
+    mis_hasta(pg, "registro"); mis_registrar(pg, "Salió una raicita", "pensaba")
+    a = album(pg); igual(len(a), 1); igual((a[0]["m"], a[0]["pred"], a[0]["obs"]), ("huerta_poroto", t["prediccion"]["opciones"][0], t["observacion"][0]))
+    igual(pg.evaluate("store.misiones.pend.Vale.length"), 0, "ya no está pendiente"); verificar(not err, str(err)); ctx.close()
+
+@prueba("misiones: dictado por voz solo si el adulto lo activa; una explicación marcada A REVISAR no se muestra")
+def t_mis_dictado(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=87,
+        extra_init="window.SpeechRecognition=window.webkitSpeechRecognition=function(){ var s=this; s.start=function(){ window.__dic=(window.__dic||0)+1; setTimeout(function(){ s.onresult({results:[[{transcript:'se derritió'}]]}); s.onend&&s.onend(); },30); }; };")
+    instalar_speak(pg); entrar(pg, "Vale")
+    mis_abrir(pg, "exp_flota"); mis_hasta(pg, "porque")
+    igual(pg.locator("[data-dictar]").count(), 0, "sin permiso no hay dictado")
+    pg.click("#misCont details summary"); pg.click("#misCont [data-act=tgDictado]"); pasar_gate(pg)
+    igual(pg.locator("[data-dictar=porque]").count(), 1, "con permiso aparece el botón de dictar"); pg.click("[data-dictar=porque]"); pg.wait_for_timeout(200)
+    igual(pg.input_value("#misCont textarea[data-in=porque]"), "se derritió"); igual(pg.evaluate("Gioval.misiones.estado().porque"), "se derritió"); igual(pg.evaluate("window.__dic"), 1)
+    igual(pg.locator("#misAcc .btn:has-text('explicación')").count(), 1, "debería haber botón de explicación")
+    # A REVISAR: ni botón ni texto
+    expl = mis_textos(pg)["exp_flota"]["explicacion"]
+    pg.evaluate("Gioval.datos.misiones.MISIONES.find(m=>m.id==='exp_flota').revisar='A REVISAR: confirmar con una fuente'")
+    pg.click("#misBack"); mis_abrir(pg, "exp_flota"); mis_hasta(pg, "porque")
+    igual(pg.locator("#misAcc .btn:has-text('explicación')").count(), 0, "una explicación A REVISAR no debe ofrecerse"); igual(pg.locator(".mis-exp").count(), 0)
+    verificar(expl not in pg.inner_text("body"), "el texto sin revisar aparece en pantalla")
+    pg.evaluate("delete Gioval.datos.misiones.MISIONES.find(m=>m.id==='exp_flota').revisar")
+    verificar(not err, str(err)); ctx.close()
+
+@prueba("misiones en otros idiomas: inglés sin una palabra en español, cambio de idioma a mitad de misión, pseudo-idioma (+40 %) y RTL sin desbordes nuevos")
+def t_mis_idiomas(C):
+    # 1) inglés completo, de punta a punta (menú, lista, misión, registro, álbum, panel de adultos)
+    ctx = C.banco.contexto("pixel7"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=88, extra_init="localStorage.setItem('gioval_idioma','en');"); instalar_speak(pg); entrar(pg, "Vale")
+    vistos = []
+    def mirar(*sel): vistos.extend(x for x in (pg.inner_text(s_) for s_ in sel) if x.strip())
+    abrir_isla(pg, "Missions"); mirar("#menuIslaItems", "#streak", "#menuIslaTitle")
+    verificar("Mission of the week" in pg.inner_text("#menuIslaItems") and "No screen limit" in pg.inner_text("#streak"), pg.inner_text("#menuIslaItems"))
+    pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(100); mirar("#misLista"); CAPTURAS.append(foto(pg, "pixel7_80_misiones_ingles_lista"))
+    pg.click(".mis-card[data-id='exp_flota']"); pg.wait_for_timeout(150)
+    for paso in ("listo", "materiales", "antes", "hacer", "quepaso", "porque", "registro"):
+        mis_hasta(pg, paso); mirar("#misCont", "#misAcc", "#misTitulo", "#bubble")
+        if paso == "listo": verificar("Before we start" in pg.inner_text("#misCont") and "grown-up nearby" in pg.inner_text("#misCont"), pg.inner_text("#misCont")); CAPTURAS.append(foto(pg, "pixel7_81_mision_ingles_aviso"))
+        if paso == "hacer": verificar(pg.inner_text(".mis-pasoN") == "Step 1 of 5", pg.inner_text(".mis-pasoN"))
+    mis_registrar(pg, "The stone sank", "distinto"); mirar("#misCont"); verificar("different" in pg.inner_text("#misFinTxt"), pg.inner_text("#misFinTxt"))
+    pg.click("#misAcc .btn:has-text('album')"); pg.wait_for_timeout(250); mirar("#misAlbum"); verificar("The stone sank" in pg.inner_text("#misAlbLista") and "Does it float or sink?" in pg.inner_text("#misAlbLista"), pg.inner_text("#misAlbLista"))
+    fecha = pg.inner_text("#misAlbLista .mis-ent small:nth-of-type(1)"); verificar(re.search(r"[A-Z][a-z]+ \d{1,2}, \d{4}", fecha), "la fecha debería salir en formato inglés: " + fecha)
+    pg.click("#misAlbModo"); pasar_gate(pg); mirar("#misAlbInfo", "#misAlbLista"); pg.click("#misAlbModo")
+    pg.click("#misAlbBack"); abrir_panel(pg); mirar("#panelPie"); verificar("Age of Vale:" in pg.inner_text("#panelPie") and "6 years old" in pg.inner_text("#panelPie"), pg.inner_text("#panelPie"))
+    pg.click("#btnGear"); dicho = pg.evaluate("window.__LOG.concat(window.__BUB)")
+    igual(sin_espanol(vistos + dicho), [], "texto en español con el idioma en inglés"); igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes")
+    verificar(any("Step 1 of 5" in x for x in dicho) or any("Put the things" in x or "Line the things" in x for x in dicho), "no se dijeron los pasos en inglés: %s" % dicho[:5])
+    verificar(not err, str(err)); ctx.close()
+    # 2) cambio de idioma a mitad de una misión: se vuelve a dibujar en el mismo paso, sin perder lo hecho
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=89); instalar_speak(pg); entrar(pg, "Vale")
+    mis_abrir(pg, "exp_flota"); mis_hasta(pg, "hacer"); pg.click("#misAcc .btn:last-child"); igual(pg.evaluate("Gioval.misiones.estado().i"), 1)
+    verificar("Paso 2 de 5" in pg.inner_text("#misCont"), pg.inner_text("#misCont"))
+    pg.evaluate("Gioval.i18n.usar('en')"); pg.wait_for_timeout(100)
+    igual(pg.inner_text(".mis-pasoN"), "Step 2 of 5", "el paso se vuelve a dibujar en inglés"); igual(pg.evaluate("Gioval.misiones.estado().i"), 1, "no pierde el paso"); verificar("Before trying" in pg.inner_text(".mis-paso"), pg.inner_text(".mis-paso"))
+    tc = lambda i: pg.evaluate("document.getElementById('%s').textContent" % i)
+    verificar("Back" in tc("misBack") and "Listen" in tc("misHear"), "botones fijos sin traducir: %s / %s" % (tc("misBack"), tc("misHear")))
+    pg.evaluate("Gioval.i18n.usar('es-AR')"); pg.wait_for_timeout(100); igual(pg.inner_text(".mis-pasoN"), "Paso 2 de 5")
+    # el temporizador sigue reconociéndose aunque cambie el idioma
+    pg.click("#misBack"); mis_abrir(pg, "exp_hielo"); mis_hasta(pg, "hacer"); pg.click("#misAcc .btn:last-child"); pg.click("#misAcc .btn:last-child"); pg.click("[data-act=timer]")
+    pg.evaluate("Gioval.i18n.usar('en')"); pg.evaluate("window.__OFF=601000; Alarma._revisar()"); pg.wait_for_timeout(100); pg.evaluate("window.__OFF=0")
+    verificar("Time's up! Look at what happened." in pg.evaluate("window.__LOG"), "el aviso del temporizador debería salir en inglés: %s" % pg.evaluate("window.__LOG")[-3:]); igual(pg.evaluate("Gioval.misiones.estado().timer"), False)
+    verificar(not err, str(err)); ctx.close()
+    # 3) pseudo-idioma (+40 %) y RTL: las pantallas de Misiones no tienen desbordes que no tengan en es-AR
+    pend = []
+    for v in ("360x700", "740x330"):
+        res = {}
+        for idioma in ("es-AR", "qps-ploc", "qps-plocm"):
+            ctx = C.banco.contexto(v); err = []
+            pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=9, extra_init="localStorage.setItem('gioval_idioma','%s');" % idioma, congelar=True); instalar_speak(pg); entrar(pg, "Vale")
+            r = {}
+            def ver(nombre):
+                pg.wait_for_timeout(120); r[nombre] = pg.evaluate(JS_DESBORDES)
+                if idioma != "es-AR": CAPTURAS.append(foto(pg, "%s_%s_mis_%s" % (v, idioma, nombre)))
+            pg.click("#islands .island >> nth=2"); pg.wait_for_timeout(120); ver("1_menu")
+            pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(120); ver("2_lista")
+            pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150); ver("3_aviso")
+            mis_hasta(pg, "materiales"); ver("4_materiales"); mis_hasta(pg, "antes"); ver("5_prediccion")
+            mis_hasta(pg, "hacer"); pg.click("#misAcc .btn:last-child"); pg.click("#misAcc .btn:last-child"); ver("6_temporizador")
+            mis_hasta(pg, "porque"); ver("7_porque"); mis_hasta(pg, "registro"); ver("8_registro")
+            pg.fill("#misCont textarea[data-in=frase]", "ok"); pg.click("#misCont [data-res=pensaba]"); pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'"); ver("9_fin")
+            pg.click("#misAcc .btn:last-child"); pg.wait_for_timeout(250); ver("10_album")
+            pg.evaluate("S.run++; resetFlow(); goMap()"); abrir_panel(pg); ver("11_panel")
+            igual(pg.evaluate("[document.documentElement.lang, Gioval.i18n.faltantes.size]"), [idioma, 0], "idioma/faltantes")
+            res[idioma] = r; verificar(not err, "%s %s: %s" % (v, idioma, err)); ctx.close()
+        for idioma in ("qps-ploc", "qps-plocm"):
+            for k, lst in res[idioma].items():
+                for x in lst:
+                    if x not in res["es-AR"].get(k, []): pend.append("%s %s %s: %s" % (v, idioma, k, x))
+    verificar(not pend, "con el pseudo-idioma / RTL aparecen desbordes nuevos en Misiones:\n        " + "\n        ".join(pend[:12]))
 
 # ================================================================== FASE 0b: idiomas y voz
 STORE_2 = {"profiles": ["Vale", "Gio"], "limit": {"Vale": 60, "Gio": 60}}
@@ -609,7 +1031,7 @@ def t_i18n_completitud(C):
     usadas = set()
     for f in list((APP / "js" / "core").rglob("*.js")) + list((APP / "js" / "islas").rglob("*.js")) + list((APP / "js" / "datos").rglob("*.js")):
         txt = f.read_text(encoding="utf-8")
-        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros)\.[a-z0-9_.]+)"', txt))
+        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros|misiones)\.[a-z0-9_.]+)"', txt))
     for f in [APP / "index.html"] + list((APP / "js" / "islas").rglob("*.js")):
         usadas |= set(re.findall(r'data-i18n(?:-html|-title|-placeholder)?="([^"]+)"', f.read_text(encoding="utf-8")))
     dinam = [k for k in usadas if k.endswith(".") or k.endswith("_")]
@@ -664,7 +1086,7 @@ def t_ingles(C):
     verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change", "botón Cambiar")
     entrar(pg, "Vale")
     islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n').slice(1).join('|'))")
-    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
+    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Missions Island|Real things!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
     foto(pg, "pixel7_60_ingles_mapa"); CAPTURAS.append("pixel7_60_ingles_mapa.png")
     abrir_isla(pg, "Music"); tarjeta(pg, "Today"); pg.wait_for_timeout(400)
     labels = pg.evaluate("[...document.querySelectorAll('.key span')].map(s=>s.textContent).join('')")
@@ -830,7 +1252,7 @@ def t_voz_audio(C):
 JS_DESBORDES = """(function(){
  const W=innerWidth,H=innerHeight, out=[];
  const sel='button,.island,.song,.skill,.opt,h1,h2,.bubble,label,.psum,select,input,.stars,.actStage';
- function visible(el){ const r=el.getBoundingClientRect(), cs=getComputedStyle(el); return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('.screen:not(.active)')&&!el.closest('.big:not(.show)')&&!el.closest('.panel:not(.show)')&&!el.closest('.aviso:not(.show)'); }
+ function visible(el){ const r=el.getBoundingClientRect(), cs=getComputedStyle(el); return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('.screen:not(.active)')&&!el.closest('.big:not(.show)')&&!el.closest('.panel:not(.show)')&&!el.closest('.aviso:not(.show)')&&!(el.closest('details:not([open])')&&!el.closest('summary')); }
  function scrolla(el,eje){ let p=el.parentElement; while(p&&p!==document.documentElement){ const o=getComputedStyle(p)['overflow'+eje]; if((o==='auto'||o==='scroll')&&(eje==='Y'?p.scrollHeight>p.clientHeight:p.scrollWidth>p.clientWidth)) return true; p=p.parentElement; } return false; }
  document.querySelectorAll(sel).forEach(el=>{ if(!visible(el)) return; const r=el.getBoundingClientRect();
    const id=(el.id?'#'+el.id:'')+(typeof el.className==='string'&&el.className?'.'+el.className.trim().split(/\\s+/).join('.'):'')+':'+el.tagName.toLowerCase();
@@ -1385,6 +1807,341 @@ def t_capturas(C):
         pg.evaluate("goMenuIsla()"); tarjeta(pg, "Sesión de hoy"); CAPTURAS.append(foto(pg, v + "_43_numeros_sesion"))
         abrir_panel(pg); CAPTURAS.append(foto(pg, v + "_44_panel_adultos"))
         verificar(not err, "%s: %s" % (v, err)); ctx.close()
+
+# ---------------------------------------------------------------- ayudantes de la casa
+def datos_ayudantes(C):
+    """Las tareas y la supervisión con los textos ya resueltos (es-AR) desde la tabla de idiomas, leídos en el navegador."""
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    d = pg.evaluate("({ datos: JSON.parse(JSON.stringify(Gioval.datos.ayudantes)), elogios: Gioval.i18n.tl('ayudantes.elogios'), tabla: Gioval.i18n.tablas['es-AR'].textos })")
+    ctx.close(); return d
+
+# Lo que NUNCA puede aparecer en los PASOS de una tarea (fuego/calor, filo, químicos, escaleras/alturas, electricidad).
+# Los AVISOS sí pueden nombrarlos ("los cuchillos los pone un adulto"): ahí se dice qué NO hacer.
+PROHIBIDO_EN_PASOS = re.compile(r"(fuego|\bllamas?\b|hornall|horno|estufa|plancha|calient|hirvi|herv[ií]|\bfre[ií]|cuchill|tijera|\bfilos|\bfilo\b|afilad|\bcort(a|an|ar|ás|á|ado)\b|abrelatas|\blatas?\b|rallador|vidrio|lavandina|cloro|detergente|desinfect|qu[ií]mic|veneno|abono|escalera|banquit|\bsillas?\b|subirte|subite|trepar|enchuf|\bcables?\b|el[eé]ctric|licuadora|microondas)", re.I)
+PROHIBIDO_ELOGIO = re.compile(r"(buen[ií]sim|inteligent|genio|el mejor|la mejor|campe|mejor que|perfect|racha|puntos|seguid[oa]s|ganaste|premio)", re.I)
+
+def textos_planos(o):
+    if isinstance(o, str): return [o]
+    if isinstance(o, dict): return [t for v in o.values() for t in textos_planos(v)]
+    if isinstance(o, list): return [t for v in o for t in textos_planos(v)]
+    return []
+
+@prueba("ayudantes: lista de tareas (supervisión y aviso obligatorios, sin fuego/filo/químicos/escaleras) y TEXTOS al tope")
+def t_ay_datos(C):
+    d = datos_ayudantes(C); tareas = d["datos"]["tareas"]; sups = d["datos"]["supervision"]
+    src = (APP / "js/datos/tareas.js").read_text(encoding="utf-8")
+    verificar(src.index('agregar("es-AR"') < src.index("const TAREAS"), "los textos (tabla es-AR por clave) tienen que estar arriba de la lista de tareas")
+    verificar("LISTA PARA QUE MARCOS LA APRUEBE" in src, "falta la lista anotada para aprobación")
+    verificar(not re.search(r"(nombre|aviso|pasos)\s*:\s*[\"\[]", re.sub(r"/\*.*?\*/", "", src, flags=re.S).split("const TAREAS")[1]), "texto fijo en la definición de tareas: va en la tabla de idioma")
+    claves = [k for k in d["tabla"] if k.startswith("ayudantes.")]; verificar(len(claves) > 100, "pocas claves ayudantes.*: %d" % len(claves))
+    ids = [t["id"] for t in tareas]; igual(len(ids), len(set(ids)), "ids repetidos")
+    esperadas = {"mesa_poner", "mesa_levantar", "juguetes", "plantas", "zapatos", "ropa", "mascota", "reciclaje", "secar", "cocinar_verduras"}
+    verificar(esperadas <= set(ids), "faltan tareas pedidas: %s" % (esperadas - set(ids)))
+    verificar({"cama", "juguetes", "mochila"} <= set(ids), "se perdieron ids de la lista anterior")
+    niveles = set(sups.keys()); igual(niveles, {"solo", "cerca", "adulto"}, "niveles de supervisión")
+    for k, v in sups.items(): verificar(all(v.get(c) for c in ("icono", "corto", "largo", "voz")), "supervisión %s incompleta" % k)
+    for t in tareas:
+        n = t["id"]
+        verificar(t.get("supervision") in niveles, "%s: supervisión faltante o inválida: %r" % (n, t.get("supervision")))
+        verificar(t.get("emoji") and t.get("nombre"), n + ": falta ícono o nombre")
+        verificar(isinstance(t.get("edadMin"), int) and 4 <= t["edadMin"] <= 12, "%s: edad mínima %r" % (n, t.get("edadMin")))
+        verificar(isinstance(t.get("minutos"), int) and 1 <= t["minutos"] <= 30, "%s: minutos %r" % (n, t.get("minutos")))
+        verificar(2 <= len(t["pasos"]) <= 4, "%s: tiene que tener de 2 a 4 pasos (tiene %d)" % (n, len(t["pasos"])))
+        for p in t["pasos"]: verificar(p.strip() and len(p) <= 90 and p.strip()[-1] in ".?!", "%s: paso muy largo o sin punto: %r" % (n, p))
+        verificar(isinstance(t.get("aviso"), str), n + ": 'aviso' tiene que existir (vacío solo si es supervisión 'solo')")
+        if t["supervision"] in ("cerca", "adulto"): verificar(len(t["aviso"].strip()) >= 20, "%s: supervisión %s exige un aviso de seguridad" % (n, t["supervision"]))
+        m = PROHIBIDO_EN_PASOS.search(" ".join(t["pasos"] + [t["nombre"]]))
+        verificar(not m, "%s: los pasos mencionan algo prohibido (%r)" % (n, m and m.group(0)))
+    for t in ("mascota", "cocinar_verduras"): verificar(next(x for x in tareas if x["id"] == t)["supervision"] == "adulto", t + " debe ser solo con adulto")
+    verificar(len(d["elogios"]) >= 3, "pocos elogios")
+    for x in textos_planos(d["tabla"] if False else {k: v for k, v in d["tabla"].items() if k.startswith("ayudantes.")}): verificar(not PROHIBIDO_ELOGIO.search(x), "texto con elogio a la persona, racha o puntos: %r" % x)
+    # el código no lleva textos propios: ninguna frase con signos ¡ ¿ fuera de comentarios
+    codigo = re.sub(r"/\*.*?\*/", "", (APP / "js/islas/ayudantes.js").read_text(encoding="utf-8"), flags=re.S)
+    for linea in codigo.splitlines():
+        verificar("¡" not in linea and "¿" not in linea, "texto fijo en el código (va en TEXTOS): " + linea.strip()[:80])
+    return "%d tareas; supervisión: %s" % (len(tareas), {k: sum(1 for t in tareas if t["supervision"] == k) for k in sorted(niveles)})
+
+def ay_pagina(C, vista="360x700", extra=None, **kw):
+    ctx = C.banco.contexto(vista); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=kw.pop("semilla", 81), extra_init=extra, **kw)
+    instalar_speak(pg); entrar(pg, "Vale"); return ctx, pg
+
+def ay_tarea(pg, tid, empezar=True):
+    pg.click(".ayCard[data-id='%s']" % tid); pg.wait_for_timeout(80)
+    if empezar: pg.click("[data-a='empezar']"); pg.wait_for_timeout(120)
+
+def ay_vista(pg): return pg.evaluate("Gioval.ayudantes.vista()")
+def ay_texto(pg, sel="#ayBody"): return pg.evaluate("document.querySelector('%s').innerText" % sel)
+
+@prueba("ayudantes: aparece al llegar al tope diario (botón, frase y tarjeta del menú) y no antes")
+def t_ay_tope(C):
+    ctx, pg = ay_pagina(C)
+    abrir_isla(pg, "Números"); verificar("ayudantes" not in ay_texto(pg, "#menuIslaItems").lower(), "la tarjeta aparece antes del tope")
+    llegar_al_tope(pg)
+    verificar(pg.evaluate("getComputedStyle(document.getElementById('capAyud')).display") != "none", "no aparece el botón en el cartel de tope")
+    igual(pg.evaluate("document.getElementById('capAyud').innerText"), "🧹 Hora de ayudantes")
+    verificar("hora de ayudantes" in pg.evaluate("document.getElementById('capTxt').innerText").lower(), "falta la frase en el cartel")
+    verificar(any("hora de ayudantes" in x.lower() for x in pg.evaluate("window.__LOG")), "la frase no se dijo en voz alta")
+    verificar(pg.evaluate("document.getElementById('capOk').offsetParent!==null"), "el botón de siempre tiene que seguir")
+    pg.click("#capAyud"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("document.querySelector('.screen.active').id"), "ayudantes"); igual(ay_vista(pg), "lista")
+    verificar(not pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "el cartel quedó abierto")
+    igual(pg.evaluate("S.capShown"), False, "S.capShown")
+    igual(pg.evaluate("document.querySelectorAll('.ayCard').length"), 12, "tarjetas para 6 años")
+    pg.click("#ayBack"); pg.wait_for_timeout(150)     # vuelve al menú: la tarjeta sigue disponible mientras no haya más tiempo
+    verificar("Hora de ayudantes" in ay_texto(pg, "#menuIslaItems"), "falta la tarjeta del menú después del tope")
+    pg.click(".island:has-text('Hora de ayudantes')"); pg.wait_for_timeout(150); igual(pg.evaluate("document.querySelector('.screen.active').id"), "ayudantes")
+    ctx.close()
+    # si los adultos lo desactivan: no hay botón, ni frase, ni tarjeta
+    ctx, pg = ay_pagina(C); pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{on:false})")
+    llegar_al_tope(pg)
+    verificar(pg.evaluate("getComputedStyle(document.getElementById('capAyud')).display") == "none", "el botón aparece con los ayudantes desactivados")
+    verificar("ayudantes" not in pg.evaluate("document.getElementById('capTxt').innerText").lower(), "la frase aparece desactivado")
+    pg.click("#capOk"); pg.wait_for_timeout(120); verificar("ayudantes" not in ay_texto(pg, "#menuIslaItems").lower(), "tarjeta con los ayudantes desactivados")
+    ctx.close()
+
+@prueba("ayudantes: elegir tarea (pasos, supervisión y aviso leídos en voz); las de 'solo con adulto' piden la pregunta de adultos")
+def t_ay_elegir(C):
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    pg.evaluate("window.__LOG.length=0")
+    pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(100); igual(ay_vista(pg), "detalle")
+    txt = ay_texto(pg); verificar("Regar las plantas" in txt and "5 min" in txt and "Con un adulto cerca" in txt and "abonos" in txt, txt)
+    igual(pg.evaluate("document.querySelectorAll('.aySteps li').length"), 3, "pasos")
+    dicho = " | ".join(pg.evaluate("window.__LOG")); verificar("Paso 1." in dicho and "Paso 3." in dicho and "Ojo: Solo agua" in dicho and "Pedile a un adulto que esté cerca" in dicho, dicho)
+    foto(pg, "360x700_60_ayudantes_detalle"); CAPTURAS.append("360x700_60_ayudantes_detalle.png")
+    pg.click("[data-a='lista']"); pg.wait_for_timeout(80); igual(ay_vista(pg), "lista")
+    # tarea que se hace por cuenta propia: empieza directo
+    ay_tarea(pg, "zapatos"); igual(ay_vista(pg), "corre"); verificar("Por tu cuenta" not in ay_texto(pg) or True)
+    pg.click("[data-a='cancelar']"); pg.wait_for_timeout(80)
+    # tarea solo con adulto: no empieza sin la pregunta de adultos
+    ay_tarea(pg, "mascota", empezar=False); verificar("Un adulto tiene que estar al lado" in ay_texto(pg), "falta el aviso de adulto")
+    verificar("Siempre con un adulto al lado" in ay_texto(pg), "falta el aviso de seguridad")
+    pg.click("[data-a='empezar']"); pg.wait_for_selector("#gateBox.show", timeout=2000)
+    pg.fill("#gateIn", "1"); pg.click("#gateOk"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("Gioval.ayudantes.enCurso()"), None, "empezó con la respuesta equivocada"); verificar(pg.evaluate("document.getElementById('gateBox').classList.contains('show')"))
+    pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("Gioval.ayudantes.enCurso().id"), "mascota"); igual(ay_vista(pg), "corre")
+    ctx.close()
+
+@prueba("ayudantes: cronómetro con hora absoluta — reloj simulado, pantalla oculta (timers congelados) y vuelta a primer plano")
+def t_ay_cronometro(C):
+    sonidos = "window.__osc=0; (function(){ var o=AudioContext.prototype.createOscillator; AudioContext.prototype.createOscillator=function(){ window.__osc++; return o.apply(this,arguments); }; })();"
+    # 1) pantalla oculta: nadie corre timers, el reloj avanza, no suena hasta volver
+    ctx, pg = ay_pagina(C, extra=sonidos); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    pg.evaluate("window.__fin=[]; Alarma.onFin(function(i){ window.__fin.push(i); }); window.setInterval=function(){ return 1; }; 0")   # timers congelados desde ahora
+    ay_tarea(pg, "zapatos")                       # 3 minutos
+    igual(ay_vista(pg), "corre"); verificar(178 <= pg.evaluate("Alarma.restante()") <= 180, "restante inicial")
+    igual(ay_texto(pg, "#ayTime"), "03:00", "cuenta regresiva grande")
+    verificar(pg.evaluate("parseFloat(getComputedStyle(document.getElementById('ayTime')).fontSize)") >= 70, "los números no son grandes")
+    foto(pg, "360x700_61_ayudantes_cronometro"); CAPTURAS.append("360x700_61_ayudantes_cronometro.png")
+    verificar(abs(pg.evaluate("JSON.parse(localStorage.getItem('gioval_alarma')).fin - Date.now()") - 180000) < 3000, "no guardó la hora absoluta de fin")
+    pg.evaluate("Object.defineProperty(document,'hidden',{get:()=>true,configurable:true}); window.__OFF=60000")
+    verificar(118 <= pg.evaluate("Alarma.restante()") <= 121, "restante con el reloj +60 s")
+    pg.evaluate("window.__OFF=400000")            # pasó mucho más que el tiempo con la pantalla apagada
+    pg.wait_for_timeout(700)
+    igual(pg.evaluate("window.__fin.length"), 0, "no puede sonar mientras la página está congelada"); igual(ay_vista(pg), "corre", "sigue 'corriendo' hasta volver")
+    igual(pg.evaluate("window.__osc"), 0, "sonó con la pantalla oculta")
+    pg.evaluate("Object.defineProperty(document,'hidden',{get:()=>false,configurable:true}); document.dispatchEvent(new Event('visibilitychange'))")
+    pg.wait_for_timeout(150)
+    igual(pg.evaluate("window.__fin.length"), 1, "tiene que sonar al volver a primer plano"); igual(ay_vista(pg), "tiempo")
+    verificar(pg.evaluate("window.__fin[0].tarde") >= 200000, "tarde=%s" % pg.evaluate("window.__fin[0].tarde"))
+    verificar(pg.evaluate("window.__osc") >= 4, "no sonó la alarma al volver (osciladores: %s)" % pg.evaluate("window.__osc"))
+    txt = ay_texto(pg); verificar("Se terminó el tiempo" in txt and "Volviste a la app" in txt and "Terminé" in txt and "Un ratito más" in txt, txt)
+    verificar(any("Se terminó el tiempo" in x for x in pg.evaluate("window.__LOG")), "no lo dijo en voz")
+    igual(pg.evaluate("localStorage.getItem('gioval_alarma')"), None, "alarma guardada sin limpiar")
+    pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))"); igual(pg.evaluate("window.__fin.length"), 1, "sonó dos veces")
+    foto(pg, "360x700_62_ayudantes_tiempo"); CAPTURAS.append("360x700_62_ayudantes_tiempo.png")
+    ctx.close()
+    # 2) pantalla encendida: suena solo, a la hora (hora absoluta), y "un ratito más" reprograma
+    ctx, pg = ay_pagina(C, extra=sonidos, semilla=82); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); pg.evaluate("window.__OFF=181000"); pg.wait_for_selector("[data-a='mas']", timeout=3000)
+    igual(ay_vista(pg), "tiempo"); verificar("Volviste a la app" not in ay_texto(pg), "no debería decir 'volviste' si la app estaba abierta")
+    pg.click("[data-a='mas']"); pg.wait_for_timeout(120); igual(ay_vista(pg), "corre"); verificar(118 <= pg.evaluate("Alarma.restante()") <= 120, "un ratito más = 2 minutos")
+    igual(ay_texto(pg, "#ayTime"), "02:00")
+    ctx.close()
+
+@prueba("ayudantes: terminar, elogio al esfuerzo, registro semanal sin rachas ni puntos")
+def t_ay_terminar(C):
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    elogios = pg.evaluate("Gioval.i18n.tl('ayudantes.elogios')"); vistos = []
+    for i, tid in enumerate(["zapatos", "juguetes", "plantas"], 1):
+        ay_tarea(pg, tid); igual(ay_vista(pg), "corre"); pg.evaluate("window.__OFF=%d" % (i * 20000)); pg.click("[data-a='terminar']"); pg.wait_for_timeout(120)
+        igual(ay_vista(pg), "fin"); txt = ay_texto(pg)
+        verificar(pg.evaluate("document.getElementById('ayElogio').innerText") in elogios, "elogio fuera de la lista")
+        vistos.append(pg.evaluate("document.getElementById('ayElogio').innerText"))
+        verificar("Esta semana ayudaste %s" % ("1 vez." if i == 1 else "%d veces." % i) in txt, "registro semanal: " + txt)
+        verificar(not PROHIBIDO_ELOGIO.search(txt) and "⭐" not in txt and "🔥" not in txt, "elogio a la persona, racha o puntos: " + txt)
+        igual(pg.evaluate("Alarma.activa()"), False, "la alarma debe cancelarse al terminar")
+        if i < 3: pg.click("[data-a='lista']"); pg.wait_for_timeout(80)
+    foto(pg, "360x700_63_ayudantes_fin"); CAPTURAS.append("360x700_63_ayudantes_fin.png")
+    reg = pg.evaluate("Gioval.ayudantes.registro('Vale')"); igual([r["id"] for r in reg], ["zapatos", "juguetes", "plantas"], "registro"); verificar(all(r["s"] >= 0 for r in reg))
+    # solo cuenta lo de ESTA semana (lunes a domingo): una anotación vieja no suma; la semana siguiente empieza de cero
+    pg.evaluate("store.ayud.reg.Vale.push({t:Date.now()-10*864e5,id:'cama',s:60})"); igual(pg.evaluate("Gioval.ayudantes.vecesSemana('Vale')"), 3, "una tarea de hace 10 días no cuenta")
+    pg.evaluate("window.__OFF=8*864e5"); igual(pg.evaluate("Gioval.ayudantes.vecesSemana('Vale')"), 0, "la semana siguiente empieza de cero (no hay racha)"); pg.evaluate("window.__OFF=0")
+    # el registro no tiene rachas ni puntos: solo { t, id, s }
+    verificar(set(reg[0].keys()) <= {"t", "id", "s", "f"}, str(reg[0]))
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(100)
+    verificar("Esta semana ayudó: 3 veces" in pg.evaluate("document.getElementById('ayResumen').innerText"), pg.evaluate("document.getElementById('ayResumen').innerText"))
+    # sobrevive a recargar
+    pg.evaluate("Gioval.almacen.guardarYa()"); pg.wait_for_timeout(300); pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 4, "el registro no sobrevivió a recargar")
+    ctx.close()
+    # un ratito más: se anota UNA vez; dejarla por ahora no anota nada y no castiga
+    ctx, pg = ay_pagina(C, semilla=83); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); pg.evaluate("window.__OFF=181000"); pg.wait_for_selector("[data-a='mas']", timeout=3000)
+    pg.click("[data-a='mas']"); pg.wait_for_timeout(100); pg.click("[data-a='terminar']"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 1, "se anotó más de una vez")
+    pg.click("[data-a='lista']"); pg.wait_for_timeout(80); ay_tarea(pg, "ropa"); pg.click("[data-a='cancelar']"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 1, "dejarla por ahora no debe anotar"); igual(ay_vista(pg), "lista"); igual(pg.evaluate("Alarma.activa()"), False)
+    verificar(any("Está bien" in x for x in pg.evaluate("window.__LOG")), "tiene que haber un mensaje sin castigo")
+    ctx.close()
+
+@prueba("ayudantes: el tiempo de ayudantes NO cuenta como tiempo de pantalla")
+def t_ay_no_cuenta(C):
+    ctx, pg = ay_pagina(C)
+    abrir_isla(pg, "Números"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(300)
+    t0 = pg.evaluate("store.time['Vale|'+today()]||0"); pg.wait_for_timeout(2300)
+    verificar(pg.evaluate("store.time['Vale|'+today()]") >= t0 + 2, "control: jugando sí tiene que contar")     # control: la prueba es válida
+    pg.evaluate("store.time['Vale|'+today()]=capBase()-1"); pg.wait_for_selector("#capBox.show", timeout=6000); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); igual(ay_vista(pg), "corre")
+    antes = pg.evaluate("[store.time['Vale|'+today()], capLeft()]"); pg.wait_for_timeout(3200)
+    despues = pg.evaluate("[store.time['Vale|'+today()], capLeft()]"); igual(despues, antes, "el tiempo de pantalla siguió corriendo en Ayudantes")
+    igual(pg.evaluate("document.getElementById('capBox').classList.contains('show')"), False, "no tiene que volver a saltar el cartel de tope")
+    ctx.close()
+
+@prueba("ayudantes: configuración de adultos (activar, edad, duración, tareas habilitadas y asignadas, foto) y estado honesto de la alarma")
+def t_ay_adultos(C):
+    ctx, pg = ay_pagina(C)
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(100)
+    tp = ay_texto(pg, "#ayPanel")
+    verificar("no garantizada en navegador" in tp and "app Android nativa" in tp, "el panel no dice la verdad sobre la alarma: " + tp[:300])
+    verificar("Pantalla encendida mientras corre" in tp and "Avisos del sistema" in tp and "App nativa" in tp, "faltan los estados de la alarma")
+    verificar("NO cuenta como tiempo de pantalla" in tp, "falta la aclaración del tiempo")
+    foto(pg, "360x700_64_ayudantes_panel"); CAPTURAS.append("360x700_64_ayudantes_panel.png")
+    igual(pg.evaluate("document.querySelectorAll('#ayPanelBody [data-h]').length"), 12, "una fila por tarea")
+    # edad 4: solo las de 4 años
+    pg.select_option("#ayEdad", "4"); pg.wait_for_timeout(80)
+    igual(pg.evaluate("Gioval.ayudantes.cfg('Vale').edad"), 4)
+    igual(sorted(t["id"] for t in pg.evaluate("Gioval.ayudantes.disponibles('Vale')")), ["juguetes", "mesa_poner", "mochila", "plantas", "zapatos"], "tareas de 4 años")
+    # deshabilitar una, asignar otra (aunque sea de 5 años): la asignada va primera y marcada
+    pg.uncheck("#ayPanelBody [data-h='juguetes']"); pg.check("#ayPanelBody [data-asig='cocinar_verduras']"); pg.wait_for_timeout(80)
+    pg.select_option("#ayDur", "3"); pg.check("#ayFoto"); pg.wait_for_timeout(80)
+    c = pg.evaluate("Gioval.ayudantes.cfg('Vale')"); igual((c["off"], c["asig"], c["dur"], c["foto"], c["on"]), (["juguetes"], ["cocinar_verduras"], 3, True, True))
+    pg.evaluate("Gioval.almacen.guardarYa()"); pg.wait_for_timeout(250); pg.reload(); esperar_listo(pg); instalar_speak(pg)   # persiste
+    igual(pg.evaluate("Gioval.ayudantes.cfg('Vale')"), c, "la configuración no sobrevivió a recargar")
+    entrar(pg, "Vale"); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ids = pg.evaluate("[...document.querySelectorAll('.ayCard')].map(c=>c.dataset.id)"); igual(ids, ["cocinar_verduras", "mesa_poner", "plantas", "zapatos", "mochila"], "lista del niño")
+    verificar("Te la pidió un adulto" in pg.evaluate("document.querySelector('.ayCard.asig').innerText"), "la asignada no está marcada")
+    verificar(all("3 min" in x for x in pg.evaluate("[...document.querySelectorAll('.ayCard small:not(.pin)')].map(x=>x.innerText)")), "la duración configurada no se ve en las tarjetas")
+    ay_tarea(pg, "zapatos"); igual(ay_texto(pg, "#ayTime"), "03:00"); verificar(177 <= pg.evaluate("Alarma.restante()") <= 180, "la duración configurada no se usa")
+    pg.click("[data-a='cancelar']"); pg.wait_for_timeout(80)
+    # la asignada se cumple una vez y se quita sola
+    ay_tarea(pg, "cocinar_verduras", empezar=False); pg.click("[data-a='empezar']"); pg.wait_for_selector("#gateBox.show"); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_timeout(120)
+    pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); igual(pg.evaluate("Gioval.ayudantes.cfg('Vale').asig"), [], "la asignada tenía que quitarse sola")
+    # perfiles independientes: el otro niño conserva los valores por defecto
+    c2 = pg.evaluate("Gioval.ayudantes.cfg('Otro')"); igual((c2["edad"], c2["on"], c2["dur"], c2["off"], c2["asig"], c2["foto"]), (6, True, 0, [], [], False), "valores por defecto")
+    # desactivar
+    pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{on:false})"); igual(pg.evaluate("Gioval.ayudantes.ofrece('Vale')"), False)
+    ctx.close()
+    # app nativa simulada: el panel lo dice, sin prometer más de la cuenta
+    ctx, pg = ay_pagina(C, extra="window.Capacitor={Plugins:{LocalNotifications:{schedule:function(){},cancel:function(){}}}};", semilla=84)
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(100); tp = ay_texto(pg, "#ayPanel")
+    verificar("se detectó Capacitor" in tp and "Todavía hay que probarla en el aparato" in tp and "no garantizada en navegador" in tp, tp[-500:])
+    ctx.close()
+
+@prueba("ayudantes: foto opcional al terminar (solo si el adulto la activa) en el almacén de fotos existente")
+def t_ay_foto(C):
+    from PIL import Image
+    SALIDA.mkdir(exist_ok=True); png = SALIDA / "foto_prueba.png"; Image.new("RGB", (64, 48), (200, 80, 90)).save(png)
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); pg.click("[data-a='terminar']"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("document.getElementById('ayFotoBtn')"), None, "ofrece foto sin que el adulto la active")
+    pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{foto:true})"); pg.click("[data-a='lista']"); pg.wait_for_timeout(80)
+    ay_tarea(pg, "ropa"); pg.click("[data-a='terminar']"); pg.wait_for_timeout(100)
+    verificar(pg.evaluate("!!document.getElementById('ayFotoBtn')"), "no ofrece la foto activada")
+    foto(pg, "360x700_65_ayudantes_foto"); CAPTURAS.append("360x700_65_ayudantes_foto.png")
+    pg.set_input_files("#ayFotoIn", str(png)); pg.wait_for_function("document.getElementById('ayFotoBtn').innerText.includes('guardada')", timeout=5000)
+    fs = pg.evaluate("Gioval.almacen.fotos.listar()"); igual(len(fs), 1, "fotos guardadas"); igual((fs[0]["meta"]["tipo"], fs[0]["meta"]["kid"], fs[0]["meta"]["tarea"]), ("ayudantes", "Vale", "ropa"))
+    o = pg.evaluate("Gioval.almacen.fotos.obtener('%s').then(r=>[r.blob.type,r.blob.size])" % fs[0]["id"]); verificar(o[1] > 0 and o[0].startswith("image/"), str(o))
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale')[1].f"), fs[0]["id"], "el registro no apunta a la foto")
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(300)
+    verificar("Fotos guardadas: 1" in pg.evaluate("document.getElementById('ayResumen').innerText"), "el panel no cuenta la foto"); ctx.close()
+
+@prueba("ayudantes: retoma una tarea en curso si se cerró la app (aún en hora, o ya vencida mientras estaba cerrada)")
+def t_ay_retoma(C):
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "juguetes")        # 10 minutos
+    pg.reload(); esperar_listo(pg); instalar_speak(pg); entrar(pg, "Vale"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("document.querySelector('.screen.active').id"), "ayudantes", "tendría que retomar la tarea"); igual(ay_vista(pg), "corre")
+    verificar(540 <= pg.evaluate("Alarma.restante()") <= 600, "restante %s" % pg.evaluate("Alarma.restante()"))
+    # se cerró la app y la alarma venció mientras tanto
+    pg.evaluate("(()=>{ var g=JSON.parse(localStorage.getItem('gioval_alarma')); g.fin=Date.now()-20000; localStorage.setItem('gioval_alarma',JSON.stringify(g)); })()")
+    pg.reload(); esperar_listo(pg); instalar_speak(pg); pg.wait_for_timeout(300); entrar(pg, "Vale"); pg.wait_for_timeout(150)
+    igual(ay_vista(pg), "tiempo", "vencida con la app cerrada"); verificar("Volviste a la app" in ay_texto(pg), ay_texto(pg))
+    pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 1)
+    igual(pg.evaluate("localStorage.getItem('gioval_ayudando')"), None, "quedó una tarea en curso guardada")
+    ctx.close()
+
+@prueba("ayudantes: Música y Números no cambian (mapa, menús, islas registradas y estado de tiempo)")
+def t_ay_no_toca(C):
+    res = {}
+    for nombre, ruta in (("anterior", "/legacy/index.html"), ("nueva", "/index.html")):
+        ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + ruta, store=STORE_KID, errores=C.err if nombre == "nueva" else None, semilla=5); instalar_speak(pg); entrar(pg, "Vale")
+        r = {"mapa": ay_texto(pg, "#islands").replace("🧭\nIsla Misiones\n¡Cosas de verdad!\n", "")}   # la isla Misiones (otra rama) es lo único que se suma al mapa
+        for isla in ("Música", "Números"): abrir_isla(pg, isla); r["menu " + isla] = ay_texto(pg, "#musicMenu,#menuIslaItems")
+        res[nombre] = r; ctx.close()
+    igual(res["nueva"], res["anterior"], "textos del mapa y de los menús")
+    ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "misiones"], "Ayudantes no es una isla de aprendizaje (Misiones es la otra isla sin habilidades)")
+    igual(pg.evaluate("Gioval.islas.habilidades().length"), 16, "habilidades (Música 7 + Números 9)")
+    for isla in ("Música", "Números"):    # al llegar al tope en cualquier isla, el flujo anterior sigue igual: "¡Chau, zorro!" cierra y vuelve al menú
+        llegar_al_tope(pg, isla); pg.click("#capOk"); pg.wait_for_timeout(120)
+        igual(pg.evaluate("document.querySelector('.screen.active').id"), "menuIsla", isla)
+        pg.evaluate("store.time['Vale|'+today()]=0")
+    ctx.close()
+
+@prueba("ayudantes: en inglés sin una palabra en español; con el pseudo-idioma (+40 %) y en RTL sin desbordes horizontales")
+def t_ay_idiomas(C):
+    # inglés completo: tope, lista, detalle (pasos y aviso), cronómetro, tiempo, fin, panel
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=86, extra_init="localStorage.setItem('gioval_idioma','en');"); instalar_speak(pg); entrar(pg, "Vale")
+    llegar_al_tope(pg, directo=True); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    textos = [ay_texto(pg, "#capBox") if False else pg.evaluate("document.getElementById('capTxt').innerText"), pg.evaluate("document.getElementById('capAyud').innerText")]
+    textos.append(ay_texto(pg)); pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(80); textos.append(ay_texto(pg))
+    pg.click("[data-a='empezar']"); pg.wait_for_timeout(120); textos.append(ay_texto(pg)); pg.evaluate("window.__OFF=400000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(120); textos.append(ay_texto(pg))
+    pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); textos.append(ay_texto(pg))
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(120); textos.append(ay_texto(pg, "#ayPanel"))
+    dicho = pg.evaluate("window.__LOG.concat(window.__BUB)")
+    todo = [l for t in textos for l in t.split("\n") if l.strip()] + dicho
+    verificar(not sin_espanol(todo), "español en inglés: %s" % sin_espanol(todo)[:5])
+    verificar(any("Step 1." in x for x in dicho) and any("Careful:" in x for x in dicho) and any("Time's up" in x for x in dicho), "frases de ayudantes en inglés: %s" % dicho[:6])
+    verificar("Helpers' time" in textos[1] and "This week you helped 1 time." in " ".join(textos), "textos de ayudantes en inglés")
+    igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes"); ctx.close()
+    # pseudo-idioma (+40 %) y RTL: sin desbordes horizontales en ninguna vista (360x700 y 740x330)
+    JS = """()=>{ const b=document.body, ay=document.getElementById('ayBody'), pn=document.getElementById('panel');
+      const out=[]; if(b.scrollWidth>b.clientWidth+2) out.push('body'); if(ay&&ay.scrollWidth>ay.clientWidth+2) out.push('ayBody');
+      document.querySelectorAll('#ayudantes .btn,#ayudantes .ayCard').forEach(e=>{ const r=e.getBoundingClientRect(); if(r.width&&(r.right>innerWidth+2||r.left<-2)) out.push(e.className+' fuera de pantalla'); }); return out; }"""
+    for idioma in ("qps-ploc", "qps-plocm"):
+        for v in ("360x700", "740x330"):
+            ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=87, extra_init="localStorage.setItem('gioval_idioma','%s');" % idioma, congelar=True); instalar_speak(pg); entrar(pg, "Vale")
+            llegar_al_tope(pg, directo=True); mal = pg.evaluate(JS)
+            if idioma == "qps-plocm": igual(pg.evaluate("document.documentElement.dir"), "rtl")
+            pg.click("#capAyud"); pg.wait_for_timeout(100); mal += pg.evaluate(JS); pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(80); mal += pg.evaluate(JS)
+            CAPTURAS.append(foto(pg, "%s_%s_80_ayudantes_detalle" % (v, idioma)))
+            pg.click("[data-a='empezar']"); pg.wait_for_timeout(120); mal += pg.evaluate(JS); pg.evaluate("window.__OFF=400000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(120); mal += pg.evaluate(JS)
+            CAPTURAS.append(foto(pg, "%s_%s_81_ayudantes_tiempo" % (v, idioma)))
+            pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); mal += pg.evaluate(JS)
+            verificar(not mal, "%s %s: desbordes %s" % (idioma, v, mal)); ctx.close()
+
+@prueba("capturas: Hora de ayudantes en 360x700 y 740x330 (tope, lista, detalle, cronómetro, tiempo, fin, panel)")
+def t_ay_capturas(C):
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=85, congelar=True); instalar_speak(pg); entrar(pg, "Vale")
+        pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{asig:['plantas'],foto:true})")
+        llegar_al_tope(pg, directo=True); CAPTURAS.append(foto(pg, v + "_70_ayudantes_tope")); pg.click("#capAyud"); pg.wait_for_timeout(120)
+        CAPTURAS.append(foto(pg, v + "_71_ayudantes_lista")); pg.click(".ayCard[data-id='plantas']"); CAPTURAS.append(foto(pg, v + "_72_ayudantes_detalle"))
+        pg.click("[data-a='empezar']"); pg.wait_for_timeout(150); CAPTURAS.append(foto(pg, v + "_73_ayudantes_cronometro"))
+        pg.evaluate("window.__OFF=181000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(150); CAPTURAS.append(foto(pg, v + "_74_ayudantes_tiempo"))
+        pg.click("[data-a='terminar']"); pg.wait_for_timeout(120); CAPTURAS.append(foto(pg, v + "_75_ayudantes_fin"))
+        abrir_panel(pg); pg.click("#ayPanel summary"); pg.evaluate("document.getElementById('ayPanel').scrollIntoView()"); CAPTURAS.append(foto(pg, v + "_76_ayudantes_panel"))
+        ctx.close()
 
 # ================================================================== runner
 class Ctx: pass

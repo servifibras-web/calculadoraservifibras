@@ -36,8 +36,9 @@ function renderParent(){
   $("parentSum").innerHTML=h||"";
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo(); renderIdioma();
-  Gioval.emit("panel",KID);   /* las islas pueden actualizar lo suyo dentro del panel (panelPie, panelArriba…) */
+  Gioval.emit("panel"); /* las islas con ajustes propios en el panel (ver panelPie) se refrescan acá */
   $("skipSel").innerHTML=PACKS.flatMap(p=>p.skills.map(s=>`<option value="${s.id}">${p.emoji} ${s.name}</option>`)).join("");
+  Gioval.emit("panel"); /* gancho genérico: módulos opcionales redibujan su sección del panel */
 }
 function markKnown(id){
   const mark=sid=>{ const s=Gioval.islas.habilidades().find(x=>x.id===sid); s.req.forEach(mark); const st=SK(sid); st.mast=true; st.att=Math.max(st.att,6); st.score=Math.max(st.score,.9); st.box=Math.max(st.box,1); st.due=Date.now()+DAY; };
@@ -73,22 +74,22 @@ function renderRespaldo(){
   $("respaldoInfo").innerHTML=h;
 }
 let restauracionPendiente=null;
-$("btnExport").onclick=()=>{ Gioval.almacen.exportar(); renderRespaldo(); setBubble(t("respaldo.descargado")); };
+$("btnExport").onclick=async()=>{ await Gioval.almacen.exportar(); renderRespaldo(); setBubble(t("respaldo.descargado")); };
 $("btnRestore").onclick=()=>$("fileRestore").click();
 $("fileRestore").onchange=async e=>{
   const f=e.target.files[0]; e.target.value=""; if(!f) return;
-  const r=await Gioval.almacen.leerRespaldo(f); restauracionPendiente=r.ok?r.datos:null;
+  const r=await Gioval.almacen.leerRespaldo(f); restauracionPendiente=r.ok?r:null;
   const box=$("restoreTxt");
   if(!r.ok){ box.textContent=r.error; $("restoreOk").style.display="none"; }
   else {
     const R=r.resumen; $("restoreOk").style.display="";
     box.innerHTML=t("respaldo.vista",{fecha:R.exportado?Gioval.i18n.fechaHora(R.exportado):t("respaldo.sin_fecha"),
-      perfiles:R.perfiles.length?R.perfiles.map(p=>t("respaldo.perfil_linea",{nombre:p,dias:R.dias[p],dominadas:R.dominadas[p]})).join("<br>"):t("respaldo.sin_perfiles")});
+      perfiles:R.perfiles.length?R.perfiles.map(p=>t("respaldo.perfil_linea",{nombre:p,dias:R.dias[p],dominadas:R.dominadas[p]})).join("<br>"):t("respaldo.sin_perfiles"),fotos:R.fotos!=null?t("respaldo.fotos",{n:R.fotos}):""});
   }
   $("restoreBox").classList.add("show");
 };
 $("restoreNo").onclick=()=>{ restauracionPendiente=null; $("restoreBox").classList.remove("show"); };
-$("restoreOk").onclick=async()=>{ if(!restauracionPendiente) return; await Gioval.almacen.restaurar(restauracionPendiente); location.reload(); };
+$("restoreOk").onclick=async()=>{ if(!restauracionPendiente) return; await Gioval.almacen.restaurar(restauracionPendiente.datos,restauracionPendiente.fotos); location.reload(); };
 
 /* ---- idioma (por aparato y por jugador) y prueba de voz ---- */
 function nombreIdioma(c){ const l=Gioval.i18n.idiomas().find(x=>x.codigo===c); return l?l.nombreNativo:c; }
