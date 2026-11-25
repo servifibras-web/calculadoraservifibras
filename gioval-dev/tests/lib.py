@@ -202,3 +202,109 @@ def snapshot(pg):
     return pg.evaluate("""(()=>{ var sk={}; Object.keys(store.sk).sort().forEach(function(k){ var v=store.sk[k]; sk[k]=[v.mast,v.att,+v.score.toFixed(6),v.box,v.lvl,JSON.stringify(v.rec)]; });
       var log={}; Object.keys(store.log).forEach(function(k){ log[k]=store.log[k].map(function(e){ return [e.s,e.o,e.f,e.k].join(); }); });
       return {sk:sk, log:log, days:store.days, stars:store.stars, checks:store.checks, profiles:store.profiles, limit:store.limit}; })()""")
+
+
+# ---------------------------------------------------------------- Isla Ritmo: jugador sintético
+JS_JUGADOR = """
+window.__jug=(function(){
+  var J={enviados:[]};
+  function emitir(t,fuente,fuerza){ var d=t-performance.now(); setTimeout(function(){ Gioval.entrada.emitir({tipo:'golpe',t:t,fuerza:fuerza==null?.8:fuerza,fuente:fuente||'toque'}); },Math.max(0,d)); J.enviados.push(t); }
+  /* o: {error:'falta'|'extra'|'adelantado'|'atrasado'|null, sesgo:ms, jit:ms, fuente:'mic'|'toque', libre:[beats]} */
+  J.responder=function(T,o){
+    o=o||{}; var sesgo=o.sesgo||0, jit=o.jit||0, ts=[], i;
+    function j(){ return jit?(Math.random()*2-1)*jit:0; }
+    if(T.modo==='ioi'){ var a=performance.now()+T.beatMs*.4; for(i=0;i<T.rel.length;i++) ts.push(a+T.rel[i]+j()); }
+    else if(T.modo==='grid'){ for(i=0;i<T.esperados.length;i++) ts.push(T.esperados[i]+sesgo+j()); }
+    else { var bs=o.libre||[0,1,1.5,2.5]; for(i=0;i<bs.length;i++) ts.push(T.t0+bs[i]*T.beatMs+sesgo+j()); }
+    J.plan=ts.slice();
+    if(o.error==='falta') ts.pop();
+    else if(o.error==='extra'&&ts.length>2) ts.splice(2,0,(ts[1]+ts[2])/2+ (T.W||50)*0.1);
+    else if(o.error==='adelantado'&&ts.length>2) ts[2]-=T.W*2.4;
+    else if(o.error==='atrasado'&&ts.length>1) ts[ts.length-1]+=T.W*2.4;
+    ts.forEach(function(t){ emitir(t,o.fuente); });
+    return ts.length;
+  };
+  return J;
+})();
+"""
+
+
+def jugar_ritmo(pg, errores=None, limite_s=300, opciones=None, quieto=False):
+    """Juega la sesión/chequeo de la isla Ritmo con un 'niño' sintético (eventos 'golpe' con tiempos exactos).
+    errores: lista cíclica de errores a inyectar por turno (None = perfecto). Devuelve 'fin', 'tope' o 'limite'."""
+    pg.evaluate(JS_JUGADOR)
+    visto = -1; t0 = time.time(); n = 0; comp_id = -1; fichas = ["T", "TT", "S", "T"]
+    opciones = dict(opciones or {})
+    while time.time() - t0 < limite_s:
+        pg.wait_for_timeout(40)
+        if pg.evaluate("document.getElementById('finish').classList.contains('show')"): return "fin"
+        if pg.evaluate("document.getElementById('capBox').classList.contains('show')"): return "tope"
+        st = pg.evaluate("(function(){var R=Gioval.ritmo; return {f:R.fase,t:R.turno?R.turno.id:0,c:R.compose?R.compose.slots.length:-1,ci:R.compose?R.compose.id:0};})()")
+        if st["c"] >= 0 and st["c"] < 4:
+            pg.evaluate("document.querySelector('#rtPal [data-k=%s]').click()" % fichas[st["c"]]); pg.wait_for_timeout(30); continue
+        if st["f"] == "turno" and st["t"] != visto:
+            visto = st["t"]
+            o = dict(opciones)
+            if errores:
+                e = errores[n % len(errores)]; o["error"] = e
+            n += 1
+            pg.evaluate("(function(o){ window.__jug.responder(Gioval.ritmo.turno,o); })(%s)" % json.dumps(o))
+    return "limite"
+
+
+# ---------------------------------------------------------------- audio sintético de golpes (para el detector de ritmo)
+def _np():
+    import numpy as np
+    return np
+
+
+SR_AUDIO = 48000
+
+
+def golpe_sintetico(tipo, amp, rng, sr=SR_AUDIO):
+    """Un golpe simulado (decaimiento rápido). tipo: click, palma (ráfaga de ruido), tambor, cajon, pandereta."""
+    np = _np(); n = int(sr * 0.3); t = np.arange(n) / sr
+    ruido = rng.normal(0, 1, n)
+    if tipo == "click": return amp * np.exp(-t / 0.004) * np.sin(2 * np.pi * 1800 * t)
+    if tipo == "palma": return amp * np.exp(-t / 0.015) * ruido
+    if tipo == "tambor": return amp * np.exp(-t / 0.08) * (np.sin(2 * np.pi * 180 * t) + 0.3 * ruido)
+    if tipo == "cajon": return amp * (np.exp(-t / 0.06) * np.sin(2 * np.pi * 110 * t * (1 + 0.3 * np.exp(-t / 0.02))) + 0.5 * np.exp(-t / 0.012) * ruido)
+    if tipo == "pandereta": return amp * np.exp(-t / 0.10) * ruido * (0.5 + 0.5 * np.sin(2 * np.pi * 5200 * t))
+    raise ValueError(tipo)
+
+
+def senal_golpes(dur_s, golpes_ms, tipo="palma", ruido=0.004, semilla=1, amps=None, sr=SR_AUDIO, zumbido=0.0, extra=None):
+    """Audio mono float32 con ruido de fondo (+ zumbido de 50 Hz opcional) y golpes en los instantes indicados (ms)."""
+    np = _np(); rng = np.random.default_rng(semilla); n = int(dur_s * sr)
+    x = rng.normal(0, ruido, n).astype(np.float64)
+    if zumbido: x += zumbido * np.sin(2 * np.pi * 50 * np.arange(n) / sr)
+    for k, t in enumerate(golpes_ms):
+        a = (amps[k] if amps else 0.45 * (0.7 + 0.3 * ((k * 7) % 3) / 2)); g = golpe_sintetico(tipo, a, rng, sr); i0 = int(round(t * sr / 1000))
+        if i0 < n: m = min(len(g), n - i0); x[i0:i0 + m] += g[:m]
+    if extra is not None: x = extra(x, rng, sr)
+    return np.clip(x, -1, 1).astype(np.float32)
+
+
+def a_wav(x, ruta, sr=SR_AUDIO):
+    import wave
+    np = _np(); d = (np.clip(x, -1, 1) * 32767).astype(np.int16)
+    with wave.open(str(ruta), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(d.tobytes())
+    return ruta
+
+
+def a_b64(x):
+    import base64
+    np = _np(); return base64.b64encode((np.clip(x, -1, 1) * 32767).astype(np.int16).tobytes()).decode()
+
+
+JS_SIMULAR = """(args)=>{ const b=atob(args.b64), n=b.length/2, u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i);
+  const i16=new Int16Array(u.buffer), f=new Float32Array(n); for(let i=0;i<n;i++) f[i]=i16[i]/32767;
+  const G=Gioval.entrada.proveedores.golpes; let mudo=null; if(args.mudo){ mudo=function(t){ return args.mudo.some(function(w){ return t>=w[0]&&t<=w[1]; }); }; }
+  const r=G.simular(f,args.sr,{calMs:args.calMs||3000,sens:args.sens||0,mudo:mudo,params:args.params||null});
+  return {eventos:r.eventos.map(e=>[e.t,e.fuerza,e.rms]),info:r.info}; }"""
+
+
+def simular_golpes(pg, x, sr=SR_AUDIO, **kw):
+    r = pg.evaluate(JS_SIMULAR, dict(b64=a_b64(x), sr=sr, **kw))
+    return r["eventos"], r["info"]

@@ -89,13 +89,13 @@ def t_perfiles(C):
     foto(pg, "360x700_01_perfiles"); CAPTURAS.append("360x700_01_perfiles.png")
     entrar(pg, "Vale"); igual(pg.evaluate("KID"), "Vale"); ctx.close()
 
-@prueba("mapa: muestra Música, Números y las islas con candado")
+@prueba("mapa: muestra Música, Números, Ritmo y las islas con candado")
 def t_mapa(C):
     for v in ("pixel7", "360x700", "740x330"):
         ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err); instalar_speak(pg)
         entrar(pg, "Vale")
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.replace(/\\n/g,'|')+(x.classList.contains('off')?'|off':''))")
-        igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🔒|Isla Letras|Pronto|off", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
+        igual(islas, ["🎹|Isla Música|¡A tocar el piano!", "🔢|Isla Números|¡A contar y sumar!", "🥁|Isla Ritmo|¡A marcar el ritmo!", "🔒|Isla Letras|Pronto|off", "🔒|Isla Animales|Pronto|off"], "mapa " + v)
         foto(pg, v + "_02_mapa"); CAPTURAS.append(v + "_02_mapa.png"); ctx.close()
 
 # ---------------------------------------------------------------- islas
@@ -395,12 +395,12 @@ def t_version(C):
 @prueba("entradas: registro de proveedores, eventos, 'qué entrada necesito' y la isla de Música las usa")
 def t_entradas(C):
     ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=71); instalar_speak(pg)
-    igual(sorted(pg.evaluate("Object.keys(Gioval.entrada.proveedores)")), ["microfono", "toque"], "proveedores")
-    igual(pg.evaluate("Gioval.entrada.necesito(['toque','golpe','acorde'])"), {"disponibles": ["toque"], "faltan": ["golpe", "acorde"]}, "necesito")
-    igual(pg.evaluate("PACKS.map(p=>[p.id,p.instrumento,p.entradas])"), [["musica", "piano", ["nota", "toque"]], ["numeros", None, ["toque"]]], "declaración de las islas")
+    igual(sorted(pg.evaluate("Object.keys(Gioval.entrada.proveedores)")), ["golpes", "microfono", "toque"], "proveedores")
+    igual(pg.evaluate("Gioval.entrada.necesito(['toque','golpe','acorde'])"), {"disponibles": ["toque", "golpe"], "faltan": ["acorde"]}, "necesito")
+    igual(pg.evaluate("PACKS.map(p=>[p.id,p.instrumento,p.entradas])"), [["musica", "piano", ["nota", "toque"]], ["numeros", None, ["toque"]], ["ritmo", "percusion", ["golpe"]]], "declaración de las islas")
     r = pg.evaluate("(()=>{ const got=[]; const off=Gioval.entrada.suscribir('golpe',e=>got.push(e)); Gioval.entrada.emitir({tipo:'golpe',fuerza:.5}); off(); Gioval.entrada.emitir({tipo:'golpe'}); return [got.length,got[0].tipo,typeof got[0].t]; })()")
     igual(r, [1, "golpe", "number"], "emitir/suscribir")
-    for f in ("golpes", "acordes", "midi"):   # archivos reservados documentados
+    for f in ("acordes", "midi"):   # archivos reservados documentados (golpes.js ya está implementado: ver pruebas de Ritmo)
         verificar("RESERVADO" in (APP / "js/core/entrada" / (f + ".js")).read_text(encoding="utf-8"), f)
     entrar(pg, "Vale"); abrir_isla(pg, "Música"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(400)
     # una nota por "micrófono" y un toque llegan al mismo juego, sin que la actividad toque el micrófono
@@ -490,7 +490,9 @@ def t_pixeles(C):
             ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + ruta, store=STORE_KID, semilla=777, errores=None, congelar=True); instalar_speak(pg)
             pg.evaluate("document.getElementById('nameBox').classList.remove('show')")
             def f(tag): foto(pg, "cmp_%s_%s_%s" % (v, tag, nombre))
-            pg.evaluate("renderWho(); show('who')"); f("who"); entrar(pg, "Vale"); f("mapa")
+            pg.evaluate("renderWho(); show('who')"); f("who"); entrar(pg, "Vale")
+            pg.evaluate("[...document.querySelectorAll('#islands .island')].forEach(x=>{ if(x.innerText.includes('Ritmo')) x.remove(); })")   # la isla nueva no existía en la versión publicada: se compara el resto del mapa
+            f("mapa")
             pg.click(".island:has-text('Música')"); pg.wait_for_timeout(150); f("menu_musica")
             pg.click(".island:has-text('Sesión de hoy')"); pg.wait_for_timeout(500); pg.evaluate("clearTimeout(0)"); f("musica_sesion")
             jugar(pg, perfecto=True, limite=3); pg.wait_for_timeout(300); f("musica_sesion2")
@@ -520,7 +522,7 @@ def t_agregar_isla(C):
         ctx = C.banco.contexto("360x700"); err = []; pg = abrir(ctx, url2 + "/index.html", store=STORE_KID, errores=err, semilla=3); instalar_speak(pg); entrar(pg, "Vale")
         islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n')[1])")
         verificar("Isla Colores" in islas, str(islas))
-        igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "colores"], "islas registradas")
+        igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros", "colores", "ritmo"], "islas registradas")
         for i in range(3):
             abrir_isla(pg, "Colores"); tarjeta(pg, "Sesión de hoy"); verificar(jugar(pg, cada_error=4 if i == 0 else 0) == "fin"); cerrar_fin(pg)
         pg.evaluate("PACK=PACKS.find(p=>p.id==='colores')"); verificar(pg.evaluate("SK('col_nom').mast"), "no dominó la primera habilidad")
