@@ -105,7 +105,7 @@ Gioval.entrada.registrarProveedor((function () {
   };
 
   /* ============ PROVEEDOR (micrófono real) ============ */
-  let analyser = null, timer = null, tieneFlujo = false, det = null, buf = null, prev = null, lastCt = 0, nAbs = 0, off = null, mascaras = [], calProm = null, calRes = null;
+  let perdidas = 0, analyser = null, timer = null, tieneFlujo = false, det = null, buf = null, prev = null, lastCt = 0, nAbs = 0, off = null, tFrame = 0, mascaras = [], calProm = null, calRes = null;
   G.detector = () => det;                                   // para pruebas y diagnóstico
   G.disponible = () => true;                                // siempre: si no hay micrófono queda el pad en pantalla
   G.micDisponible = () => mic.disponible();
@@ -123,8 +123,8 @@ Gioval.entrada.registrarProveedor((function () {
       ensureCtx();
       const flujo = await mic.flujo(); tieneFlujo = true;
       const src = ctx.createMediaStreamSource(flujo);
-      analyser = ctx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0; src.connect(analyser);
-      buf = new Float32Array(analyser.fftSize); prev = null; off = null; nAbs = 0; mascaras = []; lastCt = ctx.currentTime;
+      analyser = ctx.createAnalyser(); analyser.fftSize = 8192; analyser.smoothingTimeConstant = 0; src.connect(analyser);
+      buf = new Float32Array(analyser.fftSize); prev = null; off = null; tFrame = 0; nAbs = 0; perdidas = 0; mascaras = []; lastCt = ctx.currentTime;
       det = G.crearDetector(ctx.sampleRate); det.sensibilidad(G.sens);
       G.fuente = "mic"; G.activo = true; G.opts.alEncender && G.opts.alEncender("mic");
       timer = setInterval(frame, 12);
@@ -158,7 +158,7 @@ Gioval.entrada.registrarProveedor((function () {
     const N = buf.length;
     if (!prev) { prev = new Float32Array(N); prev.set(buf); lastCt = ctx.currentTime; return Math.min(N, Math.round(ctx.sampleRate * 0.02)); }
     const est = Math.round((ctx.currentTime - lastCt) * ctx.sampleRate); let n = -1;
-    if (est >= N - 8) { G.huecos++; n = N; }
+    if (est >= N - 8) { G.huecos++; n = N; perdidas = Math.max(0, est - N); }   // el aparato se atrasó más que el buffer: se cuentan las muestras perdidas para no correr los tiempos
     else {
       for (let d = 0; d <= 400 && n < 0; d++) {
         for (const c of d ? [est + d, est - d] : [est]) {
@@ -178,8 +178,11 @@ Gioval.entrada.registrarProveedor((function () {
     const ahora = performance.now(), n = nuevas();
     if (G.opts.nivel) { let s = 0; for (let i = buf.length - 1024; i < buf.length; i++) s += buf[i] * buf[i]; G.opts.nivel(Math.sqrt(s / 1024)); }
     if (n <= 0) return;
-    nAbs += n; const tMuestras = nAbs * 1000 / ctx.sampleRate, d = ahora - tMuestras;
-    off = off === null ? d : (d < off ? d : off + (d - off) * 0.0002);   // reloj de audio -> performance.now(): el más "cercano" manda
+    nAbs += n + perdidas; perdidas = 0; const tMuestras = nAbs * 1000 / ctx.sampleRate, d = ahora - tMuestras;
+    /* reloj de audio -> performance.now(): manda la muestra "más cercana" (la menos demorada), pero la corrección hacia abajo se limita a
+       4 ms por segundo: así un bache de carga del teléfono al arrancar no deforma los intervalos entre golpes cuando después se corrige */
+    if (off === null) off = d; else if (d < off) off = Math.max(d, off - 0.004 * Math.max(0, ahora - tFrame)); else off += (d - off) * 0.0002;
+    tFrame = ahora;
     const cal0 = !!det.cal;
     const evs = det.feed(buf.subarray(buf.length - n), off + tMuestras, silenciado);
     if (cal0 && det.cal && G.opts.alCalibrando) G.opts.alCalibrando(Math.min(1, det.cal.util / det.cal.ms));
