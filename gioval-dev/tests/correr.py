@@ -551,6 +551,11 @@ PROHIBIDAS_PY = [r"fuego", r"fogata", r"llamarada", r"encend\w*", r"fosforo\w*",
     r"cuchill\w*", r"tijera\w*", r"filos?", r"afilad\w*", r"navaja\w*", r"trincheta\w*", r"cutter", r"cuter", r"serrucho\w*", r"cortar", r"cortad\w*", r"martillo\w*", r"taladro\w*",
     r"lavandina", r"cloro", r"amoniaco", r"solvente\w*", r"thinner", r"aguarras", r"nafta", r"acetona", r"alcohol", r"desinfectante\w*", r"limpiador\w*", r"acido\w*", r"veneno\w*",
     r"resina\w*", r"epoxi\w*", r"poliester", r"catalizador\w*", r"enchufe\w*", r"electric\w*", r"tomacorriente\w*", r"cargador\w*", r"cable\w*"]
+# Lo mismo para inglés (lista propia de la prueba; "heat" como sustantivo se permite, igual que "calor" en español)
+PROHIBIDAS_EN_PY = [r"fire\w*", r"flame\w*", r"match(es|box\w*)", r"lighter\w*", r"candle\w*", r"stove\w*", r"oven\w*", r"microwave\w*", r"boil\w*", r"burn\w*", r"hot", r"heating", r"heated", r"heater\w*",
+    r"knife", r"knives", r"scissors", r"sharp\w*", r"blade\w*", r"razor\w*", r"cutter\w*", r"cut(s|ting)?", r"hammer\w*", r"drill\w*",
+    r"bleach", r"chlorine", r"ammonia", r"solvent\w*", r"thinner", r"gasoline", r"petrol", r"acetone", r"alcohol", r"disinfectant\w*", r"cleaner\w*", r"acid\w*", r"poison\w*",
+    r"resin\w*", r"epoxy", r"polyester", r"catalyst\w*", r"outlet\w*", r"socket\w*", r"electric\w*", r"charger\w*", r"cable\w*"]
 def sin_tildes(t): return "".join(c for c in unicodedata.normalize("NFD", t.lower()) if unicodedata.category(c) != "Mn")
 def textos_de(x, out=None):
     out = [] if out is None else out
@@ -602,20 +607,40 @@ def mis_completa(pg, mid, frase, res="pensaba", foto=None):
     mis_abrir(pg, mid); mis_hasta(pg, "registro"); mis_registrar(pg, frase, res, foto)
 def n_fotos(pg): return pg.evaluate("Gioval.almacen.fotos.listar().then(l=>l.length)")
 def album(pg): return pg.evaluate("JSON.parse(JSON.stringify((store.misiones&&store.misiones.album&&store.misiones.album[KID])||[]))")
+def mis_textos(pg):
+    """{id: textos de la misión} en el idioma que está usando la app (salen de la tabla de idioma, por clave misiones.m.<id>.*)."""
+    return json.loads(pg.evaluate("JSON.stringify(Object.fromEntries(Gioval.datos.misiones.MISIONES.map(m=>[m.id,Gioval.datos.misiones.textos(m)])))"))
+def U(pg, clave, **p):
+    """Texto de la interfaz de Misiones (clave misiones.ui.<clave>) en el idioma actual."""
+    return pg.evaluate("([k,p])=>t('misiones.ui.'+k,p)", [clave, p])
+def tabla_mis(pg, codigo):
+    """Todas las claves misiones.* de una tabla de idioma, sin formatear."""
+    return json.loads(pg.evaluate("c=>JSON.stringify(Object.fromEntries(Object.entries(Gioval.i18n.tablas[c].textos).filter(([k])=>k.startsWith('misiones.'))))", codigo))
 
 @prueba("misiones: contenido válido (≥12, 2 por categoría, desde 4 años, materiales + supervisión + aviso, sin palabras prohibidas)")
 def t_mis_datos(C):
     ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
-    d = json.loads(pg.evaluate("JSON.stringify({T:Gioval.datos.misiones.TEXTOS, M:Gioval.datos.misiones.MISIONES, ok:Gioval.datos.misiones.MISIONES.map(m=>Gioval.datos.misiones.validar(m)), vis:Gioval.misiones.lista().length})"))
-    Ms, T = d["M"], d["T"]
+    d = json.loads(pg.evaluate("JSON.stringify({M:Gioval.datos.misiones.MISIONES, ok:Gioval.datos.misiones.MISIONES.map(m=>Gioval.datos.misiones.validar(m)), vis:Gioval.misiones.lista().length, cat:Gioval.datos.misiones.CATEGORIAS})"))
+    Ms, T = d["M"], mis_textos(pg)
     verificar(len(Ms) >= 12, "hay %d misiones" % len(Ms)); igual(d["vis"], len(Ms), "misiones visibles")
-    igual(len({m["id"] for m in Ms}), len(Ms), "ids repetidos"); igual(set(T["misiones"]), {m["id"] for m in Ms}, "textos y estructura no coinciden")
-    cats = sorted(T["categorias"]); igual(cats, sorted(["construir", "experimentos", "cocina", "huerta", "arte", "hogar"]), "categorías")
-    for c in cats: verificar(sum(1 for m in Ms if m["cat"] == c) >= 2, "menos de 2 misiones en " + c)
+    igual(len({m["id"] for m in Ms}), len(Ms), "ids repetidos"); igual(set(T), {m["id"] for m in Ms}, "textos y estructura no coinciden")
+    # los textos están SOLO en las tablas de idioma: es-AR y en tienen exactamente las mismas claves misiones.*
+    es, en = tabla_mis(pg, "es-AR"), tabla_mis(pg, "en"); igual(sorted(en), sorted(es), "en y es-AR: mismas claves misiones.*")
+    ids_tabla = {k.split(".")[2] for k in es if k.startswith("misiones.m.")}; igual(ids_tabla, {m["id"] for m in Ms}, "misiones con textos en la tabla")
+    cats = sorted(d["cat"]); igual(cats, sorted(["construir", "experimentos", "cocina", "huerta", "arte", "hogar"]), "categorías")
+    for c in cats: verificar(sum(1 for m in Ms if m["cat"] == c) >= 2, "menos de 2 misiones en " + c); verificar("misiones.cat." + c in es and "misiones.cat." + c in en, "falta el nombre de la categoría " + c)
     verificar(min(m["minEdad"] for m in Ms) == 4 and all(m["minEdad"] >= 4 for m in Ms), "edad mínima desde 4")
+    # cada u("…") del código de la isla existe en la tabla (no hay claves inventadas ni faltantes)
+    codigo = (APP / "js" / "islas" / "misiones.js").read_text(encoding="utf-8")
+    usadas = set(re.findall(r'\bul?\("([a-z0-9_.]+)"', codigo)); usadas = {k for k in usadas if not k.endswith(".")}; verificar(len(usadas) > 80, "pocas claves detectadas: %d" % len(usadas))
+    faltan = sorted(k for k in usadas if "misiones.ui." + k not in es); verificar(not faltan, "u(\"…\") sin clave en es-AR: %s" % faltan)
+    for k in ("supervision.cerca.corto", "supervision.junto.detalle", "burbuja.listo", "burbuja.fin", "fin.pensaba", "fin.distinto", "fin.cierre"): verificar("misiones.ui." + k in es, "falta " + k)
+    sin_coment = re.sub(r"(?m)^\s*//.*$", "", re.sub(r"/\*.*?\*/", "", codigo, flags=re.S))
+    esp = [m.group(0)[:60] for m in re.finditer(r"""(["'`])((?:\\.|(?!\1)[^\\\n])*)\1""", sin_coment) if re.search(r"[¿¡áéíóúñÁÉÍÓÚÑ]", m.group(2))]
+    verificar(not esp, "texto en español escrito en el código de la isla (tiene que ir en la tabla): %s" % esp[:3])
     nprohib = 0
     for m, probs in zip(Ms, d["ok"]):
-        t = T["misiones"][m["id"]]; igual(probs, [], "validar " + m["id"])
+        t = T[m["id"]]; igual(probs, [], "validar " + m["id"])
         verificar(m["sup"] in ("cerca", "junto"), m["id"] + " sin supervisión"); verificar(len(t["materiales"]) >= 1, m["id"] + " sin materiales")
         verificar(len(t["aviso"].strip()) >= 20, m["id"] + " sin aviso de seguridad"); verificar(len(t["pasos"]) >= 2, m["id"] + " sin pasos")
         if m["tipo"] != "hacer": verificar(t["prediccion"]["pregunta"] and len(t["prediccion"]["opciones"]) >= 2 and t["observacion"] and t["explicacion"] and t["guia"], m["id"] + " sin estructura científica")
@@ -624,29 +649,41 @@ def t_mis_datos(C):
         for tx in textos_de(t):
             nprohib += 1
             for pat in PROHIBIDAS_PY: verificar(not re.search(r"(^|[^a-z])(%s)($|[^a-z])" % pat, sin_tildes(tx)), "%s: palabra prohibida /%s/ en «%s»" % (m["id"], pat, tx[:60]))
+    # lo mismo en inglés (lista PROPIA de la prueba, distinta de la de la app) sobre TODAS las claves misiones.m.* y misiones.ui.* de la tabla en
+    nen = 0
+    for k, v in en.items():
+        for tx in textos_de(v):
+            nen += 1
+            for pat in PROHIBIDAS_EN_PY: verificar(not re.search(r"(^|[^a-z])(%s)($|[^a-z])" % pat, tx.lower()), "en/%s: palabra prohibida /%s/ en «%s»" % (k, pat, tx[:60]))
     nexp = sum(1 for m in Ms if m["tipo"] != "hacer"); verificar(nexp >= 5, "pocos experimentos")
     # el elogio es al proceso: nada de "genio", rachas ni puntos en ningún texto de la interfaz
-    ui = sin_tildes(json.dumps(T["ui"], ensure_ascii=False))
+    ui = sin_tildes(json.dumps({k: v for k, v in es.items() if k.startswith("misiones.ui.")}, ensure_ascii=False))
     for mala in ("genio", "inteligent", "talento", "brillante", "el mejor", "la mejor", "campe", "racha", "puntos", "ranking"): verificar(mala not in ui, "texto de la interfaz con «%s»" % mala)
+    uien = json.dumps({k: v for k, v in en.items() if k.startswith("misiones.ui.")}).lower()
+    for mala in ("genius", "smart", "talent", "brilliant", "the best", "champion", "streak", "points", "ranking"): verificar(mala not in uien, "texto de la interfaz en inglés con «%s»" % mala)
     # el validador de verdad rechaza lo malo (prueba de la prueba)
-    r = pg.evaluate("""(()=>{ const D=Gioval.datos.misiones, m=D.MISIONES.find(x=>x.id==='exp_flota'), t=JSON.parse(JSON.stringify(D.TEXTOS.misiones));
-      const v=(mut,mm)=>{ const tt=JSON.parse(JSON.stringify(t)); mut(tt.exp_flota); return D.validar(Object.assign({},m,mm||{}),tt).length; };
-      return { aviso:v(x=>{x.aviso='';}), mats:v(x=>{x.materiales=[];}), sup:v(x=>{},{sup:'solo'}), edad:v(x=>{},{minEdad:3}), lav:v(x=>{x.pasos[1]='Mezclá con lavandina.';}), cuch:v(x=>{x.materiales.push('Un cuchillo');}),
-        epoxi:v(x=>{x.aviso='Con epoxi, cuidado, mucho cuidado.';}), fuego:v(x=>{x.pasos[0]='Prendé fuego';}), ok:v(x=>{}) }; })()""")
-    igual(r, {"aviso": 1, "mats": 1, "sup": 1, "edad": 1, "lav": 1, "cuch": 1, "epoxi": 1, "fuego": 1, "ok": 0}, "el validador")
+    r = pg.evaluate("""(()=>{ const D=Gioval.datos.misiones, m=D.MISIONES.find(x=>x.id==='exp_flota'), I=Gioval.i18n.tablas, k='misiones.m.exp_flota.';
+      const copia=x=>JSON.parse(JSON.stringify(x)), cod=c=>Object.keys(I[c].textos).filter(x=>x.startsWith(k)), bak={};
+      ['es-AR','en'].forEach(c=>{ bak[c]=Object.fromEntries(cod(c).map(x=>[x,copia(I[c].textos[x])])); });
+      const v=(mut,mm,c)=>{ const T=I[c||'es-AR'].textos; mut(T); const n=D.validar(Object.assign({},m,mm||{})).length; Object.assign(T,copia(bak[c||'es-AR'])); return n; };
+      const fr=()=>{ Gioval.i18n.registrar('fr',{textos:{[k+'nombre']:'Flotte'}}); const n=D.validar(m).length; delete I.fr; return n; };
+      return { aviso:v(T=>{T[k+'aviso']='';}), mats:v(T=>{T[k+'materiales']=[];}), sup:v(T=>{},{sup:'solo'}), edad:v(T=>{},{minEdad:3}), lav:v(T=>{T[k+'pasos'][1]='Mezclá con lavandina.';}), cuch:v(T=>{T[k+'materiales'].push('Un cuchillo');}),
+        epoxi:v(T=>{T[k+'aviso']='Con epoxi, cuidado, mucho cuidado.';}), fuego:v(T=>{T[k+'pasos'][0]='Prendé fuego';}),
+        en_fuego:v(T=>{T[k+'pasos'][0]='Light a fire';},{},'en'), en_cuchillo:v(T=>{T[k+'materiales'].push('A sharp knife');},{},'en'), idioma_sin_lista:fr(), ok:v(T=>{}), ok_en:v(T=>{},{},'en') }; })()""")
+    igual(r, {"aviso": 1, "mats": 1, "sup": 1, "edad": 1, "lav": 1, "cuch": 1, "epoxi": 1, "fuego": 1, "en_fuego": 1, "en_cuchillo": 1, "idioma_sin_lista": 1, "ok": 0, "ok_en": 0}, "el validador (también rechaza lo malo escrito en inglés o en un idioma sin lista)")
     # una misión inválida queda oculta (no se le muestra al niño)
     pg.evaluate("console.warn=()=>{}")
-    visible = pg.evaluate("""(()=>{ const D=Gioval.datos.misiones; D.TEXTOS.misiones.mala={nombre:'Mala',resumen:'x',aviso:'',materiales:['a'],pasos:['a','b'],imaginar:'x'};
-      D.MISIONES.push({id:'mala',cat:'arte',emoji:'💥',minEdad:4,sup:'cerca',tipo:'hacer'}); const n=Gioval.misiones.recargar().some(m=>m.id==='mala'); D.MISIONES.pop(); delete D.TEXTOS.misiones.mala; Gioval.misiones.recargar(); return n; })()""")
+    visible = pg.evaluate("""(()=>{ const D=Gioval.datos.misiones, T=Gioval.i18n.tablas['es-AR'].textos, k='misiones.m.mala.'; Object.assign(T,{[k+'nombre']:'Mala',[k+'resumen']:'x',[k+'aviso']:'',[k+'materiales']:['a'],[k+'pasos']:['a','b'],[k+'imaginar']:'x'});
+      D.MISIONES.push({id:'mala',cat:'arte',emoji:'💥',minEdad:4,sup:'cerca',tipo:'hacer'}); const n=Gioval.misiones.recargar().some(m=>m.id==='mala'); D.MISIONES.pop(); Object.keys(T).filter(x=>x.startsWith(k)).forEach(x=>delete T[x]); Gioval.misiones.recargar(); return n; })()""")
     igual(visible, False, "una misión sin aviso no debe mostrarse")
-    ctx.close(); return "%d misiones (%d experimentos), %d textos contra %d palabras prohibidas" % (len(Ms), nexp, nprohib, len(PROHIBIDAS_PY))
+    ctx.close(); return "%d misiones (%d experimentos), %d textos es-AR contra %d palabras prohibidas y %d textos en inglés contra %d" % (len(Ms), nexp, nprohib, len(PROHIBIDAS_PY), nen, len(PROHIBIDAS_EN_PY))
 
 @prueba("misiones: flujo completo de un experimento (aviso → materiales → predicción → hacer + temporizador → ¿qué pasó? → ¿por qué? → registro) en 360x700 y 740x330")
 def t_mis_flujo(C):
     for v in ("360x700", "740x330"):
         ctx = C.banco.contexto(v); err = []
         pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=81); instalar_speak(pg); entrar(pg, "Vale")
-        T = json.loads(pg.evaluate("JSON.stringify(Gioval.datos.misiones.TEXTOS)")); t = T["misiones"]["exp_hielo"]; ui = T["ui"]
+        t = mis_textos(pg)["exp_hielo"]
         t0 = pg.evaluate("JSON.stringify(store.time)")
         abrir_isla(pg, "Misiones")
         txt = pg.inner_text("#menuIslaItems")
@@ -661,7 +698,7 @@ def t_mis_flujo(C):
         verificar(pg.is_visible("#misAviso") and t["aviso"] in pg.inner_text("#misAviso"), "aviso no visible")
         arriba = pg.evaluate("(()=>{ const r=document.getElementById('misAviso').getBoundingClientRect(), c=document.getElementById('misCont').getBoundingClientRect(); return r.top>=c.top-1 && r.top<c.bottom; })()")
         verificar(arriba, "el aviso no está a la vista al abrir la misión")
-        verificar(ui["supervision"]["cerca"]["corto"] in pg.inner_text("#misCont"), "falta el nivel de supervisión")
+        verificar(U(pg, "supervision.cerca.corto") in pg.inner_text("#misCont"), "falta el nivel de supervisión")
         verificar(any(t["aviso"] in x for x in pg.evaluate("window.__LOG")), "el aviso no se dijo en voz alta")
         CAPTURAS.append(foto(pg, v + "_62_mision_aviso"))
         pg.click("#misAcc .btn:last-child"); igual(mis_paso(pg), "materiales")
@@ -684,7 +721,7 @@ def t_mis_flujo(C):
         pg.click("[data-act=timer]"); r = pg.evaluate("Alarma.restante()"); verificar(598 <= r <= 600, "temporizador de 10 min: %s" % r)
         pg.wait_for_function("document.getElementById('misTimerEstado').innerText.includes('Falta')"); CAPTURAS.append(foto(pg, v + "_65_mision_temporizador"))
         pg.evaluate("window.__OFF=601000; Alarma._revisar()"); pg.wait_for_timeout(100)
-        verificar(ui["timer"]["fin"] in pg.evaluate("window.__LOG"), "no avisó que terminó el temporizador"); igual(pg.evaluate("Gioval.misiones.estado().timer"), False)
+        verificar(U(pg, "timer.fin") in pg.evaluate("window.__LOG"), "no avisó que terminó el temporizador"); igual(pg.evaluate("Gioval.misiones.estado().timer"), False)
         pg.evaluate("window.__OFF=0")
         while mis_paso(pg) == "hacer": pg.click("#misAcc .btn:last-child"); pg.wait_for_timeout(40)
         # 5) ¿qué pasó? y ¿por qué creés?
@@ -693,10 +730,10 @@ def t_mis_flujo(C):
         pg.click("#misCont .mis-chip >> nth=1"); CAPTURAS.append(foto(pg, v + "_66_mision_quepaso")); pg.click("#misAcc .btn")
         igual(mis_paso(pg), "porque"); igual(pg.locator(".mis-exp").count(), 0, "la explicación no se muestra hasta pedirla")
         pg.fill("#misCont textarea[data-in=porque]", "porque el sol calienta"); pg.click("#misAcc .btn:has-text('explicación')")
-        verificar(t["explicacion"] in pg.inner_text(".mis-exp"), "no muestra la explicación al adulto"); verificar(ui["porque"]["paraAdulto"] in pg.inner_text(".mis-exp"))
+        verificar(t["explicacion"] in pg.inner_text(".mis-exp"), "no muestra la explicación al adulto"); verificar(U(pg, "porque.para_adulto") in pg.inner_text(".mis-exp"))
         CAPTURAS.append(foto(pg, v + "_67_mision_porque")); pg.click("#misAcc .btn:last-child")
         # 6) registrar: sin elegir pensaba/distinto no se guarda
-        igual(mis_paso(pg), "registro"); verificar(pg.is_disabled("#misGuardar")); verificar(ui["adulto"]["fotoOff"] in pg.inner_text("#misCont"), "debería decir que la foto necesita al adulto")
+        igual(mis_paso(pg), "registro"); verificar(pg.is_disabled("#misGuardar")); verificar(U(pg, "adulto.foto_off") in pg.inner_text("#misCont"), "debería decir que la foto necesita al adulto")
         igual(pg.locator("#misSacar").count(), 0, "botón de foto sin consentimiento")
         pg.fill("#misCont textarea[data-in=frase]", "El del sol se derritió primero"); pg.click("#misCont [data-res=distinto]"); CAPTURAS.append(foto(pg, v + "_68_mision_registro"))
         pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'")
@@ -828,7 +865,7 @@ def t_mis_semana(C):
 def t_mis_espera(C):
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=86); instalar_speak(pg); entrar(pg, "Vale")
-    t = json.loads(pg.evaluate("JSON.stringify(Gioval.datos.misiones.TEXTOS.misiones.huerta_poroto)"))
+    t = mis_textos(pg)["huerta_poroto"]
     mis_abrir(pg, "huerta_poroto"); mis_hasta(pg, "espera"); verificar("3 días" in pg.inner_text("#misCont")); CAPTURAS.append(foto(pg, "360x700_78_mision_espera"))
     pg.click("#misAcc .btn"); pg.wait_for_timeout(200)
     igual(len(album(pg)), 0, "todavía no es un recuerdo"); igual(pg.evaluate("store.misiones.pend.Vale.length"), 1)
@@ -854,13 +891,80 @@ def t_mis_dictado(C):
     igual(pg.input_value("#misCont textarea[data-in=porque]"), "se derritió"); igual(pg.evaluate("Gioval.misiones.estado().porque"), "se derritió"); igual(pg.evaluate("window.__dic"), 1)
     igual(pg.locator("#misAcc .btn:has-text('explicación')").count(), 1, "debería haber botón de explicación")
     # A REVISAR: ni botón ni texto
-    expl = pg.evaluate("Gioval.datos.misiones.TEXTOS.misiones.exp_flota.explicacion")
+    expl = mis_textos(pg)["exp_flota"]["explicacion"]
     pg.evaluate("Gioval.datos.misiones.MISIONES.find(m=>m.id==='exp_flota').revisar='A REVISAR: confirmar con una fuente'")
     pg.click("#misBack"); mis_abrir(pg, "exp_flota"); mis_hasta(pg, "porque")
     igual(pg.locator("#misAcc .btn:has-text('explicación')").count(), 0, "una explicación A REVISAR no debe ofrecerse"); igual(pg.locator(".mis-exp").count(), 0)
     verificar(expl not in pg.inner_text("body"), "el texto sin revisar aparece en pantalla")
     pg.evaluate("delete Gioval.datos.misiones.MISIONES.find(m=>m.id==='exp_flota').revisar")
     verificar(not err, str(err)); ctx.close()
+
+@prueba("misiones en otros idiomas: inglés sin una palabra en español, cambio de idioma a mitad de misión, pseudo-idioma (+40 %) y RTL sin desbordes nuevos")
+def t_mis_idiomas(C):
+    # 1) inglés completo, de punta a punta (menú, lista, misión, registro, álbum, panel de adultos)
+    ctx = C.banco.contexto("pixel7"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=88, extra_init="localStorage.setItem('gioval_idioma','en');"); instalar_speak(pg); entrar(pg, "Vale")
+    vistos = []
+    def mirar(*sel): vistos.extend(x for x in (pg.inner_text(s_) for s_ in sel) if x.strip())
+    abrir_isla(pg, "Missions"); mirar("#menuIslaItems", "#streak", "#menuIslaTitle")
+    verificar("Mission of the week" in pg.inner_text("#menuIslaItems") and "No screen limit" in pg.inner_text("#streak"), pg.inner_text("#menuIslaItems"))
+    pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(100); mirar("#misLista"); CAPTURAS.append(foto(pg, "pixel7_80_misiones_ingles_lista"))
+    pg.click(".mis-card[data-id='exp_flota']"); pg.wait_for_timeout(150)
+    for paso in ("listo", "materiales", "antes", "hacer", "quepaso", "porque", "registro"):
+        mis_hasta(pg, paso); mirar("#misCont", "#misAcc", "#misTitulo", "#bubble")
+        if paso == "listo": verificar("Before we start" in pg.inner_text("#misCont") and "grown-up nearby" in pg.inner_text("#misCont"), pg.inner_text("#misCont")); CAPTURAS.append(foto(pg, "pixel7_81_mision_ingles_aviso"))
+        if paso == "hacer": verificar(pg.inner_text(".mis-pasoN") == "Step 1 of 5", pg.inner_text(".mis-pasoN"))
+    mis_registrar(pg, "The stone sank", "distinto"); mirar("#misCont"); verificar("different" in pg.inner_text("#misFinTxt"), pg.inner_text("#misFinTxt"))
+    pg.click("#misAcc .btn:has-text('album')"); pg.wait_for_timeout(250); mirar("#misAlbum"); verificar("The stone sank" in pg.inner_text("#misAlbLista") and "Does it float or sink?" in pg.inner_text("#misAlbLista"), pg.inner_text("#misAlbLista"))
+    fecha = pg.inner_text("#misAlbLista .mis-ent small:nth-of-type(1)"); verificar(re.search(r"[A-Z][a-z]+ \d{1,2}, \d{4}", fecha), "la fecha debería salir en formato inglés: " + fecha)
+    pg.click("#misAlbModo"); pasar_gate(pg); mirar("#misAlbInfo", "#misAlbLista"); pg.click("#misAlbModo")
+    pg.click("#misAlbBack"); abrir_panel(pg); mirar("#panelPie"); verificar("Age of Vale:" in pg.inner_text("#panelPie") and "6 years old" in pg.inner_text("#panelPie"), pg.inner_text("#panelPie"))
+    pg.click("#btnGear"); dicho = pg.evaluate("window.__LOG.concat(window.__BUB)")
+    igual(sin_espanol(vistos + dicho), [], "texto en español con el idioma en inglés"); igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes")
+    verificar(any("Step 1 of 5" in x for x in dicho) or any("Put the things" in x or "Line the things" in x for x in dicho), "no se dijeron los pasos en inglés: %s" % dicho[:5])
+    verificar(not err, str(err)); ctx.close()
+    # 2) cambio de idioma a mitad de una misión: se vuelve a dibujar en el mismo paso, sin perder lo hecho
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=89); instalar_speak(pg); entrar(pg, "Vale")
+    mis_abrir(pg, "exp_flota"); mis_hasta(pg, "hacer"); pg.click("#misAcc .btn:last-child"); igual(pg.evaluate("Gioval.misiones.estado().i"), 1)
+    verificar("Paso 2 de 5" in pg.inner_text("#misCont"), pg.inner_text("#misCont"))
+    pg.evaluate("Gioval.i18n.usar('en')"); pg.wait_for_timeout(100)
+    igual(pg.inner_text(".mis-pasoN"), "Step 2 of 5", "el paso se vuelve a dibujar en inglés"); igual(pg.evaluate("Gioval.misiones.estado().i"), 1, "no pierde el paso"); verificar("Before trying" in pg.inner_text(".mis-paso"), pg.inner_text(".mis-paso"))
+    tc = lambda i: pg.evaluate("document.getElementById('%s').textContent" % i)
+    verificar("Back" in tc("misBack") and "Listen" in tc("misHear"), "botones fijos sin traducir: %s / %s" % (tc("misBack"), tc("misHear")))
+    pg.evaluate("Gioval.i18n.usar('es-AR')"); pg.wait_for_timeout(100); igual(pg.inner_text(".mis-pasoN"), "Paso 2 de 5")
+    # el temporizador sigue reconociéndose aunque cambie el idioma
+    pg.click("#misBack"); mis_abrir(pg, "exp_hielo"); mis_hasta(pg, "hacer"); pg.click("#misAcc .btn:last-child"); pg.click("#misAcc .btn:last-child"); pg.click("[data-act=timer]")
+    pg.evaluate("Gioval.i18n.usar('en')"); pg.evaluate("window.__OFF=601000; Alarma._revisar()"); pg.wait_for_timeout(100); pg.evaluate("window.__OFF=0")
+    verificar("Time's up! Look at what happened." in pg.evaluate("window.__LOG"), "el aviso del temporizador debería salir en inglés: %s" % pg.evaluate("window.__LOG")[-3:]); igual(pg.evaluate("Gioval.misiones.estado().timer"), False)
+    verificar(not err, str(err)); ctx.close()
+    # 3) pseudo-idioma (+40 %) y RTL: las pantallas de Misiones no tienen desbordes que no tengan en es-AR
+    pend = []
+    for v in ("360x700", "740x330"):
+        res = {}
+        for idioma in ("es-AR", "qps-ploc", "qps-plocm"):
+            ctx = C.banco.contexto(v); err = []
+            pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=err, semilla=9, extra_init="localStorage.setItem('gioval_idioma','%s');" % idioma, congelar=True); instalar_speak(pg); entrar(pg, "Vale")
+            r = {}
+            def ver(nombre):
+                pg.wait_for_timeout(120); r[nombre] = pg.evaluate(JS_DESBORDES)
+                if idioma != "es-AR": CAPTURAS.append(foto(pg, "%s_%s_mis_%s" % (v, idioma, nombre)))
+            pg.click("#islands .island >> nth=2"); pg.wait_for_timeout(120); ver("1_menu")
+            pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(120); ver("2_lista")
+            pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150); ver("3_aviso")
+            mis_hasta(pg, "materiales"); ver("4_materiales"); mis_hasta(pg, "antes"); ver("5_prediccion")
+            mis_hasta(pg, "hacer"); pg.click("#misAcc .btn:last-child"); pg.click("#misAcc .btn:last-child"); ver("6_temporizador")
+            mis_hasta(pg, "porque"); ver("7_porque"); mis_hasta(pg, "registro"); ver("8_registro")
+            pg.fill("#misCont textarea[data-in=frase]", "ok"); pg.click("#misCont [data-res=pensaba]"); pg.click("#misGuardar"); pg.wait_for_function("(Gioval.misiones.estado()||{}).paso==='fin'"); ver("9_fin")
+            pg.click("#misAcc .btn:last-child"); pg.wait_for_timeout(250); ver("10_album")
+            pg.evaluate("S.run++; resetFlow(); goMap()"); abrir_panel(pg); ver("11_panel")
+            igual(pg.evaluate("[document.documentElement.lang, Gioval.i18n.faltantes.size]"), [idioma, 0], "idioma/faltantes")
+            res[idioma] = r; verificar(not err, "%s %s: %s" % (v, idioma, err)); ctx.close()
+        for idioma in ("qps-ploc", "qps-plocm"):
+            for k, lst in res[idioma].items():
+                for x in lst:
+                    if x not in res["es-AR"].get(k, []): pend.append("%s %s %s: %s" % (v, idioma, k, x))
+    verificar(not pend, "con el pseudo-idioma / RTL aparecen desbordes nuevos en Misiones:\n        " + "\n        ".join(pend[:12]))
 
 # ================================================================== FASE 0b: idiomas y voz
 STORE_2 = {"profiles": ["Vale", "Gio"], "limit": {"Vale": 60, "Gio": 60}}
@@ -927,7 +1031,7 @@ def t_i18n_completitud(C):
     usadas = set()
     for f in list((APP / "js" / "core").rglob("*.js")) + list((APP / "js" / "islas").rglob("*.js")) + list((APP / "js" / "datos").rglob("*.js")):
         txt = f.read_text(encoding="utf-8")
-        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros)\.[a-z0-9_.]+)"', txt))
+        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros|misiones)\.[a-z0-9_.]+)"', txt))
     for f in [APP / "index.html"] + list((APP / "js" / "islas").rglob("*.js")):
         usadas |= set(re.findall(r'data-i18n(?:-html|-title|-placeholder)?="([^"]+)"', f.read_text(encoding="utf-8")))
     dinam = [k for k in usadas if k.endswith(".") or k.endswith("_")]
@@ -982,7 +1086,7 @@ def t_ingles(C):
     verificar(pg.evaluate("document.getElementById('btnWho').textContent") == "👤 Change", "botón Cambiar")
     entrar(pg, "Vale")
     islas = pg.evaluate("[...document.querySelectorAll('#islands .island')].map(x=>x.innerText.split('\\n').slice(1).join('|'))")
-    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
+    igual(islas, ["Music Island|Let's play the piano!", "Numbers Island|Let's count and add!", "Missions Island|Real things!", "Letters Island|Soon", "Animals Island|Soon"], "mapa en inglés")
     foto(pg, "pixel7_60_ingles_mapa"); CAPTURAS.append("pixel7_60_ingles_mapa.png")
     abrir_isla(pg, "Music"); tarjeta(pg, "Today"); pg.wait_for_timeout(400)
     labels = pg.evaluate("[...document.querySelectorAll('.key span')].map(s=>s.textContent).join('')")
@@ -1148,7 +1252,7 @@ def t_voz_audio(C):
 JS_DESBORDES = """(function(){
  const W=innerWidth,H=innerHeight, out=[];
  const sel='button,.island,.song,.skill,.opt,h1,h2,.bubble,label,.psum,select,input,.stars,.actStage';
- function visible(el){ const r=el.getBoundingClientRect(), cs=getComputedStyle(el); return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('.screen:not(.active)')&&!el.closest('.big:not(.show)')&&!el.closest('.panel:not(.show)')&&!el.closest('.aviso:not(.show)'); }
+ function visible(el){ const r=el.getBoundingClientRect(), cs=getComputedStyle(el); return r.width>0&&r.height>0&&cs.visibility!=='hidden'&&cs.display!=='none'&&!el.closest('.screen:not(.active)')&&!el.closest('.big:not(.show)')&&!el.closest('.panel:not(.show)')&&!el.closest('.aviso:not(.show)')&&!(el.closest('details:not([open])')&&!el.closest('summary')); }
  function scrolla(el,eje){ let p=el.parentElement; while(p&&p!==document.documentElement){ const o=getComputedStyle(p)['overflow'+eje]; if((o==='auto'||o==='scroll')&&(eje==='Y'?p.scrollHeight>p.clientHeight:p.scrollWidth>p.clientWidth)) return true; p=p.parentElement; } return false; }
  document.querySelectorAll(sel).forEach(el=>{ if(!visible(el)) return; const r=el.getBoundingClientRect();
    const id=(el.id?'#'+el.id:'')+(typeof el.className==='string'&&el.className?'.'+el.className.trim().split(/\\s+/).join('.'):'')+':'+el.tagName.toLowerCase();

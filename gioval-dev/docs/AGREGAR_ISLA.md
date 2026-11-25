@@ -50,8 +50,9 @@ contenido pedagógico. No hay paso de compilación.
 ### Isla sin sesiones (como Misiones)
 
 Si la isla no tiene habilidades ni sesión diaria, declara `skills:[]` y, en vez de las tarjetas de siempre, `menuPropio()`
-(devuelve `[{em,t,s,on,go}]`), `etiquetaTiempo` (texto en lugar de "⏱ 15 min") y `hablaMenu` (lo que dice la mascota al
-entrar desde el mapa). Sus pantallas **no** llevan la clase `juego`: así su tiempo no cuenta como pantalla. Para sumar
+(devuelve `[{em,t,s,on,go}]`), `etiquetaTiempo()` (texto en lugar de "⏱ 15 min") y `hablaMenu()` (lo que dice la mascota al
+entrar desde el mapa). Los tres son **funciones** que devuelven el texto en el idioma actual (`() => t("clave")`); `name` y `sub` son getters.
+Las pantallas propias llevan `data-i18n` para retraducirse y redibujan con `Gioval.on("idioma", ...)`. Sus pantallas **no** llevan la clase `juego`: así su tiempo no cuenta como pantalla. Para sumar
 ajustes al panel de adultos usa `dom.panelPie` y `Gioval.on("panel", refrescar)`. Ver `docs/MISIONES.md`.
 
 ## Si la isla no es por toque

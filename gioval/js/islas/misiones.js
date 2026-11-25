@@ -1,7 +1,7 @@
 "use strict";
 /* ============ ISLA MISIONES (reales) + ÁLBUM DE LOGROS REALES ============
    Actividades fuera de la pantalla (Construir, Experimentos, Cocina, Huerta, Arte, Hogar) que el niño hace con un adulto
-   y después registra acá. Los textos y las misiones viven en js/datos/misiones.js (TEXTOS + MISIONES, editables).
+   y después registra acá. Los textos (tablas de idioma, por clave misiones.*) y las misiones viven en js/datos/misiones.js (editables).
    - No es una isla de "tocar opciones": no tiene habilidades ni sesión diaria ni chequeo. Declara menuPropio() (ver ui.js)
      y sus propias pantallas. Ninguna pantalla lleva la clase "juego", así que su tiempo NO cuenta como pantalla.
    - Cada misión: ¿listo? (aviso de seguridad + nivel de supervisión) → materiales → (predicción) → hacer (temporizador
@@ -12,7 +12,12 @@
    - store.misiones se crea al usarse (sin migración): { album:{}, pend:{}, semana:{}, edad:{} }.
    - Privacidad: la foto y el dictado por voz necesitan que un adulto los active (candado de multiplicación). */
 (function () {
-const D = Gioval.datos.misiones, T = D.TEXTOS, U = T.ui;
+const D = Gioval.datos.misiones, I18N = Gioval.i18n;
+/* Todo texto sale de la tabla del idioma (js/datos/misiones.js): u("lista.titulo") = clave misiones.ui.lista.titulo. Nada de español en el código. */
+const u = (k, p) => t("misiones.ui." + k, p);
+const ul = (k, p) => tl("misiones.ui." + k, p);
+const nombreCat = c => t("misiones.cat." + c);
+const burbujaDe = paso => I18N.tiene("misiones.ui.burbuja." + paso) ? u("burbuja." + paso) : "";
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fAlm = () => Gioval.almacen.fotos;
 
@@ -35,7 +40,7 @@ function lista() {
   });
   return LISTA;
 }
-const textosDe = m => T.misiones[m.id];
+const textosDe = m => D.textos(m);
 const hechas = id => verAlbum().filter(e => e.m === id).length;
 
 /* ---------------- misión de la semana ---------------- */
@@ -81,19 +86,19 @@ const mmss = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 function bajaTimer() { if (Mi && Mi.baja) { Mi.baja(); Mi.baja = null; } }
 function ponerTimer(seg) {
   try { Gioval.alarma.pedirPermiso().catch(() => {}); } catch (e) {}
-  bajaTimer(); const ini = Date.now();
+  bajaTimer(); const ini = Date.now(), tit = u("timer.titulo"); /* el título se fija ahora: si cambia el idioma mientras corre, igual se reconoce */
   /* se escucha SOLO mientras hay un temporizador nuestro corriendo: si no, se "robaría" el aviso de una alarma vencida con la app cerrada */
   Mi.baja = Gioval.alarma.onFin(info => {
-    if (info.titulo !== U.timer.titulo || info.fin < ini || !Mi || !Mi.timer) return;
-    bajaTimer(); Mi.timer = false; pintarTimer(); hablar(U.timer.fin, U.timer.fin);
+    if (info.titulo !== tit || info.fin < ini || !Mi || !Mi.timer) return;
+    bajaTimer(); Mi.timer = false; pintarTimer(); hablar(u("timer.fin"), u("timer.fin"));
   });
-  Gioval.alarma.programar(seg, { titulo: U.timer.titulo, texto: U.timer.texto }); Mi.timer = true; pintarTimer();
+  Gioval.alarma.programar(seg, { titulo: tit, texto: u("timer.texto") }); Mi.timer = true; pintarTimer();
 }
 function cancelarTimer() { if (Mi && Mi.timer) { Gioval.alarma.cancelar(); Mi.timer = false; } bajaTimer(); pintarTimer(); }
 function pintarTimer() {
   const el = $("misTimerEstado"); if (!el) return;
   const r = Mi && Mi.timer ? Gioval.alarma.restante() : 0;
-  el.innerHTML = r > 0 ? esc(U.timer.corre) + "<b>" + mmss(r) + "</b> <button class=\"mis-mini\" data-act=\"timerCancel\">" + esc(U.timer.cancelar) + "</button>" : "";
+  el.innerHTML = r > 0 ? esc(u("timer.corre", { tiempo: "@@T@@" })).replace("@@T@@", "<b>" + mmss(r) + "</b>") + " <button class=\"mis-mini\" data-act=\"timerCancel\">" + esc(u("timer.cancelar")) + "</button>" : "";
 }
 setInterval(() => { if (Mi && $("misJuego").classList.contains("active")) pintarTimer(); }, 500);
 
@@ -103,12 +108,12 @@ function chips(opts, sel, extra) {
     (extra || []).map(([k, txt]) => `<button class="mis-chip${sel === k ? " on" : ""}" data-chip="${k}">${esc(txt)}</button>`).join("") + "</div>";
 }
 function adultoOpciones() {
-  const dic = SR() ? `<button class="mis-tg${Mi.dictado ? " on" : ""}" data-act="tgDictado" aria-pressed="${Mi.dictado}"><span>${Mi.dictado ? "☑" : "☐"}</span> ${esc(U.adulto.dictado)}</button>` : "";
-  return `<details class="mis-ad" data-ad${Mi.adOpen ? " open" : ""}><summary>${esc(U.adulto.resumen)}</summary>
-    <button class="mis-tg${Mi.consent ? " on" : ""}" data-act="tgFoto" aria-pressed="${Mi.consent}"><span>${Mi.consent ? "☑" : "☐"}</span> ${esc(U.adulto.foto)}</button>${dic}</details>`;
+  const dic = SR() ? `<button class="mis-tg${Mi.dictado ? " on" : ""}" data-act="tgDictado" aria-pressed="${Mi.dictado}"><span>${Mi.dictado ? "☑" : "☐"}</span> ${esc(u("adulto.dictado"))}</button>` : "";
+  return `<details class="mis-ad" data-ad${Mi.adOpen ? " open" : ""}><summary>${esc(u("adulto.resumen"))}</summary>
+    <button class="mis-tg${Mi.consent ? " on" : ""}" data-act="tgFoto" aria-pressed="${Mi.consent}"><span>${Mi.consent ? "☑" : "☐"}</span> ${esc(u("adulto.foto"))}</button>${dic}</details>`;
 }
 function areaTexto(clave, placeholder) {
-  const dic = Mi.dictado && SR() ? `<button class="mis-mini" data-dictar="${clave}">${esc(U.registro.dictar)}</button>` : "";
+  const dic = Mi.dictado && SR() ? `<button class="mis-mini" data-dictar="${clave}">${esc(u("registro.dictar"))}</button>` : "";
   return `<textarea class="mis-in" data-in="${clave}" rows="2" placeholder="${esc(placeholder)}">${esc(Mi[clave])}</textarea>${dic}`;
 }
 function boton(t, cls, fn, off) { const b = document.createElement("button"); b.className = "btn" + (cls ? " " + cls : ""); b.textContent = t; if (off) b.disabled = true; b.onclick = fn; $("misAcc").appendChild(b); return b; }
@@ -116,13 +121,13 @@ function ir(paso) { Mi.paso = paso; if (paso === "hacer") Mi.i = Mi.i || 0; pint
 function siguiente() { const k = Mi.seq.indexOf(Mi.paso); ir(Mi.seq[k + 1]); }
 function predTexto() {
   const t = Mi.t.prediccion;
-  if (Mi.predSel === "nose") return U.antes.noseTexto;
-  if (Mi.predSel === "otra") return Mi.pred.trim() || U.antes.otraPuesta;
+  if (Mi.predSel === "nose") return u("antes.nose_texto");
+  if (Mi.predSel === "otra") return Mi.pred.trim() || u("antes.otra_puesta");
   if (typeof Mi.predSel === "number" && t) return t.opciones[Mi.predSel];
   return Mi.pred.trim();
 }
 function obsTexto() {
-  if (Mi.obsSel === "otra") return Mi.obs.trim() || U.quePaso.otra;
+  if (Mi.obsSel === "otra") return Mi.obs.trim() || u("que_paso.otra");
   if (typeof Mi.obsSel === "number") return Mi.t.observacion[Mi.obsSel];
   return "";
 }
@@ -132,85 +137,85 @@ function pintar(opc) {
   $("misAcc").innerHTML = ""; $("misTitulo").textContent = m.emoji + " " + t.nombre;
   const pr = $("misProg"), idx = Mi.seq.indexOf(Mi.paso); pr.style.display = "flex"; pr.innerHTML = "";
   Mi.seq.forEach((_, k) => { const d = document.createElement("i"); d.className = k < idx ? "ok" : (k === idx ? "now" : ""); pr.appendChild(d); });
-  let html = "", habla = "", burb = (U.burbuja[Mi.paso] || "");
+  let html = "", habla = "", burb = burbujaDe(Mi.paso);
   switch (Mi.paso) {
     case "listo":
-      html = `<div class="mis-aviso" id="misAviso"><b>${esc(U.listo.aviso)}</b><p>${esc(t.aviso)}</p></div>
-        <div class="mis-sup mis-sup-${m.sup}">${esc(U.supervision[m.sup].corto)}</div>
-        <p class="mis-det">${esc(U.supervision[m.sup].detalle)} <small>(${esc(U.lista.desde(m.minEdad))})</small></p>
+      html = `<div class="mis-aviso" id="misAviso"><b>${esc(u("listo.aviso"))}</b><p>${esc(t.aviso)}</p></div>
+        <div class="mis-sup mis-sup-${m.sup}">${esc(u("supervision." + m.sup + ".corto"))}</div>
+        <p class="mis-det">${esc(u("supervision." + m.sup + ".detalle"))} <small>(${esc(u("lista.desde", { n: m.minEdad }))})</small></p>
         <p>${esc(t.resumen)}</p>${adultoOpciones()}`;
-      habla = U.listo.habla(t.nombre, t.resumen, t.aviso);
-      boton(U.listo.volver, "alt", () => salir());
-      boton(U.listo.adulto, "", () => { if (m.sup === "junto") gate(() => siguiente()); else siguiente(); });
+      habla = u("listo.habla", { nombre: t.nombre.replace(/[.!?¡¿]+$/, ""), resumen: t.resumen, aviso: t.aviso });
+      boton(u("listo.volver"), "alt", () => salir());
+      boton(u("listo.adulto"), "", () => { if (m.sup === "junto") gate(() => siguiente()); else siguiente(); });
       break;
     case "materiales": {
-      html = `<p>${esc(U.materiales.ayuda)}</p><div class="mis-mats">` + t.materiales.map((x, k) => `<button class="mis-mat${Mi.mats[k] ? " on" : ""}" data-mat="${k}"><span class="chk">${Mi.mats[k] ? "☑" : "☐"}</span> ${esc(x)}</button>`).join("") + "</div>";
-      habla = U.materiales.habla;
-      boton(U.materiales.falta, "alt", () => { salir(); hablar(U.materiales.faltaHabla, U.materiales.faltaHabla); });
-      const b = boton(U.materiales.todo, "", () => siguiente(), !Mi.mats.every(Boolean)); b.id = "misTodo";
+      html = `<p>${esc(u("materiales.ayuda"))}</p><div class="mis-mats">` + t.materiales.map((x, k) => `<button class="mis-mat${Mi.mats[k] ? " on" : ""}" data-mat="${k}"><span class="chk">${Mi.mats[k] ? "☑" : "☐"}</span> ${esc(x)}</button>`).join("") + "</div>";
+      habla = u("materiales.habla");
+      boton(u("materiales.falta"), "alt", () => { salir(); hablar(u("materiales.falta_habla"), u("materiales.falta_habla")); });
+      const b = boton(u("materiales.todo"), "", () => siguiente(), !Mi.mats.every(Boolean)); b.id = "misTodo";
       break; }
     case "antes": {
       const P = t.prediccion;
       if (P) {
-        html = `<p class="mis-preg">${esc(P.pregunta)}</p>` + chips(P.opciones, Mi.predSel, [["otra", U.antes.otra], ["nose", U.antes.nose]]) +
-          (Mi.predSel === "otra" ? areaTexto("pred", U.antes.escribir) : "") + adultoOpciones();
+        html = `<p class="mis-preg">${esc(P.pregunta)}</p>` + chips(P.opciones, Mi.predSel, [["otra", u("antes.otra")], ["nose", u("antes.nose")]]) +
+          (Mi.predSel === "otra" ? areaTexto("pred", u("antes.escribir")) : "") + adultoOpciones();
         habla = P.pregunta;
       } else {
-        html = `<p class="mis-preg">${esc(t.imaginar)}</p>` + areaTexto("pred", U.antes.escribir) + adultoOpciones();
+        html = `<p class="mis-preg">${esc(t.imaginar)}</p>` + areaTexto("pred", u("antes.escribir")) + adultoOpciones();
         habla = t.imaginar;
       }
-      boton(U.antes.seguir, "", () => { Mi.pred = predTexto(); siguiente(); }, !!P && Mi.predSel == null);
+      boton(u("antes.seguir"), "", () => { Mi.pred = predTexto(); siguiente(); }, !!P && Mi.predSel == null);
       break; }
     case "hacer": {
       const k = Mi.i, n = t.pasos.length, tp = m.temporizador;
-      const bt = tp && tp.paso === k ? `<p><button class="btn" data-act="timer">${esc(U.timer.poner(tp.seg))}</button></p>` : "";
-      html = `<div class="mis-pasoN">${esc(U.hacer.paso(k + 1, n))}</div><p class="mis-paso">${esc(t.pasos[k])}</p>${bt}<div class="mis-timer" id="misTimerEstado"></div>`;
-      habla = t.pasos[k]; burb = U.burbuja.hacer(k + 1, n);
-      if (k > 0) boton(U.hacer.anterior, "alt", () => { Mi.i--; pintar(); });
-      boton(k < n - 1 ? U.hacer.siguiente : U.hacer.ultimo, "", () => { if (k < n - 1) { Mi.i++; pintar(); } else siguiente(); });
+      const bt = tp && tp.paso === k ? `<p><button class="btn" data-act="timer">${esc(u("timer.poner", { min: Math.round(tp.seg / 60) }))}</button></p>` : "";
+      html = `<div class="mis-pasoN">${esc(u("hacer.paso", { i: k + 1, n }))}</div><p class="mis-paso">${esc(t.pasos[k])}</p>${bt}<div class="mis-timer" id="misTimerEstado"></div>`;
+      habla = t.pasos[k]; burb = u("burbuja.hacer", { i: k + 1, n });
+      if (k > 0) boton(u("hacer.anterior"), "alt", () => { Mi.i--; pintar(); });
+      boton(k < n - 1 ? u("hacer.siguiente") : u("hacer.ultimo"), "", () => { if (k < n - 1) { Mi.i++; pintar(); } else siguiente(); });
       break; }
     case "espera": {
       const d = m.espera.dias;
-      html = `<div class="mis-fin"><div class="em">⏳</div><h3>${esc(U.espera.titulo)}</h3><p>${esc(U.espera.texto(d))}</p></div>`;
-      habla = U.espera.habla(d);
-      boton(U.espera.guardar, "", () => guardarPend());
+      html = `<div class="mis-fin"><div class="em">⏳</div><h3>${esc(u("espera.titulo"))}</h3><p>${esc(u("espera.texto", { dias: d }))}</p></div>`;
+      habla = u("espera.habla", { dias: d });
+      boton(u("espera.guardar"), "", () => guardarPend());
       break; }
     case "quepaso": {
-      const rec = Mi.pred ? `<p class="mis-recuerda">${esc(U.quePaso.pensabas)} <b>${esc(Mi.pred)}</b></p>` : "";
-      html = `<h3 class="mis-h">${esc(U.quePaso.titulo)}</h3>${rec}` + chips(t.observacion, Mi.obsSel, [["otra", U.quePaso.otra]]) + (Mi.obsSel === "otra" ? areaTexto("obs", U.registro.frasePH) : "");
-      habla = U.quePaso.habla;
-      boton(U.quePaso.seguir, "", () => { Mi.obs = obsTexto(); siguiente(); }, Mi.obsSel == null);
+      const rec = Mi.pred ? `<p class="mis-recuerda">${esc(u("que_paso.pensabas"))} <b>${esc(Mi.pred)}</b></p>` : "";
+      html = `<h3 class="mis-h">${esc(u("que_paso.titulo"))}</h3>${rec}` + chips(t.observacion, Mi.obsSel, [["otra", u("que_paso.otra")]]) + (Mi.obsSel === "otra" ? areaTexto("obs", u("registro.frase_ph")) : "");
+      habla = u("que_paso.habla");
+      boton(u("que_paso.seguir"), "", () => { Mi.obs = obsTexto(); siguiente(); }, Mi.obsSel == null);
       break; }
     case "porque": {
       const ver = Mi.verExp && t.explicacion && !m.revisar;
-      html = `<h3 class="mis-h">${esc(U.porque.titulo)}</h3>` + areaTexto("porque", U.porque.escribir) +
-        `<p class="mis-guia"><b>${esc(U.porque.guia)}</b> ${esc(t.guia)}</p>` +
-        (ver ? `<div class="mis-exp"><b>${esc(U.porque.paraAdulto)}</b><p>${esc(t.explicacion)}</p></div>` : "") + adultoOpciones();
-      habla = U.porque.habla;
-      if (t.explicacion && !m.revisar) boton(Mi.verExp ? U.porque.ocultar : U.porque.ver, "alt", () => { Mi.verExp = !Mi.verExp; pintar({ silencio: true }); });
-      boton(U.porque.seguir, "", () => siguiente());
+      html = `<h3 class="mis-h">${esc(u("porque.titulo"))}</h3>` + areaTexto("porque", u("porque.escribir")) +
+        `<p class="mis-guia"><b>${esc(u("porque.guia"))}</b> ${esc(t.guia)}</p>` +
+        (ver ? `<div class="mis-exp"><b>${esc(u("porque.para_adulto"))}</b><p>${esc(t.explicacion)}</p></div>` : "") + adultoOpciones();
+      habla = u("porque.habla");
+      if (t.explicacion && !m.revisar) boton(Mi.verExp ? u("porque.ocultar") : u("porque.ver"), "alt", () => { Mi.verExp = !Mi.verExp; pintar({ silencio: true }); });
+      boton(u("porque.seguir"), "", () => siguiente());
       break; }
     case "registro": {
       const dis = !Mi.res;
       let foto = "";
       if (Mi.consent) {
-        foto = Mi.foto ? `<div class="mis-fotoprev"><img src="${Mi.foto.url}" alt=""><div><button class="mis-mini" data-act="sacar">${esc(U.adulto.otra)}</button> <button class="mis-mini" data-act="quitar">${esc(U.adulto.quitar)}</button></div></div>`
-          : `<button class="btn" data-act="sacar" id="misSacar">${esc(U.adulto.sacar)}</button>`;
-        if (!Gioval.almacen.idbOk) foto = `<p class="mis-guia">${esc(U.adulto.sinAlmacen)}</p>`;
-      } else foto = `<p class="mis-guia">${esc(U.adulto.fotoOff)}</p>`;
-      html = `<h3 class="mis-h">${esc(U.registro.titulo)}</h3>
-        <label class="mis-lbl">${esc(U.registro.frase)}</label>${areaTexto("frase", U.registro.frasePH)}
-        <div class="mis-chips"><button class="mis-chip${Mi.res === "pensaba" ? " on" : ""}" data-res="pensaba">${esc(U.registro.pensaba)}</button><button class="mis-chip${Mi.res === "distinto" ? " on" : ""}" data-res="distinto">${esc(U.registro.distinto)}</button></div>
+        foto = Mi.foto ? `<div class="mis-fotoprev"><img src="${Mi.foto.url}" alt=""><div><button class="mis-mini" data-act="sacar">${esc(u("adulto.otra"))}</button> <button class="mis-mini" data-act="quitar">${esc(u("adulto.quitar"))}</button></div></div>`
+          : `<button class="btn" data-act="sacar" id="misSacar">${esc(u("adulto.sacar"))}</button>`;
+        if (!Gioval.almacen.idbOk) foto = `<p class="mis-guia">${esc(u("adulto.sin_almacen"))}</p>`;
+      } else foto = `<p class="mis-guia">${esc(u("adulto.foto_off"))}</p>`;
+      html = `<h3 class="mis-h">${esc(u("registro.titulo"))}</h3>
+        <label class="mis-lbl">${esc(u("registro.frase"))}</label>${areaTexto("frase", u("registro.frase_ph"))}
+        <div class="mis-chips"><button class="mis-chip${Mi.res === "pensaba" ? " on" : ""}" data-res="pensaba">${esc(u("registro.pensaba"))}</button><button class="mis-chip${Mi.res === "distinto" ? " on" : ""}" data-res="distinto">${esc(u("registro.distinto"))}</button></div>
         ${adultoOpciones()}<div class="mis-foto-zona">${foto}</div>`;
-      habla = U.registro.habla;
-      const b = boton(U.registro.guardar, "", () => guardar(), dis); b.id = "misGuardar";
+      habla = u("registro.habla");
+      const b = boton(u("registro.guardar"), "", () => guardar(), dis); b.id = "misGuardar";
       break; }
     case "fin": {
-      html = `<div class="mis-fin"><div class="em">📖</div><h3>${esc(U.fin.titulo)}</h3><p id="misFinTxt">${esc(Mi.mensaje)}</p></div>`;
+      html = `<div class="mis-fin"><div class="em">📖</div><h3>${esc(u("fin.titulo"))}</h3><p id="misFinTxt">${esc(Mi.mensaje)}</p></div>`;
       habla = Mi.mensaje;
-      boton(U.fin.isla, "alt", () => salir());
-      boton(U.fin.mas, "alt", () => { Mi = null; abrirLista(); });
-      boton(U.fin.album, "", () => { Mi = null; abrirAlbum(false); });
+      boton(u("fin.isla"), "alt", () => salir());
+      boton(u("fin.mas"), "alt", () => { Mi = null; abrirLista(); });
+      boton(u("fin.album"), "", () => { Mi = null; abrirAlbum(false); });
       break; }
   }
   cont.innerHTML = html; cont.scrollTop = opc.silencio ? top : 0;
@@ -252,7 +257,7 @@ function conectar() {
   $("misFile").onchange = async e => {
     const f = e.target.files[0]; e.target.value = ""; if (!f || !Mi || !Mi.consent) return;
     try { const blob = await reducir(f); quitarFoto(); Mi.foto = { blob, url: URL.createObjectURL(blob) }; pintar({ silencio: true }); }
-    catch (err) { setBubble(U.adulto.lecturaError); }
+    catch (err) { setBubble(u("adulto.lectura_error")); }
   };
 }
 function quitarFoto() { if (Mi && Mi.foto) { URL.revokeObjectURL(Mi.foto.url); Mi.foto = null; } }
@@ -270,9 +275,9 @@ async function reducir(file) {
 function dictar(clave, boton) {
   const R = SR(); if (!R) return;
   try { speechSynthesis.cancel(); } catch (e) {}
-  const r = new R(); r.lang = "es-AR"; r.interimResults = false; r.maxAlternatives = 1; r.continuous = false;
-  const fin = () => { boton.textContent = U.registro.dictar; };
-  boton.textContent = U.registro.escuchando;
+  const r = new R(); r.lang = I18N.meta().locale; r.interimResults = false; r.maxAlternatives = 1; r.continuous = false;
+  const fin = () => { boton.textContent = u("registro.dictar"); };
+  boton.textContent = u("registro.escuchando");
   r.onresult = ev => { const txt = ev.results[0][0].transcript; Mi[clave] = (Mi[clave] ? Mi[clave] + " " : "") + txt; const ta = document.querySelector('#misCont [data-in="' + clave + '"]'); if (ta) ta.value = Mi[clave]; };
   r.onend = fin; r.onerror = fin;
   try { r.start(); } catch (e) { fin(); }
@@ -280,12 +285,12 @@ function dictar(clave, boton) {
 
 /* ---------------- guardar ---------------- */
 function mensajeFin() {
-  const F = U.fin, p = [], m = Mi.m;
-  if (m.tipo === "hacer") p.push(pick(F.hacer, "mf-h"));
-  else { if (Mi.predSel != null && Mi.predSel !== "nose") p.push(pick(F.predijo, "mf-p")); p.push(pick(F.miro, "mf-m")); }
-  if (Mi.frase.trim()) p.push(pick(F.conto, "mf-c"));
-  if (Mi.fotoGuardada) p.push(pick(F.foto, "mf-f"));
-  p.push(Mi.res === "pensaba" ? F.pensaba[0] : F.distinto[0], F.cierre[0]);
+  const F = k => ul("fin." + k), p = [], m = Mi.m;
+  if (m.tipo === "hacer") p.push(pick(F("hacer"), "mf-h"));
+  else { if (Mi.predSel != null && Mi.predSel !== "nose") p.push(pick(F("predijo"), "mf-p")); p.push(pick(F("miro"), "mf-m")); }
+  if (Mi.frase.trim()) p.push(pick(F("conto"), "mf-c"));
+  if (Mi.fotoGuardada) p.push(pick(F("foto"), "mf-f"));
+  p.push(Mi.res === "pensaba" ? F("pensaba")[0] : F("distinto")[0], F("cierre")[0]);
   return p.join(" ");
 }
 async function guardar() {
@@ -298,8 +303,8 @@ async function guardar() {
     try {
       if (!A.idbOk) throw new Error("sin IndexedDB");
       const fid = await fAlm().guardar(Mi.foto.blob, { perfil: KID, entrada: e.id, mision: m.id });
-      if (await fAlm().obtener(fid)) e.foto = fid; else throw new Error("no quedó guardada");
-    } catch (err) { aviso = U.adulto.fotoError; }
+      if (await fAlm().obtener(fid)) e.foto = fid; else throw new Error("photo not stored");
+    } catch (err) { aviso = u("adulto.foto_error"); }
   }
   Mi.fotoGuardada = !!e.foto;
   const M_ = M(); (M_.album[KID] = M_.album[KID] || []).push(e);
@@ -312,15 +317,15 @@ async function guardar() {
 function guardarPend() {
   const m = Mi.m, M_ = M(), arr = M_.pend[KID] = (M_.pend[KID] || []).filter(p => p.m !== m.id);
   arr.push({ m: m.id, desde: Date.now(), fecha: today(), pred: Mi.pred, predSel: typeof Mi.predSel === "number" ? Mi.predSel : (Mi.predSel || null) });
-  save(); Gioval.almacen.guardarYa(); const msg = U.espera.despedida; cancelarTimer(); Mi = null; goMenuIsla(); hablar(msg, msg);
+  save(); Gioval.almacen.guardarYa(); const msg = u("espera.despedida"); cancelarTimer(); Mi = null; goMenuIsla(); hablar(msg, msg);
 }
 
 /* ---------------- elegir una misión ---------------- */
 let filtro = "todas";
-function abrirLista() { show("misLista"); pintarLista(); setBubble(U.lista.titulo.replace(/^\S+\s/, "")); }
+function abrirLista() { show("misLista"); pintarLista(); setBubble(u("lista.titulo").replace(/^\S+\s/, "")); }
 function pintarLista() {
   const f = $("misFiltros"); f.innerHTML = "";
-  [["todas", U.lista.todas]].concat(Object.keys(T.categorias).map(k => [k, T.categorias[k]])).forEach(([k, n]) => {
+  [["todas", u("lista.todas")]].concat(D.CATEGORIAS.map(k => [k, nombreCat(k)])).forEach(([k, n]) => {
     const b = document.createElement("button"); b.className = "mis-chip" + (filtro === k ? " on" : ""); b.textContent = n; b.dataset.cat = k;
     b.onclick = () => { filtro = k; pintarLista(); }; f.appendChild(b);
   });
@@ -328,8 +333,8 @@ function pintarLista() {
   lista().filter(m => filtro === "todas" || m.cat === filtro).forEach(m => {
     const t = textosDe(m), bloq = m.minEdad > edad, n = hechas(m.id), b = document.createElement("button");
     b.className = "mis-card" + (bloq ? " off" : ""); b.dataset.id = m.id;
-    b.innerHTML = `<span class="em">${bloq ? "🔒" : m.emoji}</span><b>${esc(t.nombre)}</b><small>${esc(T.categorias[m.cat])} · ${esc(U.supervision[m.sup].corto)}</small>` +
-      `<small>${bloq ? esc(U.lista.bloqueada) + " · " : ""}${esc(U.lista.desde(m.minEdad))}${n ? " · " + esc(U.lista.hecha(n)) : ""}</small>` + (sem && sem.id === m.id ? `<span class="mis-tagsem">${esc(U.lista.semanaTag)}</span>` : "");
+    b.innerHTML = `<span class="em">${bloq ? "🔒" : m.emoji}</span><b>${esc(t.nombre)}</b><small>${esc(nombreCat(m.cat))} · ${esc(u("supervision." + m.sup + ".corto"))}</small>` +
+      `<small>${bloq ? esc(u("lista.bloqueada")) + " · " : ""}${esc(u("lista.desde", { n: m.minEdad }))}${n ? " · " + esc(u("lista.hecha", { n })) : ""}</small>` + (sem && sem.id === m.id ? `<span class="mis-tagsem">${esc(u("lista.semana_tag"))}</span>` : "");
     if (!bloq) b.onclick = () => { ensureCtx(); abrirMision(m.id); };
     g.appendChild(b);
   });
@@ -337,22 +342,22 @@ function pintarLista() {
 
 /* ---------------- álbum ---------------- */
 const Alb = { adulto: false, urls: [], token: 0, confirmar: null };
-function abrirAlbum(adulto) { Alb.adulto = !!adulto; show("misAlbum"); pintarAlbum(); setBubble(U.album.titulo.replace(/^\S+\s/, "")); }
+function abrirAlbum(adulto) { Alb.adulto = !!adulto; show("misAlbum"); pintarAlbum(); setBubble(u("album.titulo").replace(/^\S+\s/, "")); }
 function soltarUrls() { Alb.urls.forEach(u => URL.revokeObjectURL(u)); Alb.urls = []; }
 async function pintarAlbum() {
   const tk = ++Alb.token, box = $("misAlbLista"); soltarUrls();
-  $("misAlbModo").innerHTML = Alb.adulto ? `👦<span class="lbl"> ${esc(U.album.niño.replace(/^\S+\s/, ""))}</span>` : `🔒<span class="lbl"> ${esc(U.album.adultos.replace(/^\S+\s/, ""))}</span>`;
-  $("misAlbModo").title = Alb.adulto ? U.album.niño : U.album.adultos;
-  $("misAlbInfo").textContent = Alb.adulto ? U.album.infoAdulto : ""; $("misAlbInfo").style.display = Alb.adulto ? "" : "none";
+  $("misAlbModo").innerHTML = Alb.adulto ? `👦<span class="lbl"> ${esc(u("album.nino").replace(/^\S+\s/, ""))}</span>` : `🔒<span class="lbl"> ${esc(u("album.adultos").replace(/^\S+\s/, ""))}</span>`;
+  $("misAlbModo").title = Alb.adulto ? u("album.nino") : u("album.adultos");
+  $("misAlbInfo").textContent = Alb.adulto ? u("album.info_adulto") : ""; $("misAlbInfo").style.display = Alb.adulto ? "" : "none";
   const arr = verAlbum().slice().sort((a, b) => b.t - a.t);
-  if (!arr.length) { box.innerHTML = `<div class="mis-vacio">${esc(U.album.vacio)}</div>`; return; }
+  if (!arr.length) { box.innerHTML = `<div class="mis-vacio">${esc(u("album.vacio"))}</div>`; return; }
   box.innerHTML = arr.map(e => {
-    const fecha = new Date(e.t).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
-    const det = [e.pred ? esc(U.album.predijo) + " " + esc(e.pred) : "", e.obs ? esc(U.album.paso) + " " + esc(e.obs) : "", e.porque ? esc(U.album.porque) + " " + esc(e.porque) : ""].filter(Boolean).map(x => `<small>${x}</small>`).join("");
-    const adm = Alb.adulto ? `<div class="mis-adm"><button class="mis-mini" data-del="${esc(e.id)}">${esc(U.album.borrar)}</button>${e.foto ? ` <button class="mis-mini" data-delfoto="${esc(e.id)}">${esc(U.album.borrarFoto)}</button>` : ""}</div>` : "";
+    const fecha = I18N.fecha(new Date(e.t), { day: "numeric", month: "long", year: "numeric" });
+    const det = [e.pred ? esc(u("album.predijo")) + " " + esc(e.pred) : "", e.obs ? esc(u("album.paso")) + " " + esc(e.obs) : "", e.porque ? esc(u("album.porque")) + " " + esc(e.porque) : ""].filter(Boolean).map(x => `<small>${x}</small>`).join("");
+    const adm = Alb.adulto ? `<div class="mis-adm"><button class="mis-mini" data-del="${esc(e.id)}">${esc(u("album.borrar"))}</button>${e.foto ? ` <button class="mis-mini" data-delfoto="${esc(e.id)}">${esc(u("album.borrar_foto"))}</button>` : ""}</div>` : "";
     return `<div class="mis-ent" data-id="${esc(e.id)}"><div class="mis-foto" data-foto="${esc(e.foto || "")}"><span class="em">${esc(e.emoji)}</span></div>
       <div class="mis-txt"><b>${esc(e.emoji)} ${esc(e.nombre)}</b><small>${esc(fecha)}</small>${e.frase ? `<p class="mis-frase">“${esc(e.frase)}”</p>` : ""}
-      <span class="mis-tag t-${e.res}">${esc(e.res === "pensaba" ? U.album.pensaba : U.album.distinto)}</span>${det}${adm}</div></div>`;
+      <span class="mis-tag t-${e.res}">${esc(e.res === "pensaba" ? u("album.pensaba") : u("album.distinto"))}</span>${det}${adm}</div></div>`;
   }).join("");
   for (const e of arr) {
     if (!e.foto) continue;
@@ -360,7 +365,7 @@ async function pintarAlbum() {
     if (tk !== Alb.token) return;
     const z = box.querySelector('.mis-ent[data-id="' + e.id + '"] .mis-foto'); if (!z) continue;
     if (rec && rec.blob) { const u = URL.createObjectURL(rec.blob); Alb.urls.push(u); z.innerHTML = `<img src="${u}" alt="">`; }
-    else z.innerHTML = `<span class="mis-sinfoto">${esc(U.album.sinFoto)}</span>`;
+    else z.innerHTML = `<span class="mis-sinfoto">${esc(u("album.sin_foto"))}</span>`;
   }
 }
 async function borrarEntrada(id, soloFoto) {
@@ -376,7 +381,7 @@ function conectarAlbum() {
     const b = ev.target.closest("button"); if (!b || !Alb.adulto) return;
     const id = b.dataset.del || b.dataset.delfoto; if (!id) return;
     const solo = !!b.dataset.delfoto; Alb.confirmar = { id, solo };
-    $("misConfirmTxt").textContent = solo ? U.album.confirmaFoto : U.album.confirmaRecuerdo; $("misConfirm").classList.add("show");
+    $("misConfirmTxt").textContent = solo ? u("album.confirma_foto") : u("album.confirma_recuerdo"); $("misConfirm").classList.add("show");
   });
   $("misConfirmSi").onclick = async () => { const c = Alb.confirmar; Alb.confirmar = null; $("misConfirm").classList.remove("show"); if (c) await borrarEntrada(c.id, c.solo); };
   $("misConfirmNo").onclick = () => { Alb.confirmar = null; $("misConfirm").classList.remove("show"); };
@@ -385,13 +390,13 @@ function conectarAlbum() {
 /* ---------------- panel de adultos ---------------- */
 function refrescarPanel() {
   const ed = $("misPEdad"), se = $("misPSem"); if (!ed) return;
-  $("misPKid").textContent = KID || "…";
+  $("misPEdadL").textContent = u("panel.edad", { nombre: KID || "…" });
   ed.disabled = se.disabled = !KID; $("misPAlbum").disabled = !KID;
-  if (ed.options.length === 0) for (let a = 4; a <= 12; a++) { const o = document.createElement("option"); o.value = a; o.textContent = U.panel.años(a); ed.appendChild(o); }
+  ed.innerHTML = ""; for (let a = 4; a <= 12; a++) { const o = document.createElement("option"); o.value = a; o.textContent = u("panel.anos", { n: a }); ed.appendChild(o); }
   if (!KID) return;
   ed.value = String(edadDe());
   const sem = misionSemana(), s = M().semana[KID], auto = !s || s.auto !== false;
-  se.innerHTML = `<option value="">${esc(U.panel.auto)}</option>` + lista().map(m => `<option value="${m.id}">${m.emoji} ${esc(textosDe(m).nombre)}</option>`).join("");
+  se.innerHTML = `<option value="">${esc(u("panel.auto"))}</option>` + lista().map(m => `<option value="${m.id}">${m.emoji} ${esc(textosDe(m).nombre)}</option>`).join("");
   se.value = auto ? "" : (sem ? sem.id : "");
 }
 function conectarPanel() {
@@ -403,19 +408,20 @@ function conectarPanel() {
 
 /* ---------------- menú de la isla ---------------- */
 function menuPropio() {
-  const c = U.tarjetas, cards = [], sem = misionSemana();
-  if (sem) cards.push({ em: sem.emoji, t: c.semana, s: textosDe(sem).nombre, on: true, go: () => abrirMision(sem.id) });
+  const cards = [], sem = misionSemana();
+  if (sem) cards.push({ em: sem.emoji, t: u("tarjetas.semana"), s: textosDe(sem).nombre, on: true, go: () => abrirMision(sem.id) });
   verPend().forEach(p => {
     const m = lista().find(x => x.id === p.m); if (!m) return;
-    cards.push({ em: m.emoji, t: c.pendiente + " " + textosDe(m).nombre, s: c.pendienteSub(Math.floor((Date.now() - p.desde) / DAY)), on: true, go: () => abrirMision(m.id, p) });
+    cards.push({ em: m.emoji, t: u("tarjetas.pendiente", { nombre: textosDe(m).nombre }), s: u("tarjetas.pendiente_sub", { dias: Math.floor((Date.now() - p.desde) / DAY) }), on: true, go: () => abrirMision(m.id, p) });
   });
-  cards.push({ em: "🧭", t: c.elegir, s: c.elegirSub, on: true, go: () => abrirLista() });
+  cards.push({ em: "🧭", t: u("tarjetas.elegir"), s: u("tarjetas.elegir_sub"), on: true, go: () => abrirLista() });
   const n = verAlbum().length;
-  cards.push({ em: "📖", t: c.album, s: n ? c.albumSub(n) : c.albumSub0, on: true, go: () => abrirAlbum(false) });
+  cards.push({ em: "📖", t: u("tarjetas.album"), s: n ? u("tarjetas.album_sub", { n }) : u("tarjetas.album_sub0"), on: true, go: () => abrirAlbum(false) });
   return cards;
 }
 
 /* ---------------- pantallas ---------------- */
+const di = k => 'data-i18n="misiones.ui.' + k + '"';  /* atributo para que i18n.aplicar() retraduzca el texto al cambiar de idioma */
 const DOM = {
   pantallas: `
 <style>
@@ -492,33 +498,33 @@ const DOM = {
 }
 </style>
 <div class="screen" id="misLista">
-  <div class="bar"><button class="btn alt" id="misListaBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">${esc(U.lista.titulo)}</h2><span style="width:90px"></span></div>
+  <div class="bar"><button class="btn alt" id="misListaBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.isla">${esc(t("app.isla"))}</span></button><h2 style="margin:0" ${di("lista.titulo")}>${esc(u("lista.titulo"))}</h2><span style="width:90px"></span></div>
   <div class="mis-filtros" id="misFiltros"></div>
   <div class="mis-grid" id="misGrid"></div>
 </div>
 <div class="screen" id="misJuego">
   <div class="bar">
-    <button class="btn alt" id="misBack">⬅<span class="lbl"> Volver</span></button>
+    <button class="btn alt" id="misBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.volver">${esc(t("app.volver"))}</span></button>
     <div style="font-weight:800;font-size:clamp(16px,2.6vw,24px);flex:1;text-align:center;min-width:0" id="misTitulo"></div>
-    <button class="btn alt" id="misHear">🔊<span class="lbl"> Escuchar</span></button>
+    <button class="btn alt" id="misHear">🔊<span class="lbl" data-i18n="app.escuchar">${esc(t("app.escuchar"))}</span></button>
   </div>
   <div class="prog" id="misProg"></div>
   <div class="mis-body"><div class="mis-cont" id="misCont"></div><div class="mis-acc" id="misAcc"></div></div>
   <input type="file" id="misFile" accept="image/*" capture="environment" style="display:none">
 </div>
 <div class="screen" id="misAlbum">
-  <div class="bar"><button class="btn alt" id="misAlbBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">${esc(U.album.titulo)}</h2><button class="btn alt" id="misAlbModo"></button></div>
+  <div class="bar"><button class="btn alt" id="misAlbBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.isla">${esc(t("app.isla"))}</span></button><h2 style="margin:0" ${di("album.titulo")}>${esc(u("album.titulo"))}</h2><button class="btn alt" id="misAlbModo"></button></div>
   <div class="mis-info" id="misAlbInfo" style="display:none"></div>
   <div class="mis-alb" id="misAlbLista"></div>
 </div>
 <div class="big" id="misConfirm">
   <div style="background:#fff;color:#2b2350;padding:14px 18px;border-radius:18px;max-width:92vw;font-size:18px;font-weight:700" id="misConfirmTxt"></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="misConfirmSi">${esc(U.album.si)}</button><button class="btn alt" id="misConfirmNo">${esc(U.album.no)}</button></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="misConfirmSi" ${di("album.si")}>${esc(u("album.si"))}</button><button class="btn alt" id="misConfirmNo" ${di("album.no")}>${esc(u("album.no"))}</button></div>
 </div>`,
-  panelPie: `<div class="psum mis-panel"><b>${esc(U.panel.titulo)}</b>
-    <label>${esc(U.panel.edad)}<b id="misPKid"></b>: <select id="misPEdad"></select></label>
-    <label>${esc(U.panel.semana)}<select id="misPSem"></select></label>
-    <div style="margin-top:8px"><button class="btn" id="misPAlbum" style="padding:6px 14px;font-size:16px">${esc(U.panel.album)}</button></div></div>`,
+  panelPie: `<div class="psum mis-panel"><b ${di("panel.titulo")}>${esc(u("panel.titulo"))}</b>
+    <label><span id="misPEdadL">${esc(u("panel.edad", { nombre: "…" }))}</span> <select id="misPEdad"></select></label>
+    <label><span ${di("panel.semana")}>${esc(u("panel.semana"))}</span> <select id="misPSem"></select></label>
+    <div style="margin-top:8px"><button class="btn" id="misPAlbum" style="padding:6px 14px;font-size:16px" ${di("panel.album")}>${esc(u("panel.album"))}</button></div></div>`,
 };
 
 function iniciar() {
@@ -526,10 +532,18 @@ function iniciar() {
   $("misListaBack").onclick = () => goMenuIsla();
   $("misBack").onclick = () => salir();
   $("misHear").onclick = () => { if (Mi && Mi.habla) hablar(Mi.habla, Mi.burb); };
+  /* si cambia el idioma con una pantalla de la isla a la vista, se vuelve a dibujar (sin volver a hablar) */
+  Gioval.on("idioma", d => {
+    if (!d || !d.cambio) return;
+    const a = document.querySelector(".screen.active"); if (!a) return;
+    if (a.id === "misLista") pintarLista();
+    else if (a.id === "misAlbum") pintarAlbum();
+    else if (a.id === "misJuego" && Mi) { Mi.t = textosDe(Mi.m); pintar({ silencio: true }); }
+  });
 }
 
-const ISLA = { id: "misiones", name: U.isla.nombre, emoji: "🧭", sub: U.isla.sub, skills: [], actividades: {}, plain: true, instrumento: null, entradas: [],
-  dom: DOM, iniciar, menuPropio, etiquetaTiempo: U.isla.etiquetaTiempo, hablaMenu: U.hablaMenu,
+const ISLA = { id: "misiones", emoji: "🧭", get name() { return u("isla.nombre"); }, get sub() { return u("isla.sub"); }, skills: [], actividades: {}, plain: true, instrumento: null, entradas: [],
+  dom: DOM, iniciar, menuPropio, etiquetaTiempo: () => u("isla.etiqueta_tiempo"), hablaMenu: () => u("isla.habla_menu"),
   outro: "", capTail: "" };
 Gioval.islas.registrar(ISLA);
 /* interfaz para pruebas y para otras islas */
