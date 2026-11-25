@@ -17,11 +17,14 @@ const F=["./","index.html","manifest.json","apple-touch-icon.png","icon-192.png"
   "js/core/entrada/midi.js",
   "js/core/actividades.js",
   "js/core/motor.js",
+  "js/core/dominio.js",
   "js/core/ui.js",
   "js/core/adultos.js",
   "js/datos/proximas.js",
   "js/datos/tareas.js",
+  "js/datos/numeros.js",
   "js/islas/musica.js",
+  "js/islas/numeros_ubicacion.js",
   "js/islas/numeros.js"];
 /* instalar: precargar todo SIN activarse solo; la página avisa "hay una versión nueva" y al tocar Actualizar manda {tipo:"saltar"} */
 self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)))});
