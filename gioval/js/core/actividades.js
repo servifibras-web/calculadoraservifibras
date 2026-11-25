@@ -75,5 +75,6 @@ async function tapPick(i){
 }
 $("btnActHear").onclick=()=>{ if(S.tap&&S.tap.v) speak(S.tap.v.say); };
 $("btnActSkip").onclick=()=>{ if(!S.session) return; const run=++S.run; S.session.i++; renderProg(); nextItem(run); };
-$("btnActBack").onclick=()=>{ S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow(); goMenuIsla(); };
+$("btnActBack").onclick=()=>{ if(S.session&&S.session.alVolver) return S.session.alVolver();   /* gancho genérico: un modo con sesión propia decide a dónde vuelve */
+  S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow(); goMenuIsla(); };
 
