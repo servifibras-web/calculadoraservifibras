@@ -53,7 +53,15 @@ Una isla puede declarar `informe(kid)`: devuelve una lista de líneas de texto q
 "CHEQUEOS SIN AYUDA" (Ritmo lo usa para la regularidad en milisegundos). El motor no sabe nada de lo que contiene. Los textos de ese
 bloque también van en la tabla del idioma.
 
-### Si la isla no es por toque
+### Isla sin sesiones (como Misiones)
+
+Si la isla no tiene habilidades ni sesión diaria, declara `skills:[]` y, en vez de las tarjetas de siempre, `menuPropio()`
+(devuelve `[{em,t,s,on,go}]`), `etiquetaTiempo()` (texto en lugar de "⏱ 15 min") y `hablaMenu()` (lo que dice la mascota al
+entrar desde el mapa). Los tres son **funciones** que devuelven el texto en el idioma actual (`() => t("clave")`); `name` y `sub` son getters.
+Las pantallas propias llevan `data-i18n` para retraducirse y redibujan con `Gioval.on("idioma", ...)`. Sus pantallas **no** llevan la clase `juego`: así su tiempo no cuenta como pantalla. Para sumar
+ajustes al panel de adultos usa `dom.panelPie` y `Gioval.on("panel", refrescar)`. Ver `docs/MISIONES.md`.
+
+## Si la isla no es por toque
 
 Puede traer su propia pantalla y juego (como Música): declarar `dom`, `iniciar`, `entrar`, y en cada actividad
 una función `jugar(run, it, ss)` que devuelve una promesa con el resultado. Mirar `js/islas/musica.js`.
