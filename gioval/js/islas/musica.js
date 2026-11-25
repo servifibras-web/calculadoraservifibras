@@ -3,9 +3,10 @@
    Datos (habilidades, canciones, textos) + juego del piano (teclado en pantalla, demostración, escucha por micrófono).
    Se registra en Gioval.islas; el motor no conoce nada de esta isla. */
 (function(){
-const NAMES = {C:"Do",D:"Re",E:"Mi",F:"Fa",G:"Sol",A:"La",B:"Si"};
 const COLORS = {C:"#ff5a5f",D:"#ff9f1c",E:"#ffd23f",F:"#4cc86a",G:"#2ec4b6",A:"#4d96ff",B:"#9b5de5"};
 const BASE = {C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+/* nombre de la nota según el idioma: Do Re Mi (español), C D E (inglés)... */
+const noteName = L => Gioval.i18n.nombreNota(BASE[L]);
 const WHITE = [60,62,64,65,67,69,71,72,74,76]; // Do4 .. Mi5
 const PCLET = {0:"C",2:"D",4:"E",5:"F",7:"G",9:"A",11:"B"};
 function parseNote(tok){
@@ -16,16 +17,18 @@ function parseNote(tok){
 function parsePhrase(s){ return s.trim().split(/\s+/).map(parseNote); }
 // Agregá acá las canciones favoritas de Valentino (melodía de una mano, notas Do4–Mi5)
 const SONGS = [
-  {title:"Estrellita", sub:"Estrellita, ¿dónde estás?", emoji:"⭐",
+  {id:"Estrellita", clave:"estrellita", emoji:"⭐",
    phrases:["C4 C4 G4 G4 A4 A4 G4:2","F4 F4 E4 E4 D4 D4 C4:2","G4 G4 F4 F4 E4 E4 D4:2"],
    order:[0,1,2,2,0,1]},
-  {title:"Himno a la Alegría", sub:"Beethoven", emoji:"🎶",
+  {id:"Himno a la Alegría", clave:"himno", emoji:"🎶",
    phrases:["E4 E4 F4 G4 G4 F4 E4 D4","C4 C4 D4 E4 E4:1.5 D4:.5 D4:2","C4 C4 D4 E4 D4:1.5 C4:.5 C4:2"],
    order:[0,1,0,2]},
-  {title:"Cumpleaños feliz", sub:"¡A festejar!", emoji:"🎂",
+  {id:"Cumpleaños feliz", clave:"cumple", emoji:"🎂",
    phrases:["G4 G4 A4 G4 C5 B4:2","G4 G4 A4 G4 D5 C5:2"],
    order:[0,1,0,1]},
-].map(s=>({...s, chunks:s.phrases.map(parsePhrase)}));
+].map(s=>({id:s.id, emoji:s.emoji, order:s.order, chunks:s.phrases.map(parsePhrase),
+  /* id = título original en español: es la clave del progreso guardado (store.stars), NO se traduce */
+  get title(){ return t("musica.cancion."+s.clave+".titulo"); }, get sub(){ return t("musica.cancion."+s.clave+".sub"); }}));
 
 
 /* ---- estado propio de la isla (el motor solo conoce lo genérico de S) ---- */
@@ -34,14 +37,13 @@ const MIC_OPTS={
   umbral:()=>(+$("sens").value)/1000,
   nivel:r=>{ $("dbgLevel").style.width=Math.min(100,r*600)+"%"; },
   alDetectar:b=>{ $("dbgNote").textContent=midiName(b)+" ("+b+")"; },
-  alEncender:()=>{ $("btnMic").classList.add("on"); setBubble("¡Te escucho! Tocá tu piano 🎹"); },
-  alError:()=>{ $("btnMic").classList.remove("on"); setBubble("No pude usar el micrófono. Podés tocar el teclado de la pantalla."); },
+  alEncender:()=>{ $("btnMic").classList.add("on"); setBubble(t("musica.mic.encendido")); },
+  alError:()=>{ $("btnMic").classList.remove("on"); setBubble(t("musica.mic.error")); },
   alApagar:()=>{ $("btnMic").classList.remove("on"); },
 };
-function midiName(m){ const n=["Do","Do#","Re","Re#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"]; return n[((m%12)+12)%12]; }
+function midiName(m){ return Gioval.i18n.nombreNota(m); }
 Object.assign(S,{song:null,chunks:[],ci:0,ni:0,missPhrase:0,missNote:0,learnIdx:0});
-const starsOf=t=>store.stars[KID+"|"+t]||0;
-const PRAISE = ()=>["¡Muy bien, "+KID+"!","¡Qué bien que lo intentaste!","¡Lo practicaste y te salió!","¡Eso es! Escuchaste con atención.","¡Seguiste hasta lograrlo!","¡Esa melodía está quedando genial!"];
+const starsOf=id=>store.stars[KID+"|"+id]||0;
 
 /* ============ TECLADO ============ */
 function buildKeyboard(){
@@ -49,7 +51,7 @@ function buildKeyboard(){
   WHITE.forEach((m,i)=>{
     const L=PCLET[m%12]; const k=document.createElement("div");
     k.className="key"; k.dataset.m=m; k.style.setProperty("--c",COLORS[L]);
-    k.innerHTML=`<span>${NAMES[L]}</span>`;
+    k.innerHTML=`<span>${noteName(L)}</span>`;
     k.addEventListener("pointerdown",e=>{ e.preventDefault(); pressKey(m); });
     kb.appendChild(k);
   });
@@ -71,7 +73,7 @@ function pressKey(midi){ Gioval.entrada.proveedores.toque.pulsar({midi}); }
 function renderHome(){
   const box=$("songs"); box.innerHTML="";
   SONGS.forEach((s,i)=>{
-    const st=starsOf(s.title);
+    const st=starsOf(s.id);
     const b=document.createElement("button"); b.className="song";
     b.innerHTML=`<div style="font-size:44px">${s.emoji}</div>${s.title}<small>${s.sub}</small><div class="st">${"⭐".repeat(st)}${"☆".repeat(3-st)}</div>`;
     b.onclick=()=>startSong(i); box.appendChild(b);
@@ -87,8 +89,8 @@ function renderDots(){
     const pending=i>=S.ni;
     d.className="dot"+(i<S.ni?" done":"")+(i===S.ni&&S.mode==="play"?" cur":"");
     if(pending&&hide){ d.className+=" q"; d.innerHTML="<span>?</span>"; }
-    else if(pending&&S.kind==="find"&&S.hint>=2&&!S.reveal){ d.className+=" neutral"; d.innerHTML=`<span>${NAMES[L]}</span>`; }
-    else { d.style.background=COLORS[L]; d.innerHTML=`<span>${NAMES[L]}</span>`; }
+    else if(pending&&S.kind==="find"&&S.hint>=2&&!S.reveal){ d.className+=" neutral"; d.innerHTML=`<span>${noteName(L)}</span>`; }
+    else { d.style.background=COLORS[L]; d.innerHTML=`<span>${noteName(L)}</span>`; }
     if(i<S.ni) d.style.background=COLORS[L];
     box.appendChild(d);
   });
@@ -117,39 +119,39 @@ async function startSong(i){
   ensureCtx(); S.check=false; S.capShown=false; S.tap=null;
   S.song=SONGS[i]; S.run++; S.learnIdx=0; S.session=null; S.onDone=null; S.kind=null; S.hint=0; S.reveal=false; $("songTitle").textContent=S.song.emoji+" "+S.song.title;
   show("play"); buildKeyboard(); renderProg();
-  await learnPhrase(0, "Vamos a tocar "+S.song.title+". Primero escuchá.");
+  await learnPhrase(0, t("musica.cancion.intro",{cancion:S.song.title}));
 }
 async function learnPhrase(idx, intro){
   const run=S.run; S.learnIdx=idx; S.mode="demo"; S.chunks=[S.song.chunks[idx]]; S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; renderDots();
-  await speak(intro|| (idx===0?"Escuchá cómo suena.":"Ahora, la siguiente parte. Escuchá."));
+  await speak(intro|| (idx===0?t("musica.frase.primera"):t("musica.frase.siguiente")));
   if(run!==S.run) return;
   if(!(await demo(S.chunks[0],run))) return;
-  await speak("¡Ahora te toca a vos!"); if(run!==S.run) return;
+  await speak(t("musica.te_toca")); if(run!==S.run) return;
   S.mode="play"; renderDots(); armMic();
 }
 async function startFull(){
   const run=S.run; S.mode="demo";
   S.chunks=S.song.order.map(i=>S.song.chunks[i]); S.ci=0; S.ni=0; S.missPhrase=0; S.missNote=0; S.full=true;
   renderDots();
-  await speak("¡Ya sabés todas las partes! Ahora tocá la canción completa. ¡Yo te espero!");
+  await speak(t("musica.completa"));
   if(run!==S.run) return; S.mode="play"; renderDots();
 }
 function stars3(m){ return m===0?3:(m<=3?2:1); }
 async function handleInput(midi){
   if(S.mode!=="play"||S.tap) return;
   const now=performance.now(); if(now-S.lastWrong<300) return;
-  const t=chunk()[S.ni]; if(!t) return;
+  const nt=chunk()[S.ni]; if(!nt) return;
   const anyOct=$("anyOctave").checked;
-  const ok = anyOct ? (midi%12===t.midi%12) : (midi===t.midi);
+  const ok = anyOct ? (midi%12===nt.midi%12) : (midi===nt.midi);
   const run=S.run;
   if(ok){
-    S.missNote=0; if(!S.check) flash(t.midi,"ok",300); S.ni++; renderDots();
+    S.missNote=0; if(!S.check) flash(nt.midi,"ok",300); S.ni++; renderDots();
     if(S.ni>=chunk().length){
       S.mode="between";
       if(S.onDone){ const cb=S.onDone; cb({miss:S.missPhrase}); return; }
       if(!S.full){
         const st=stars3(S.missPhrase);
-        await speak(rnd(PRAISE())+" "+"⭐".repeat(st)); if(run!==S.run) return;
+        await speak(rnd(tl("musica.elogio",{nombre:KID}))+" "+"⭐".repeat(st)); if(run!==S.run) return;
         if(S.learnIdx+1<S.song.chunks.length) await learnPhrase(S.learnIdx+1);
         else await startFull();
       } else {
@@ -162,40 +164,42 @@ async function handleInput(midi){
     S.lastWrong=now; S.missPhrase++; S.missNote++;
     if(S.check){ S.mode="between"; const cb=S.onDone; cb({miss:S.missPhrase}); return; }
     flash(midi,"near",450);
-    const tn=NAMES[PCLET[t.midi%12]];
+    const tn=noteName(PCLET[nt.midi%12]);
     if(S.kind==="ear"||S.kind==="echo"){
-      if(S.missNote===2){ S.mode="demo"; await speak("Escuchá otra vez."); if(await demo(chunk(),run,false)){ S.mode="play"; renderDots(); } }
-      else if(S.missNote>=4){ S.reveal=true; S.missNote=0; renderDots(); setBubble("Mirá, es el "+tn+" 👀"); }
-      else setBubble("¡Casi! Probá otra vez 😊");
+      if(S.missNote===2){ S.mode="demo"; await speak(t("musica.escucha_otra")); if(await demo(chunk(),run,false)){ S.mode="play"; renderDots(); } }
+      else if(S.missNote>=4){ S.reveal=true; S.missNote=0; renderDots(); setBubble(t("musica.mira_es",{nota:tn})); }
+      else setBubble(t("musica.casi_otra"));
     }
-    else if(S.missNote===2){ S.reveal=true; renderDots(); setBubble("¡Casi! Buscá el "+tn); await speak("¡Casi! Probá con el "+tn+"."); }
-    else if(S.missNote>=4){ S.missNote=0; S.mode="demo"; await speak("Mirá, te ayudo. Este es el "+tn+"."); tone(t.midi,.8); flash(t.midi,"demo",700); await sleep(900); if(run===S.run){ S.mode="play"; renderDots(); } }
-    else setBubble("¡Casi! Probá otra vez 😊");
+    else if(S.missNote===2){ S.reveal=true; renderDots(); setBubble(t("musica.casi_busca",{nota:tn})); await speak(t("musica.casi_proba",{nota:tn})); }
+    else if(S.missNote>=4){ S.missNote=0; S.mode="demo"; await speak(t("musica.te_ayudo",{nota:tn})); tone(nt.midi,.8); flash(nt.midi,"demo",700); await sleep(900); if(run===S.run){ S.mode="play"; renderDots(); } }
+    else setBubble(t("musica.casi_otra"));
   }
 }
 async function finishSong(run){
   S.finMode="song";
   S.finOk=()=>{ const i=SONGS.indexOf(S.song); S.full=false; startSong(i); };
   S.finHome=()=>{ S.full=false; $("btnBack").onclick(); };
-  $("btnFinOk").textContent="¡Otra vez!"; $("btnFinHome").textContent="Elegir otra canción";
+  $("btnFinOk").textContent=t("motor.fin.otra_vez"); $("btnFinHome").textContent=t("motor.fin.elegir");
   S.mode="done"; const st=stars3(Math.floor(S.missPhrase/2)); // en la canción completa se tolera más
-  const prev=starsOf(S.song.title); if(st>prev){ store.stars[KID+"|"+S.song.title]=st; save(); }
+  const prev=starsOf(S.song.id); if(st>prev){ store.stars[KID+"|"+S.song.id]=st; save(); }
   $("finStars").textContent="⭐".repeat(st)+"☆".repeat(3-st);
-  $("finTitle").textContent="¡Tocaste "+S.song.title+"!";
+  $("finTitle").textContent=t("musica.tocaste",{cancion:S.song.title});
   $("finish").classList.add("show");
-  await speak("¡Bravo "+KID+"! ¡Tocaste toda la canción!");
+  await speak(t("musica.bravo",{nombre:KID}));
 }
 
 /* ---- habilidades (cadena con req) ---- */
 const SK_ALL=[60,62,64,65,67,69,71,72];
+/* el nombre de cada habilidad sale de la tabla de idiomas (musica.hab.<id>); el id NO cambia nunca (es la clave del progreso) */
+const sk=(id,o)=>Object.defineProperty({id,...o},"name",{get:()=>t("musica.hab."+id),enumerable:true});
 const SKILLS_MUSICA=[
-  {id:"n1",name:"Do, Re y Mi",icon:"🔴🟠🟡",type:"find",notes:[60,62,64],prior:[],req:[]},
-  {id:"e1",name:"Oído: ¿cuál suena?",icon:"👂",type:"ear",notes:[60,62,64],req:["n1"]},
-  {id:"n2",name:"Fa y Sol",icon:"🟢🔵",type:"find",notes:[65,67],prior:[60,62,64],req:["n1"]},
-  {id:"eco3",name:"Eco de 3 notas",icon:"🔁",type:"echo",len:3,notes:[60,62,64,65,67],req:["e1","n2"]},
-  {id:"n3",name:"La, Si y Do alto",icon:"🟣⭐",type:"find",notes:[69,71,72],prior:[60,62,64,65,67],req:["n2"]},
-  {id:"e2",name:"Oído con todas las notas",icon:"🎧",type:"ear",notes:SK_ALL,req:["e1","n3"]},
-  {id:"eco5",name:"Eco de 5 notas",icon:"🎶",type:"echo",len:5,notes:SK_ALL,req:["eco3","n3"]},
+  sk("n1",{icon:"🔴🟠🟡",type:"find",notes:[60,62,64],prior:[],req:[]}),
+  sk("e1",{icon:"👂",type:"ear",notes:[60,62,64],req:["n1"]}),
+  sk("n2",{icon:"🟢🔵",type:"find",notes:[65,67],prior:[60,62,64],req:["n1"]}),
+  sk("eco3",{icon:"🔁",type:"echo",len:3,notes:[60,62,64,65,67],req:["e1","n2"]}),
+  sk("n3",{icon:"🟣⭐",type:"find",notes:[69,71,72],prior:[60,62,64,65,67],req:["n2"]}),
+  sk("e2",{icon:"🎧",type:"ear",notes:SK_ALL,req:["e1","n3"]}),
+  sk("eco5",{icon:"🎶",type:"echo",len:5,notes:SK_ALL,req:["eco3","n3"]}),
 ];
 let lastTarget=null;
 function pickDistinct(arr){ let x,g=0; do{ x=rnd(arr); g++; }while(arr.length>1&&x===lastTarget&&g<10); lastTarget=x; return x; }
@@ -204,20 +208,20 @@ function pickDistinct(arr){ let x,g=0; do{ x=rnd(arr); g++; }while(arr.length>1&
 const ACTIVIDADES={
   find:{
     make(s){ const pool=(Math.random()<.35&&s.prior&&s.prior.length)?s.prior:s.notes; return {skill:s,notes:[pickDistinct(pool)]}; },
-    async present(it,run,ss){ const nm=NAMES[PCLET[it.notes[0]%12]]; await speak(rnd(["Tocá el "+nm,"Buscá el "+nm,"¿Dónde está el "+nm+"?"])); return run===S.run; }
+    async present(it,run,ss){ const nm=noteName(PCLET[it.notes[0]%12]); await speak(rnd(tl("musica.find",{nota:nm}))); return run===S.run; }
   },
   ear:{
     make(s){ return {skill:s,notes:[pickDistinct(s.notes)]}; },
-    async present(it,run,ss){ await speak(ss.seen.ear?"Escuchá…":"Escuchá bien y tocá la nota que suena."); ss.seen.ear=true;
-      if(!(await demo(S.chunks[0],run,false))) return false; setBubble("¿Cuál era? 🎧"); return true; }
+    async present(it,run,ss){ await speak(ss.seen.ear?t("musica.ear_otra"):t("musica.ear_primera")); ss.seen.ear=true;
+      if(!(await demo(S.chunks[0],run,false))) return false; setBubble(t("musica.ear_cual")); return true; }
   },
   echo:{
     tolerancia:1, chequeoItems:1,
     make(s){ const seq=[]; let cur=rnd(s.notes); seq.push(cur);
       while(seq.length<s.len){ const i=s.notes.indexOf(cur); const j=Math.max(0,Math.min(s.notes.length-1,i+rnd([-2,-1,1,2]))); cur=s.notes[j]; seq.push(cur); }
       return {skill:s,notes:seq}; },
-    async present(it,run,ss){ await speak(ss.seen.echo?"Escuchá…":"Escuchá y repetí igualito."); ss.seen.echo=true;
-      if(!(await demo(S.chunks[0],run,false))) return false; setBubble("¡Ahora vos! 🎹"); return true; }
+    async present(it,run,ss){ await speak(ss.seen.echo?t("musica.echo_otra"):t("musica.echo_primera")); ss.seen.echo=true;
+      if(!(await demo(S.chunks[0],run,false))) return false; setBubble(t("musica.echo_vos")); return true; }
   }
 };
 
@@ -237,17 +241,17 @@ function armMic(){ /* el micrófono sigue activo si ya se encendió */ }
 const DOM={
   pantallas:`
   <div class="screen" id="home">
-    <div class="bar"><button class="btn alt" id="btnHomeBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🎵 Mis canciones</h2><span style="width:90px"></span></div>
+    <div class="bar"><button class="btn alt" id="btnHomeBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.isla"> Isla</span></button><h2 style="margin:0" data-i18n="musica.canciones_titulo">🎵 Mis canciones</h2><span style="width:90px"></span></div>
     <div class="songs" id="songs"></div>
   </div>
 
   <div class="screen juego" id="play">
     <div class="bar">
-      <button class="btn alt" id="btnBack">⬅<span class="lbl"> Volver</span></button>
+      <button class="btn alt" id="btnBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.volver"> Volver</span></button>
       <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="songTitle"></div>
       <div style="display:flex;gap:8px">
-        <button class="btn alt" id="btnHear">🔊<span class="lbl"> Escuchar</span></button>
-        <button class="btn" id="btnSkip">Seguir ➜</button>
+        <button class="btn alt" id="btnHear">🔊<span class="lbl" data-i18n="app.escuchar"> Escuchar</span></button>
+        <button class="btn" id="btnSkip" data-i18n="app.seguir">Seguir ➜</button>
       </div>
     </div>
     <div class="prog" id="prog"></div>
@@ -257,17 +261,17 @@ const DOM={
     </div>
   </div>
 `,
-  herramientas:`<button class="iconbtn" id="btnMic" title="Escuchar mi piano">🎤</button>`,
-  panelTexto:` — el 🎤 hace que la app escuche el piano. Tocar el teclado de la pantalla también funciona.`,
-  panelArriba:`<label>Nota que escucho: <b id="dbgNote">–</b></label>
-    <label>Volumen <div class="meter"><i id="dbgLevel"></i></div></label>
-    <label>Sensibilidad <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
-    <label>Aceptar la nota en cualquier octava <input type="checkbox" id="anyOctave" checked></label>`,
-  panelPie:`<div class="note-hint">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>`,
+  herramientas:`<button class="iconbtn" id="btnMic" title="Escuchar mi piano" data-i18n-title="musica.mic_titulo">🎤</button>`,
+  panelTexto:`<span data-i18n="musica.panel.texto"> — el 🎤 hace que la app escuche el piano. Tocar el teclado de la pantalla también funciona.</span>`,
+  panelArriba:`<label><span data-i18n="musica.panel.nota">Nota que escucho:</span> <b id="dbgNote">–</b></label>
+    <label><span data-i18n="musica.panel.volumen">Volumen</span> <div class="meter"><i id="dbgLevel"></i></div></label>
+    <label><span data-i18n="musica.panel.sensibilidad">Sensibilidad</span> <input type="range" id="sens" min="1" max="30" value="8" style="flex:1"> <span id="sensVal"></span></label>
+    <label><span data-i18n="musica.panel.octava">Aceptar la nota en cualquier octava</span> <input type="checkbox" id="anyOctave" checked></label>`,
+  panelPie:`<div class="note-hint" data-i18n="musica.panel.tip">Tip: poné la tablet sobre el atril, cerca del teclado. Si el teclado digital tiene volumen alto y la sala es silenciosa, funciona mejor.</div>`,
 };
 function iniciar(){
   $("btnBack").onclick=()=>{ const was=S.session; S.run++; S.mode="idle"; try{speechSynthesis.cancel();}catch(e){} resetFlow();
-  if(was){ goMenuIsla(); } else { show("home"); renderHome(); setBubble("¿Qué canción tocamos?"); } };
+  if(was){ goMenuIsla(); } else { show("home"); renderHome(); setBubble(t("musica.que_cancion")); } };
   $("btnHomeBack").onclick=()=>goMenuIsla();
   $("btnHear").onclick=async()=>{ if(!S.song&&!S.session) return; const run=++S.run; const ch=chunk(); await demo(ch, run, !S.session); if(run===S.run){ S.mode="play"; renderDots(); } };
   $("btnSkip").onclick=()=>{
@@ -279,21 +283,23 @@ function iniciar(){
   Gioval.entrada.suscribir("toque",ev=>{ ensureCtx(); Gioval.sonido.tocar(ev.midi,.6); handleInput(ev.midi,"touch"); });
   Gioval.entrada.suscribir("nota",ev=>{ handleInput(ev.midi,"mic"); });
   buildKeyboard();
+  Gioval.on("idioma",d=>{ if(!d||!d.cambio) return; buildKeyboard(); if(S.chunks&&S.chunks.length&&document.querySelector("#play.active")) renderDots(); });
   Gioval.on("mapa",()=>{ $("btnMic").style.display=""; });
   Gioval.on("menu",p=>{ if(p!==ISLA){ if(mic.activo) mic.detener(); $("btnMic").style.display="none"; } else $("btnMic").style.display=""; });
 }
-const ISLA={id:"musica",name:"Isla Música",emoji:"🎹",sub:"¡A tocar el piano!",skills:SKILLS_MUSICA,hasSongs:true,
+const ISLA={id:"musica",hasSongs:true,emoji:"🎹",skills:SKILLS_MUSICA,
+  get name(){ return t("musica.nombre"); }, get sub(){ return t("musica.sub"); },
   instrumento:"piano",entradas:["nota","toque"],
   actividades:ACTIVIDADES,dom:DOM,iniciar,
   entrar(title){ $("songTitle").textContent=title; show("play"); buildKeyboard(); },
   antesDeSesion(){ S.song=null; S.full=false; },
-  fin:{ ok:"🎵 Tocar una canción", home:"Terminar por hoy",
+  fin:{ get ok(){ return t("musica.tocar_cancion"); }, get home(){ return t("musica.terminar_hoy"); },
     okFn(){ if(capLeft()<=0){ goMenuIsla(); return; } show("home"); renderHome(); },
     homeFn(){ goMenuIsla(); } },
-  tarjetas(done){ return [{em:"🎵",t:"Mis canciones",s:done?"Mañana seguimos 🌙":"Tocá tus favoritas",on:!done,go:()=>{ show("home"); renderHome(); }}]; },
-  outro:"Ahora, ¡a tocar el piano de verdad!",
-  capTail:"Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!",
-  notaInforme:"Lo más importante es que lo aprendido se vea también en su piano de verdad.",
+  tarjetas(done){ return [{em:"🎵",t:t("musica.tarjeta_canciones"),s:done?t("menu.manana"):t("musica.tarjeta_sub"),on:!done,go:()=>{ show("home"); renderHome(); }}]; },
+  get outro(){ return t("musica.outro"); },
+  get capTail(){ return t("musica.cola_tope"); },
+  get notaInforme(){ return t("musica.nota_informe"); },
 };
 Gioval.islas.registrar(ISLA);
 })();

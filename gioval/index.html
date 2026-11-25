@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-AR">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
@@ -19,51 +19,55 @@
     <div class="mascot" id="mascot">🦊</div>
     <div class="bubble" id="bubble">¡Mundo Gioval, a jugar! 🦊</div>
     <div class="tools">
-      <button class="iconbtn" id="btnVoice" title="Voz">🔊</button>
-      <button class="iconbtn" id="btnGear" title="Para papá">⚙️</button>
+      <button class="iconbtn" id="btnVoice" title="Voz" data-i18n-title="app.voz">🔊</button>
+      <button class="iconbtn" id="btnGear" title="Para papá" data-i18n-title="adultos.boton">⚙️</button>
     </div>
   </div>
   <div class="panel" id="panel">
-    <b>Para papá</b><span id="panelTexto"></span>
+    <b data-i18n="adultos.titulo">Para papá</b><span id="panelTexto"></span>
     <div id="panelArriba"></div>
     <div class="psum" id="parentSum"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px">📄 Informe</button></div>
-    <label>Tiempo por día: <select id="limSel" style="font-size:16px;padding:6px;border-radius:10px"><option value="10">10 min</option><option value="15">15 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option></select></label>
-    <label>Ya sabe hasta: <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px">Marcar</button></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn" id="btnExtra" style="padding:6px 14px;font-size:16px" data-i18n="adultos.extra">⏱ +15 min hoy</button><button class="btn" id="btnReport" style="padding:6px 14px;font-size:16px" data-i18n="adultos.informe">📄 Informe</button></div>
+    <label><span data-i18n="adultos.tiempo">Tiempo por día:</span> <select id="limSel" style="font-size:16px;padding:6px;border-radius:10px"><option value="10" data-i18n="adultos.min" data-i18n-n="10">10 min</option><option value="15" data-i18n="adultos.min" data-i18n-n="15">15 min</option><option value="20" data-i18n="adultos.min" data-i18n-n="20">20 min</option><option value="30" data-i18n="adultos.min" data-i18n-n="30">30 min</option><option value="45" data-i18n="adultos.min" data-i18n-n="45">45 min</option><option value="60" data-i18n="adultos.min" data-i18n-n="60">60 min</option></select></label>
+    <label><span data-i18n="adultos.sabe_hasta">Ya sabe hasta:</span> <select id="skipSel" style="font-size:16px;padding:6px;border-radius:10px"></select> <button class="btn" id="skipBtn" style="padding:6px 14px;font-size:16px" data-i18n="adultos.marcar">Marcar</button></label>
+    <label><span data-i18n="idioma.aparato">Idioma del aparato:</span> <select id="langDev" style="font-size:16px;padding:6px;border-radius:10px"></select></label>
+    <label><span id="langKidLbl"></span> <select id="langKid" style="font-size:16px;padding:6px;border-radius:10px"></select></label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn alt" id="btnVozProbar" style="padding:6px 14px;font-size:16px" data-i18n="voz.probar">🔊 Probar voz</button></div>
+    <div class="psum" id="vozAviso" style="display:none"></div>
     <div class="psum" id="respaldoInfo"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn" id="btnExport" style="padding:6px 14px;font-size:16px">⬇ Exportar respaldo</button><button class="btn alt" id="btnRestore" style="padding:6px 14px;font-size:16px">⬆ Restaurar</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="btn" id="btnExport" style="padding:6px 14px;font-size:16px" data-i18n="respaldo.exportar">⬇ Exportar respaldo</button><button class="btn alt" id="btnRestore" style="padding:6px 14px;font-size:16px" data-i18n="respaldo.restaurar_btn">⬆ Restaurar</button></div>
     <input type="file" id="fileRestore" accept="application/json,.json" style="display:none">
     <div id="panelPie"></div>
   </div>
 
   <div class="screen active" id="who">
-    <div style="text-align:center;font-size:clamp(30px,6vw,56px);font-weight:900;color:#7c4dff;text-shadow:0 3px 0 #fff">Mundo Gioval<br><span style="color:#ff5a5f;font-size:.6em">¡A jugar!</span></div>
-    <h2>¿Quién juega?</h2>
+    <div style="text-align:center;font-size:clamp(30px,6vw,56px);font-weight:900;color:#7c4dff;text-shadow:0 3px 0 #fff"><span data-i18n="app.nombre">Mundo Gioval</span><br><span style="color:#ff5a5f;font-size:.6em" data-i18n="app.a_jugar">¡A jugar!</span></div>
+    <h2 data-i18n="app.quien_juega">¿Quién juega?</h2>
     <div class="songs" id="profiles"></div>
   </div>
 
   <div class="screen" id="map">
-    <div class="bar"><h2 id="mapTitle" style="margin:0"></h2><button class="btn alt" id="btnWho">👤 Cambiar</button></div>
+    <div class="bar"><h2 id="mapTitle" style="margin:0"></h2><button class="btn alt" id="btnWho" data-i18n="app.cambiar">👤 Cambiar</button></div>
     <div class="islands" id="islands"></div>
   </div>
 
   <div class="screen" id="menuIsla">
-    <div class="bar"><button class="btn alt" id="btnMenuBack">⬅<span class="lbl"> Mapa</span></button><h2 style="margin:0" id="menuIslaTitle"></h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
+    <div class="bar"><button class="btn alt" id="btnMenuBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.mapa"> Mapa</span></button><h2 style="margin:0" id="menuIslaTitle"></h2><span id="streak" style="font-weight:900;font-size:20px"></span></div>
     <div class="islands" id="menuIslaItems"></div>
   </div>
 
   <div class="screen" id="logros">
-    <div class="bar"><button class="btn alt" id="btnLogrosBack">⬅<span class="lbl"> Isla</span></button><h2 style="margin:0">🌟 Mis logros</h2><span style="width:90px"></span></div>
+    <div class="bar"><button class="btn alt" id="btnLogrosBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.isla"> Isla</span></button><h2 style="margin:0" data-i18n="app.logros_titulo">🌟 Mis logros</h2><span style="width:90px"></span></div>
     <div class="songs" id="skillList" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"></div>
   </div>
 
   <div class="screen juego" id="act">
     <div class="bar">
-      <button class="btn alt" id="btnActBack">⬅<span class="lbl"> Volver</span></button>
+      <button class="btn alt" id="btnActBack"><span class="arr">⬅</span><span class="lbl" data-i18n="app.volver"> Volver</span></button>
       <div style="font-weight:800;font-size:clamp(18px,2.8vw,26px)" id="actTitle"></div>
       <div style="display:flex;gap:8px">
-        <button class="btn alt" id="btnActHear">🔊<span class="lbl"> Escuchar</span></button>
-        <button class="btn" id="btnActSkip">Seguir ➜</button>
+        <button class="btn alt" id="btnActHear">🔊<span class="lbl" data-i18n="app.escuchar"> Escuchar</span></button>
+        <button class="btn" id="btnActSkip" data-i18n="app.seguir">Seguir ➜</button>
       </div>
     </div>
     <div class="prog" id="prog2"></div>
@@ -72,44 +76,60 @@
 </div>
 
 <div class="big nameBox" id="nameBox">
-  <h1>¿Cómo te llamás?</h1>
-  <input id="nameIn" maxlength="14" placeholder="Tu nombre" autocomplete="off">
-  <button class="btn" id="nameOk">¡Listo!</button>
+  <h1 data-i18n="app.pregunta_nombre">¿Cómo te llamás?</h1>
+  <input id="nameIn" maxlength="14" placeholder="Tu nombre" data-i18n-placeholder="app.tu_nombre" autocomplete="off">
+  <button class="btn" id="nameOk" data-i18n="app.listo">¡Listo!</button>
 </div>
 
 <div class="big nameBox" id="gateBox">
-  <h1 id="gateQ">Pregunta para adultos</h1>
-  <input id="gateIn" type="number" inputmode="numeric" placeholder="Respuesta">
-  <div style="display:flex;gap:10px"><button class="btn" id="gateOk">Entrar</button><button class="btn alt" id="gateNo">Cancelar</button></div>
+  <h1 id="gateQ" data-i18n="adultos.pregunta">Pregunta para adultos</h1>
+  <input id="gateIn" type="number" inputmode="numeric" placeholder="Respuesta" data-i18n-placeholder="adultos.respuesta">
+  <div style="display:flex;gap:10px"><button class="btn" id="gateOk" data-i18n="adultos.entrar">Entrar</button><button class="btn alt" id="gateNo" data-i18n="adultos.cancelar">Cancelar</button></div>
 </div>
 
 <div class="big" id="capBox">
   <div class="stars">🌙</div>
-  <h1>¡Terminamos por hoy!</h1>
-  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0">Ya jugaste <span id="capMin">15</span> minutos. <span id="capTail">Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</span></p>
-  <div id="capAcc" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="capOk">¡Chau, zorro! 👋</button></div>
+  <h1 data-i18n="motor.tope.titulo">¡Terminamos por hoy!</h1>
+  <p style="font-size:clamp(18px,3vw,28px);max-width:80vw;margin:0" id="capTxt">Ya jugaste 15 minutos. Ahora, a tocar tu piano de verdad. ¡Mañana seguimos!</p>
+  <div id="capAcc" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="capOk" data-i18n="motor.tope.chau">¡Chau, zorro! 👋</button></div>
 </div>
 
 <div class="big" id="reportBox">
   <pre id="reportTxt" style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:62vh;overflow:auto;font-size:15px;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:0;font-family:inherit"></pre>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="repCopy">Copiar</button><button class="btn" id="repWa">WhatsApp</button><button class="btn alt" id="repClose">Cerrar</button></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="repCopy" data-i18n="adultos.copiar">Copiar</button><button class="btn" id="repWa" data-i18n="adultos.whatsapp">WhatsApp</button><button class="btn alt" id="repClose" data-i18n="adultos.cerrar">Cerrar</button></div>
 </div>
 
 <div class="big" id="finish">
   <div class="stars" id="finStars">⭐⭐⭐</div>
-  <h1 id="finTitle">¡Lo lograste!</h1>
-  <button class="btn" id="btnFinOk">¡Otra vez!</button>
-  <button class="btn alt" id="btnFinHome">Elegir otra canción</button>
+  <h1 id="finTitle" data-i18n="motor.fin.lograste">¡Lo lograste!</h1>
+  <button class="btn" id="btnFinOk" data-i18n="motor.fin.otra_vez">¡Otra vez!</button>
+  <button class="btn alt" id="btnFinHome" data-i18n="motor.fin.elegir">Elegir otra canción</button>
 </div>
 
 <div class="big" id="restoreBox">
   <div style="background:#fff;color:#2b2350;text-align:left;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:70vh;overflow:auto;font-size:16px;line-height:1.5;user-select:text;-webkit-user-select:text" id="restoreTxt"></div>
-  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="restoreOk">Restaurar</button><button class="btn alt" id="restoreNo">Cancelar</button></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="restoreOk" data-i18n="respaldo.restaurar">Restaurar</button><button class="btn alt" id="restoreNo" data-i18n="adultos.cancelar">Cancelar</button></div>
 </div>
 
-<div class="aviso" id="avisoVersion"><span>Hay una versión nueva</span> <button class="btn" id="btnActualizar" style="padding:4px 12px;font-size:15px">Actualizar</button></div>
+<div class="aviso" id="avisoVersion"><span data-i18n="app.aviso_version">Hay una versión nueva</span> <button class="btn" id="btnActualizar" style="padding:4px 12px;font-size:15px" data-i18n="app.actualizar">Actualizar</button></div>
+
+<div class="big" id="vozBox">
+  <div style="background:#fff;color:#2b2350;text-align:start;padding:14px 18px;border-radius:18px;max-width:92vw;max-height:70vh;overflow:auto;font-size:16px;line-height:1.5;display:flex;flex-direction:column;gap:8px">
+    <b data-i18n="voz.titulo">Probar voz</b>
+    <div id="vozIdioma"></div><div id="vozNivel"></div>
+    <label><span data-i18n="voz.elegir">Voz a usar:</span> <select id="vozSel" style="font-size:16px;padding:6px;border-radius:10px;max-width:100%"></select></label>
+    <div id="vozNota"></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><button class="btn" id="vozSonar" data-i18n="voz.sonar">▶ Escuchar</button><button class="btn alt" id="vozCerrar" data-i18n="voz.cerrar">Cerrar</button></div>
+</div>
 <script src="js/version.js"></script>
 <script src="js/core/util.js"></script>
+<script src="js/i18n/i18n.js"></script>
+<script src="js/i18n/es-AR.js"></script>
+<script src="js/i18n/es-419.js"></script>
+<script src="js/i18n/es-ES.js"></script>
+<script src="js/i18n/en.js"></script>
+<script src="js/i18n/pseudo.js"></script>
 <script src="js/core/voz.js"></script>
 <script src="js/core/audio.js"></script>
 <script src="js/core/sonido.js"></script>

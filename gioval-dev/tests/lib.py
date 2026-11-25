@@ -11,7 +11,7 @@ REF = HERE / "referencia" / "index_v5.html"
 SALIDA = HERE / "salida"
 CHROME = "/usr/bin/google-chrome"
 
-ESTADO = {"version_override": None}   # el servidor puede servir otra js/version.js (prueba de aviso de versión)
+ESTADO = {"version_override": None, "espacio_override": None}   # el servidor puede servir otra js/version.js (prueba de aviso de versión)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -31,8 +31,8 @@ class Handler(SimpleHTTPRequestHandler):
         if p in ("/legacy/", "/legacy/index.html"):          # la versión publicada antes del refactor (referencia)
             data = REF.read_bytes()
             self.send_response(200); self.send_header("Content-Type", "text/html; charset=utf-8"); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data); return
-        if p == "/js/version.js" and ESTADO["version_override"]:
-            data = ('self.GIOVAL_VERSION = "%s";\n' % ESTADO["version_override"]).encode()
+        if p == "/js/version.js" and (ESTADO["version_override"] or ESTADO["espacio_override"] is not None):
+            data = ('self.GIOVAL_VERSION = "%s";\nself.GIOVAL_ESPACIO = "%s";\n' % (ESTADO["version_override"] or re.search(r'GIOVAL_VERSION = "([^"]+)"', (APP / "js/version.js").read_text()).group(1), ESTADO["espacio_override"] or "")).encode()
             self.send_response(200); self.send_header("Content-Type", "application/javascript"); self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data); return
         return super().do_GET()
 
@@ -204,8 +204,13 @@ def snapshot(pg):
       return {sk:sk, log:log, days:store.days, stars:store.stars, checks:store.checks, profiles:store.profiles, limit:store.limit}; })()""")
 
 
-def llegar_al_tope(pg, isla="Números"):
-    """Empieza una sesión y fuerza el tiempo diario al último segundo: espera el cartel de tope diario (capBox)."""
-    abrir_isla(pg, isla); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(300)
+def llegar_al_tope(pg, isla="Números", directo=False):
+    """Empieza una sesión y fuerza el tiempo diario al último segundo: espera el cartel de tope diario (capBox).
+    directo=True no busca textos (sirve en cualquier idioma): abre la isla de Números por código y toca la primera tarjeta."""
+    if directo:
+        pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros'); goMenuIsla()"); pg.wait_for_timeout(100)
+        pg.click("#menuIslaItems .island >> nth=0"); pg.wait_for_timeout(300)
+    else:
+        abrir_isla(pg, isla); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(300)
     pg.evaluate("store.time[KID+'|'+today()]=capBase()-1")
     pg.wait_for_selector("#capBox.show", timeout=6000)
