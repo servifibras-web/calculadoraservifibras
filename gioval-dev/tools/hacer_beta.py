@@ -45,24 +45,30 @@ def main():
         with open(os.path.join(src, rel), "w", encoding="utf-8") as f:
             f.write(txt)
 
-    # 1) almacén: base de datos y claves propias
-    a = leer("js/core/almacen.js")
-    a = sustituir(a, 'const DB = "gioval-db", DB_V = 1, LS = "gioval", LS_PRE = "gioval_pre_migracion";',
-                  'const DB = "giovalbeta-db", DB_V = 1, LS = "giovalbeta", LS_PRE = "giovalbeta_pre_migracion";',
-                  "almacen.js")
-    a = sustituir(a, '"gioval-respaldo-"', '"giovalbeta-respaldo-"', "almacen.js")
-    escribir("js/core/almacen.js", a)
-
-    # 2) alarma: clave propia
-    al = leer("js/core/alarma.js")
-    al = sustituir(al, 'KEY = "gioval_alarma"', 'KEY = "giovalbeta_alarma"', "alarma.js")
-    escribir("js/core/alarma.js", al)
-
-    # 3) service worker: caché propia y solo borra cachés de la beta
-    sw = leer("sw.js")
-    sw = sustituir(sw, 'const C="gioval-"+self.GIOVAL_VERSION;', 'const C="giovalbeta-"+self.GIOVAL_VERSION;', "sw.js")
-    sw = sustituir(sw, "k.filter(x=>x!==C)", 'k.filter(x=>x.startsWith("giovalbeta-")&&x!==C)', "sw.js")
-    escribir("sw.js", sw)
+    vers = leer("js/version.js")
+    if "GIOVAL_ESPACIO" in vers:
+        # modo moderno: la app trae su propio interruptor de espacio de datos (ver docs/COPIA_DE_PRUEBA.md)
+        vers = sustituir(vers, 'self.GIOVAL_ESPACIO = "";', 'self.GIOVAL_ESPACIO = "beta";', "version.js")
+        escribir("js/version.js", vers)
+        modo_espacio = True
+    else:
+        modo_espacio = False
+        # 1) almacén: base de datos y claves propias
+        a = leer("js/core/almacen.js")
+        a = sustituir(a, 'const DB = "gioval-db", DB_V = 1, LS = "gioval", LS_PRE = "gioval_pre_migracion";',
+                      'const DB = "giovalbeta-db", DB_V = 1, LS = "giovalbeta", LS_PRE = "giovalbeta_pre_migracion";',
+                      "almacen.js")
+        a = sustituir(a, '"gioval-respaldo-"', '"giovalbeta-respaldo-"', "almacen.js")
+        escribir("js/core/almacen.js", a)
+        # 2) alarma: clave propia
+        al = leer("js/core/alarma.js")
+        al = sustituir(al, 'KEY = "gioval_alarma"', 'KEY = "giovalbeta_alarma"', "alarma.js")
+        escribir("js/core/alarma.js", al)
+        # 3) service worker: caché propia y solo borra cachés de la beta
+        sw = leer("sw.js")
+        sw = sustituir(sw, 'const C="gioval-"+self.GIOVAL_VERSION;', 'const C="giovalbeta-"+self.GIOVAL_VERSION;', "sw.js")
+        sw = sustituir(sw, "k.filter(x=>x!==C)", 'k.filter(x=>x.startsWith("giovalbeta-")&&x!==C)', "sw.js")
+        escribir("sw.js", sw)
 
     # 4) manifest: otra identidad, para poder instalarla al lado de la real
     m = leer("manifest.json")
@@ -98,8 +104,11 @@ def main():
         im.convert("RGB" if nombre.startswith("apple") else "RGBA").save(ruta)
 
     # 7) verificación: ninguna clave de almacenamiento real puede haber quedado sin separar
+    # (en modo espacio la separación la hace la app y la comprueba su propia prueba y coexistir.py)
     malas = []
-    for base, _, archivos in os.walk(src):
+    if modo_espacio:
+        for _b, _d, _f in []: pass
+    for base, _, archivos in (os.walk(src) if not modo_espacio else []):
         for nom in archivos:
             if not nom.endswith((".js", ".html", ".json")):
                 continue
@@ -118,7 +127,7 @@ def main():
         sys.exit("ERROR: quedaron nombres que podrían chocar con la app real: " + repr(sorted(set(malas))) +
                  "\nAgregalos a las sustituciones (o a PERMITIDAS si NO son claves de almacenamiento).")
     # y que ninguna llamada a localStorage/indexedDB use un literal "gioval" sin separar
-    for base, _, archivos in os.walk(src):
+    for base, _, archivos in (os.walk(src) if not modo_espacio else []):
         for nom in archivos:
             if nom.endswith(".js"):
                 with open(os.path.join(base, nom), encoding="utf-8") as f:

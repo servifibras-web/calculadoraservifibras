@@ -3,6 +3,8 @@
    Scripts clásicos (sin módulos, sin build): lo que se declara con let/const/function al nivel superior
    queda visible para los demás archivos; lo "público" cuelga de window.Gioval. */
 window.Gioval = window.Gioval || { datos: {} };
+Gioval.espacio = (self.GIOVAL_ESPACIO || "");                   /* "" en producción; ver js/version.js */
+Gioval.clave = n => Gioval.espacio ? n + "_" + Gioval.espacio : n;   /* nombre de una clave de localStorage dentro del espacio */
 /* bus de eventos mínimo: Gioval.on("menu", fn) / Gioval.emit("menu", datos) */
 Gioval._ev = {};
 Gioval.on = (n, f) => { (Gioval._ev[n] = Gioval._ev[n] || []).push(f); };

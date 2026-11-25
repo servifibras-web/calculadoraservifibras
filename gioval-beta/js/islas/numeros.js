@@ -3,16 +3,18 @@
    Lógica universal (contar, comparar, sumar, restar) + textos en español (es-AR).
    Habilidades encadenadas con req; las actividades por toque están abajo. Se registra en Gioval.islas. */
 (function(){
+/* el nombre de cada habilidad sale de la tabla de idiomas (numeros.hab.<id>); el id NO cambia nunca (es la clave del progreso) */
+const sk=(id,o)=>Object.defineProperty({id,...o},"name",{get:()=>t("numeros.hab."+id),enumerable:true});
 const SKILLS_NUMEROS=[
-  {id:"num_c10",name:"Contar hasta 10",icon:"🍎🍎🍎",type:"count",min:1,max:10,req:[]},
-  {id:"num_r10",name:"Reconocer los números",icon:"7️⃣",type:"numrec",min:1,max:10,req:["num_c10"]},
-  {id:"num_may",name:"Más y menos",icon:"⚖️",type:"cmp",max:10,req:["num_r10"]},
-  {id:"num_add5",name:"Sumas hasta 5",icon:"➕",type:"add",min:2,max:5,req:["num_r10"]},
-  {id:"num_sub5",name:"Restas hasta 5",icon:"➖",type:"sub",min:2,max:5,req:["num_add5"]},
-  {id:"num_c20",name:"Contar hasta 20",icon:"🔢",type:"count",min:6,max:20,req:["num_c10","num_may"]},
-  {id:"num_add10",name:"Sumas hasta 10",icon:"➕🔟",type:"add",min:6,max:10,req:["num_add5","num_may"]},
-  {id:"num_sub10",name:"Restas hasta 10",icon:"➖🔟",type:"sub",min:6,max:10,req:["num_sub5","num_add10"]},
-  {id:"num_r20",name:"Los números hasta 20",icon:"2️⃣0️⃣",type:"numrec",min:8,max:20,req:["num_c20"]},
+  sk("num_c10",{icon:"🍎🍎🍎",type:"count",min:1,max:10,req:[]}),
+  sk("num_r10",{icon:"7️⃣",type:"numrec",min:1,max:10,req:["num_c10"]}),
+  sk("num_may",{icon:"⚖️",type:"cmp",max:10,req:["num_r10"]}),
+  sk("num_add5",{icon:"➕",type:"add",min:2,max:5,req:["num_r10"]}),
+  sk("num_sub5",{icon:"➖",type:"sub",min:2,max:5,req:["num_add5"]}),
+  sk("num_c20",{icon:"🔢",type:"count",min:6,max:20,req:["num_c10","num_may"]}),
+  sk("num_add10",{icon:"➕🔟",type:"add",min:6,max:10,req:["num_add5","num_may"]}),
+  sk("num_sub10",{icon:"➖🔟",type:"sub",min:6,max:10,req:["num_sub5","num_add10"]}),
+  sk("num_r20",{icon:"2️⃣0️⃣",type:"numrec",min:8,max:20,req:["num_c20"]}),
 ];
 
 /* ---- actividades por toque de esta isla ---- (el motor de toques es genérico: js/core/actividades.js)
@@ -22,17 +24,18 @@ const SKILLS_NUMEROS=[
      okMsgs/tip/reveal  -> textos de proceso (nunca elogio de la persona)
      stageTap(it,T,i)   -> (opcional) toque sobre el dibujo del escenario
    El motor (tapItem/tapPick) se ocupa de errores, ayudas progresivas, chequeo sin ayuda y registro. */
-const NW=["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve","diez","once","doce","trece","catorce","quince","dieciséis","diecisiete","dieciocho","diecinueve","veinte"];
+/* Todo lo que depende del idioma (palabras de los números, sustantivos con género y plural) sale de js/i18n/<idioma>.js.
+   Cada frase es una clave COMPLETA con huecos ({g}, {objetos}, {a_palabras}...): no se arman frases pegando pedazos. */
+const NW=(n,g)=>Gioval.i18n.numeroEnPalabras(n,{g});             /* número en palabras; con g "m"/"f" el uno sale un/una */
 const OBJS=[
-  {e:"🍎",s:"manzana",p:"manzanas",f:1},{e:"⭐",s:"estrella",p:"estrellas",f:1},{e:"🚗",s:"auto",p:"autos"},
-  {e:"🐟",s:"pez",p:"peces"},{e:"🌸",s:"flor",p:"flores",f:1},{e:"🎈",s:"globo",p:"globos"},
-  {e:"🐶",s:"perro",p:"perros"},{e:"🍓",s:"frutilla",p:"frutillas",f:1},{e:"⚽",s:"pelota",p:"pelotas",f:1},
-  {e:"🦋",s:"mariposa",p:"mariposas",f:1},{e:"🍪",s:"galletita",p:"galletitas",f:1},{e:"🐢",s:"tortuga",p:"tortugas",f:1},
+  {id:"manzana",e:"🍎"},{id:"estrella",e:"⭐"},{id:"auto",e:"🚗"},
+  {id:"pez",e:"🐟"},{id:"flor",e:"🌸"},{id:"globo",e:"🎈"},
+  {id:"perro",e:"🐶"},{id:"frutilla",e:"🍓"},{id:"pelota",e:"⚽"},
+  {id:"mariposa",e:"🦋"},{id:"galletita",e:"🍪"},{id:"tortuga",e:"🐢"},
 ];
-const nm=(o,n)=>n===1?o.s:o.p;
-const nw=(n,o)=>(n===1&&o)?(o.f?"una":"un"):NW[n];
-const uno=o=>o.f?"una":"uno";
-const cuantos=o=>o.f?"Cuántas":"Cuántos";
+const sust=o=>Gioval.i18n.dato("numeros.objetos")[o.id];          /* { one, other, g } del idioma actual */
+const forma=(o,n)=>{ const d=sust(o); return d[Gioval.i18n.categoriaPlural(n)]||d.other; };
+const pr=(o,x)=>Object.assign({g:sust(o).g,objetos:forma(o,2)},x);
 function numOpts(ans,min,max,k){
   const c=[]; for(let d=-3;d<=3;d++){ const v=ans+d; if(d&&v>=min&&v<=max) c.push(v); }
   const pool=shuffle(c).slice(0,k-1);
@@ -50,81 +53,81 @@ function objs(e,plan,o={}){
   return `<div class="og"${o.nofit?"":` data-fit="${Math.max(...plan)},${plan.length+(o.extra||0)}"`}>${rows}${o.cap?`<div class="ocap">${o.cap}</div>`:""}</div>`;
 }
 const numOpt=v=>({val:v,html:String(v)});
-const OKGEN=["¡Eso es! Te fijaste bien.","¡Salió! Pensarlo paso a paso funciona.","¡Bien pensado! Seguimos 🚀"];
 const TAP_ACTS={
   count:{
-    okMsgs:["¡Contaste con cuidado!","¡Contar de a uno funciona!","¡Prestaste atención y salió!"],
+    get okMsgs(){ return tl("numeros.count.ok"); },
     make(s){ const n=pick(range(s.min,s.max),"cn"+s.id), o=pick(OBJS,"obj");
       const vals=numOpts(n,1,Math.max(s.max,n+1),4); const far=vals.slice().sort((a,b)=>Math.abs(b-n)-Math.abs(a-n))[0];
       return {skill:s,n,o,seq:[n],opts:vals.map(numOpt),far,plan0:chunks5(n),plan2:chunksRnd(n)}; },
     view(it,aid,T){
       const tapOn=(aid===0||T.help)&&!S.check, plan=aid>=2?it.plan2:it.plan0;
       let ops=it.opts; if(aid===0&&ops.length>3) ops=ops.filter(o=>o.val!==it.far);
-      return {say:"¿"+cuantos(it.o)+" "+it.o.p+" hay? "+(tapOn?"Tocá cada dibujo mientras contás.":"Contá y tocá el número."),
+      return {say:t(tapOn?"numeros.count.say_toca":"numeros.count.say",pr(it.o)),
         stage:objs(it.o.e,plan,{cnt:tapOn?T.cnt:null}), opts:ops, oc:ops.length===3?3:2, ocl:ops.length===3?3:2}; },
-    stageTap(it,T,i){ if(S.check||!(T.aid===0||T.help)||T.cnt.includes(i)) return; T.cnt.push(i); speak(NW[T.cnt.length]); tapRender(); },
-    tip:it=>"Contá de a uno, tocando cada dibujo. Y saqué una opción.",
-    reveal:it=>"Contemos juntos: hay "+NW[it.n]+". Mirá cuál es."
+    stageTap(it,T,i){ if(S.check||!(T.aid===0||T.help)||T.cnt.includes(i)) return; T.cnt.push(i); speak(NW(T.cnt.length)); tapRender(); },
+    tip:it=>t("numeros.count.tip"),
+    reveal:it=>t("numeros.count.reveal",{n_palabras:NW(it.n)})
   },
   numrec:{
-    okMsgs:["¡Te fijaste bien en el número!","¡Escuchaste con atención y salió!","¡Eso es! Buscar con calma ayuda."],
+    get okMsgs(){ return tl("numeros.rec.ok"); },
     noVoiceAid:0,
     make(s){ const n=pick(range(s.min,s.max),"nr"+s.id), o=pick(OBJS,"obj");
       const grp=s.max<=10&&Math.random()<.4;
       const vals=numOpts(n,1,s.max,grp?3:4);
       return {skill:s,n,o,grp,seq:[n],opts:vals.map(v=>({val:v,html:grp?objs(o.e,chunks5(v),{extra:0}):String(v)})),far:vals.slice().sort((a,b)=>Math.abs(b-n)-Math.abs(a-n))[0],plan:chunks5(n)}; },
     view(it,aid,T){
-      if(it.grp) return {say:"Este es el "+NW[it.n]+". Tocá el grupo que tiene "+NW[it.n]+".",stage:`<div class="bignum">${it.n}</div>`,sm:true,opts:it.opts,wide:true,oc:1,ocl:3};
+      if(it.grp) return {say:t("numeros.rec.say_grupo",{n_palabras:NW(it.n)}),stage:`<div class="bignum">${it.n}</div>`,sm:true,opts:it.opts,wide:true,oc:1,ocl:3};
       let ops=it.opts; if(aid===0&&ops.length>3) ops=ops.filter(o=>o.val!==it.far);
-      return {say:rnd(["Tocá el número "+NW[it.n]+".","¿Dónde está el "+NW[it.n]+"?","Buscá el "+NW[it.n]+"."]),
+      return {say:rnd(tl("numeros.rec.say",{n_palabras:NW(it.n)})),
         stage:aid===0?objs("🔵",it.plan):"", opts:ops, oc:ops.length===3?3:2, ocl:ops.length===3?3:2}; },
-    tip:it=>"Fijate bien en cada número. Saqué una opción.",
-    reveal:it=>"Mirá, es el "+NW[it.n]+"."
+    tip:it=>t("numeros.rec.tip"),
+    reveal:it=>t("numeros.rec.reveal",{n_palabras:NW(it.n)})
   },
   cmp:{
-    okMsgs:["¡Comparaste con cuidado!","¡Miraste bien y decidiste!","¡Eso es! Fijarse ayuda."],
+    get okMsgs(){ return tl("numeros.cmp.ok"); },
     make(s){ let a=R(1,s.max),b=R(1,s.max),g=0; while(a===b&&g++<20) b=R(1,s.max); if(a===b) b=a===s.max?a-1:a+1;
       const o=pick(OBJS,"obj"), ask=Math.random()<.4?"menos":"mas";
       return {skill:s,a,b,o,ask,seq:[ask==="mas"?Math.max(a,b):Math.min(a,b)],opts:shuffle([a,b]).map(numOpt)}; },
     view(it,aid,T){
       const ops=it.opts.map(op=>({val:op.val,html:aid>=2?`<div class="bignum" style="font-size:clamp(50px,min(22vw,26vh),120px)">${op.val}</div>`:objs(it.o.e,chunks5(op.val),{cap:aid===0?op.val:"",extra:aid===0?1:0})}));
-      const say=aid>=2?(it.ask==="mas"?"Tocá el número más grande.":"Tocá el número más chico."):("¿Dónde hay "+(it.ask==="mas"?"más ":"menos ")+it.o.p+"?");
+      const mas=it.ask==="mas", say=aid>=2?t(mas?"numeros.cmp.say_mas":"numeros.cmp.say_menos"):t(mas?"numeros.cmp.say_objs_mas":"numeros.cmp.say_objs_menos",pr(it.o));
       return {say,stage:"",opts:ops,wide:true,oc:1,ocl:2}; },
-    tip:it=>"Fijate bien cuál tiene "+(it.ask==="mas"?"más":"menos")+". Saqué una opción.",
-    reveal:it=>"Mirá, este es el que tiene "+(it.ask==="mas"?"más":"menos")+": "+NW[it.seq[0]]+"."
+    tip:it=>t(it.ask==="mas"?"numeros.cmp.tip_mas":"numeros.cmp.tip_menos"),
+    reveal:it=>t(it.ask==="mas"?"numeros.cmp.reveal_mas":"numeros.cmp.reveal_menos",{n_palabras:NW(it.seq[0])})
   },
   add:{
-    okMsgs:["¡Juntaste y contaste!","¡Pensaste la suma paso a paso!","¡Eso es! Contar todo junto ayuda."],
+    get okMsgs(){ return tl("numeros.add.ok"); },
     make(s){ const c=pick(range(s.min,s.max),"ad"+s.id), a=R(1,c-1), b=c-a, o=pick(OBJS,"obj");
       return {skill:s,a,b,c,o,seq:[c],opts:numOpts(c,1,s.max,4).map(numOpt)}; },
     view(it,aid,T){
       const {a,b,o}=it, g=(n,k)=>`<div class="grp ${k}">${objs(o.e,chunks5(n),{nofit:1})}</div>`;
       const stage=aid>=2?`<div class="eqt" style="font-size:clamp(46px,14vmin,110px)">${a} + ${b} = ?</div>`
         :`<div class="eq" data-fit="0,0" data-area="${a+b+2}"><div class="eqrow">${g(a,"g1")}<span class="eqop">+</span>${g(b,"g2")}<span class="eqop" style="white-space:nowrap">= ?</span></div>${aid===0?`<div class="eqt">${a} + ${b} = ?</div>`:""}</div>`;
-      const say=aid>=2?"¿Cuánto es "+NW[a]+" más "+NW[b]+"?":"Hay "+nw(a,o)+" "+nm(o,a)+". "+(b===1?"Llega "+uno(o):"Llegan "+NW[b])+" más. ¿"+cuantos(o)+" hay en total?";
+      const say=aid>=2?t("numeros.add.say_sin_ayuda",{a_palabras:NW(a),b_palabras:NW(b)}):t(b===1?"numeros.add.say_uno":"numeros.add.say",pr(o,{a,a_g:NW(a,sust(o).g),a_palabras:NW(a),b_palabras:NW(b),objetos_a:forma(o,a)}));
       return {say,stage,opts:it.opts,oc:2,ocl:2}; },
-    tip:it=>"Contá todos juntos. Saqué una opción.",
-    reveal:it=>NW[it.a]+" más "+NW[it.b]+" son "+NW[it.c]+". Mirá."
+    tip:it=>t("numeros.add.tip"),
+    reveal:it=>t("numeros.add.reveal",{a_palabras:NW(it.a),b_palabras:NW(it.b),c_palabras:NW(it.c)})
   },
   sub:{
-    okMsgs:["¡Sacaste y contaste lo que queda!","¡Pensaste la resta paso a paso!","¡Eso es! Mirar lo que queda ayuda."],
+    get okMsgs(){ return tl("numeros.sub.ok"); },
     make(s){ const a=pick(range(s.min,s.max),"sb"+s.id), b=R(1,a-1), c=a-b, o=pick(OBJS,"obj");
       return {skill:s,a,b,c,o,seq:[c],opts:numOpts(c,1,s.max,4).map(numOpt)}; },
     view(it,aid,T){
       const {a,b,o}=it;
       const stage=aid>=2?`<div class="eqt" style="font-size:clamp(46px,14vmin,110px)">${a} − ${b} = ?</div>`
         :`<div class="eq" data-fit="0,0" data-area="${a+2}"><div class="eqrow"><div class="grp">${objs(o.e,chunks5(a),{nofit:1,x:b})}</div></div>${aid===0?`<div class="eqt">${a} − ${b} = ?</div>`:""}</div>`;
-      const say=aid>=2?"¿Cuánto es "+NW[a]+" menos "+NW[b]+"?":"Había "+nw(a,o)+" "+nm(o,a)+". "+(b===1?"Se va "+uno(o):"Se van "+NW[b])+". ¿"+cuantos(o)+" quedan?";
+      const say=aid>=2?t("numeros.sub.say_sin_ayuda",{a_palabras:NW(a),b_palabras:NW(b)}):t(b===1?"numeros.sub.say_uno":"numeros.sub.say",pr(o,{a,a_g:NW(a,sust(o).g),a_palabras:NW(a),b_palabras:NW(b),objetos_a:forma(o,a)}));
       return {say,stage,opts:it.opts,oc:2,ocl:2}; },
-    tip:it=>"Mirá las que quedan sin tachar. Saqué una opción.",
-    reveal:it=>NW[it.a]+" menos "+NW[it.b]+" son "+NW[it.c]+". Mirá."
+    tip:it=>t("numeros.sub.tip"),
+    reveal:it=>t("numeros.sub.reveal",{a_palabras:NW(it.a),b_palabras:NW(it.b),c_palabras:NW(it.c)})
   },
 };
 
-const ISLA={id:"numeros",name:"Isla Números",emoji:"🔢",sub:"¡A contar y sumar!",skills:SKILLS_NUMEROS,tap:true,plain:true,
+const ISLA={id:"numeros",emoji:"🔢",skills:SKILLS_NUMEROS,tap:true,plain:true,
+  get name(){ return t("numeros.nombre"); }, get sub(){ return t("numeros.sub"); },
   instrumento:null,entradas:["toque"],
   actividades:TAP_ACTS,
-  outro:"Ahora, ¡buscá cosas para contar a tu alrededor!",
-  capTail:"Ahora, a jugar con cosas de verdad: ¡contá lo que encuentres! ¡Mañana seguimos!"};
+  get outro(){ return t("numeros.outro"); },
+  get capTail(){ return t("numeros.cola_tope"); }};
 Gioval.islas.registrar(ISLA);
 })();
