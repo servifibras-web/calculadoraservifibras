@@ -74,7 +74,7 @@ def t_arranque(C):
         ctx = C.banco.contexto(v); err = []
         pg = abrir(ctx, C.url + "/index.html", errores=err)
         verificar(pg.evaluate("document.getElementById('nameBox').classList.contains('show')"), "no pide el nombre (%s)" % v)
-        igual(pg.evaluate("store.version"), 1, "store.version")
+        igual(pg.evaluate("store.version"), 2, "store.version")
         verificar(not err, "errores en %s: %s" % (v, err))
         foto(pg, v + "_00_nombre"); CAPTURAS.append(v + "_00_nombre.png"); ctx.close()
 
@@ -205,13 +205,13 @@ def t_repaso(C):
 def norm(s):
     s = json.loads(json.dumps(s)); s.pop("meta", None); s.pop("version", None); return s
 
-@prueba("migración: datos viejos (v0) conservan TODO el progreso")
+@prueba("migración: datos viejos (v0 → v2) conservan TODO el progreso")
 def t_migracion(C):
     viejo = json.loads(FIXTURE)
     ctx = C.banco.contexto("360x700"); err = []
     pg = abrir(ctx, C.url + "/index.html", store=FIXTURE, errores=err)
     nuevo = pg.evaluate("JSON.parse(JSON.stringify(store))")
-    igual(nuevo["version"], 1, "version")
+    igual(nuevo["version"], 2, "version")
     for k in ("profiles", "stars", "sk", "days", "time", "log", "extra", "limit"):
         igual(nuevo[k], viejo[k], "campo " + k)
     esperado = json.loads(json.dumps(viejo["checks"])); esperado["Valentino"][0]["p"] = "musica"
@@ -222,7 +222,7 @@ def t_migracion(C):
     igual(pg.evaluate("Gioval.almacen.errorMigracion"), None, "errorMigracion")
     entrar(pg, "Valentino"); abrir_isla(pg, "Música"); txt = pg.evaluate("document.getElementById('menuIslaItems').innerText")
     verificar("Sesión de hoy" in txt); verificar(not err, str(err)); ctx.close()
-    return "versión 0 → 1, %d claves de progreso intactas" % len(viejo["sk"])
+    return "versión 0 → 2, %d claves de progreso intactas" % len(viejo["sk"])
 
 @prueba("migración: si falla, no se pierde nada")
 def t_migracion_falla(C):
