@@ -308,3 +308,15 @@ JS_SIMULAR = """(args)=>{ const b=atob(args.b64), n=b.length/2, u=new Uint8Array
 def simular_golpes(pg, x, sr=SR_AUDIO, **kw):
     r = pg.evaluate(JS_SIMULAR, dict(b64=a_b64(x), sr=sr, **kw))
     return r["eventos"], r["info"]
+
+
+def llegar_al_tope(pg, isla="Números", directo=False):
+    """Empieza una sesión y fuerza el tiempo diario al último segundo: espera el cartel de tope diario (capBox).
+    directo=True no busca textos (sirve en cualquier idioma): abre la isla de Números por código y toca la primera tarjeta."""
+    if directo:
+        pg.evaluate("PACK=PACKS.find(p=>p.id==='numeros'); goMenuIsla()"); pg.wait_for_timeout(100)
+        pg.click("#menuIslaItems .island >> nth=0"); pg.wait_for_timeout(300)
+    else:
+        abrir_isla(pg, isla); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(300)
+    pg.evaluate("store.time[KID+'|'+today()]=capBase()-1")
+    pg.wait_for_selector("#capBox.show", timeout=6000)
