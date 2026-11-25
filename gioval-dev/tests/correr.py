@@ -611,7 +611,7 @@ def t_i18n_completitud(C):
     usadas = set()
     for f in list((APP / "js" / "core").rglob("*.js")) + list((APP / "js" / "islas").rglob("*.js")) + list((APP / "js" / "datos").rglob("*.js")):
         txt = f.read_text(encoding="utf-8")
-        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros)\.[a-z0-9_.]+)"', txt))
+        usadas |= set(re.findall(r'"((?:app|menu|motor|tap|adultos|informe|respaldo|almacen|idioma|voz|proximas|musica|numeros|ritmo)\.[a-z0-9_.]+)"', txt))
     for f in [APP / "index.html"] + list((APP / "js" / "islas").rglob("*.js")):
         usadas |= set(re.findall(r'data-i18n(?:-html|-title|-placeholder)?="([^"]+)"', f.read_text(encoding="utf-8")))
     dinam = [k for k in usadas if k.endswith(".") or k.endswith("_")]
@@ -934,6 +934,279 @@ def t_agregar_idioma(C):
     finally:
         srv2.shutdown(); shutil.rmtree(tmp.parent, ignore_errors=True)
 
+
+# ---------------------------------------------------------------- Isla Ritmo y detector de golpes
+ESC_TEST = "window.__RITMO_ESCALA=5;"   # reloj de la isla 5 veces más rápido (solo pruebas); los tiempos de los golpes sintéticos son reales
+STORE_RITMO = {"profiles": ["Vale"], "limit": {"Vale": 60}}
+
+def solo_habilidad(pg, sid):
+    """Deja dominadas todas las habilidades de Ritmo menos `sid` (así la sesión practica justo esa)."""
+    pg.evaluate("""(sid)=>{ PACK=PACKS.find(p=>p.id==='ritmo'); PACK.skills.forEach(s=>{ var st=SK(s.id); if(s.id===sid){ st.mast=false; st.att=0; st.score=.5; st.box=0; st.lvl=0; st.rec=[]; }
+      else { st.mast=true; st.att=6; st.score=.9; st.box=1; st.due=Date.now()+864e5; } }); }""", sid)
+
+def esperar_fase(pg, fase, seg=20):
+    pg.wait_for_function("Gioval.ritmo.fase==='%s'" % fase, timeout=seg * 1000)
+
+@prueba("Ritmo: evaluación del eco rítmico (acierto, adelantado, atrasado, golpe de más, faltante) y ventanas por nivel")
+def t_ritmo_evaluacion(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    ioi = lambda rel, h, W: pg.evaluate("(a)=>Gioval.ritmo.evaluar.ioi(a[0],a[1],a[2])", [rel, h, W])
+    estados = lambda r: [e["estado"] for e in r["etiquetas"]]
+    rel = [0, 500, 1000, 1500]
+    r = ioi(rel, [1000, 1500, 2000, 2500], 120); verificar(r["ok"] and estados(r) == ["ok"] * 4 and r["desvio"] == 0, "acierto exacto: %s" % r)
+    r = ioi(rel, [1000, 1540, 1980, 2520], 120); verificar(r["ok"] and 0 < r["desvio"] <= 60, "acierto con pequeño desvío: %s" % r)
+    r = ioi(rel, [0, 500, 780, 1500], 120); igual(estados(r), ["ok", "ok", "adelantado", "ok"], "adelantado"); verificar(not r["ok"])
+    r = ioi(rel, [0, 500, 1000, 1750], 120); igual(estados(r), ["ok", "ok", "ok", "atrasado"], "atrasado"); verificar(not r["ok"])
+    r = ioi(rel, [0, 500, 700, 1000, 1500], 120); igual(estados(r), ["ok"] * 4, "golpe de más: los esperados siguen bien"); igual(r["extra"], [700], "golpe de más"); verificar(not r["ok"])
+    r = ioi(rel, [0, 500, 1000], 120); igual(estados(r), ["ok", "ok", "ok", "falta"], "faltante"); verificar(not r["ok"])
+    r = ioi(rel, [], 120); igual(estados(r), ["falta"] * 4, "sin golpes")
+    # el tempo 20 % más lento pasa con la ventana ancha y no con la angosta; la ventana depende del nivel y del pulso
+    lento = [0, 600, 1200, 1800]
+    v = pg.evaluate("[0,1,2].map(l=>Gioval.ritmo.ventana(l,500))"); igual([round(x) for x in v], [160, 120, 90], "ventanas por nivel (pulso de 500 ms)")
+    verificar(ioi(rel, lento, v[0])["ok"] and ioi(rel, lento, v[1])["ok"], "20 % más lento debería pasar con ventana de nivel 0/1")
+    verificar(not ioi(rel, lento, 60)["ok"], "20 % más lento no debería pasar con 60 ms")
+    igual([round(x) for x in pg.evaluate("[Gioval.ritmo.ventana(0,2000),Gioval.ritmo.ventana(2,200)]")], [210, 90], "topes de la ventana")
+    # ejercicios largos: alcanza el 75 %
+    rel8 = [i * 500 for i in range(8)]; h = [i * 500 for i in range(8)]; h[3] += 200; h[6] += 200
+    verificar(ioi(rel8, h, 120)["ok"] is True, "6 de 8 deberían alcanzar en un ejercicio largo")
+    h[1] += 200; verificar(ioi(rel8, h, 120)["ok"] is False, "5 de 8 no alcanzan")
+    # grilla: la demora fija (micrófono/pantalla) no cuenta; una tardanza puntual sí; un golpe en un silencio se reconoce
+    gr = lambda exp, h, W, o=None: pg.evaluate("(a)=>Gioval.ritmo.evaluar.grid(a[0],a[1],a[2],a[3],a[4])", [exp, h, W, 500, o or {}])
+    exp = [1000, 1500, 2000, 2500]
+    r = gr(exp, [x + 70 for x in exp], 120); verificar(r["ok"] and abs(r["sesgo"] - 70) < 1 and r["desvio"] < 1, "demora fija: %s" % r)
+    r = gr(exp, [1000, 1500, 2200, 2500], 120); igual(estados(r), ["ok", "ok", "atrasado", "ok"], "grilla: tarde"); verificar(not r["ok"])
+    r = gr([1000, 1500, 2500], [1000, 1500, 2000, 2500], 120, {"silencios": [2000]}); verificar(r["extraSilencio"] and not r["ok"], "golpe en el silencio: %s" % r)
+    libre = lambda h: pg.evaluate("(a)=>Gioval.ritmo.evaluar.libre(a,1000,500,120)", h)
+    verificar(libre([1000, 1500, 1750, 2250])["ok"], "libre sobre la grilla de corcheas")
+    igual(libre([1000, 1500, 1625])["motivo"], "desparejo", "libre fuera de grilla"); igual(libre([1000])["motivo"], "pocos"); igual(libre([1000 + 250 * i for i in range(9)])["motivo"], "muchos")
+    ctx.close()
+
+DETECTORES = ("click", "palma", "tambor", "cajon", "pandereta")
+
+@prueba("golpes: detector con audio sintético (precisión del tiempo, tempos, instrumentos, falsos positivos, refractario, silencio de la app)")
+def t_golpes_detector(C):
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    peor = 0
+    for bpm in (60, 100, 150):
+        per = 60000 / bpm
+        for tipo in DETECTORES:
+            hits = [3700 + k * per for k in range(10)]
+            x = senal_golpes(3.7 + 10 * per / 1000 + 0.6, hits, tipo, 0.004, semilla=bpm, zumbido=0.002)
+            ev, info = simular_golpes(pg, x)
+            verificar(len(ev) == 10, "%s a %d bpm: detectó %d de 10" % (tipo, bpm, len(ev)))
+            err = max(abs(e[0] - h) for e, h in zip(ev, hits)); peor = max(peor, err)
+            verificar(err <= 6, "%s a %d bpm: error de tiempo %.1f ms" % (tipo, bpm, err))
+            verificar(all(0 <= e[1] <= 1 for e in ev), "fuerza fuera de 0..1")
+    # sin golpes: ruido de sala, zumbido, crescendo lento, ventilador que arranca después de calibrar -> sin falsos positivos
+    np = __import__("numpy")
+    def crescendo(x, rng, sr):
+        t = np.arange(len(x)) / sr; return x + np.clip((t - 4) * 0.004, 0, 0.05) * np.sin(2 * np.pi * 120 * t)
+    def ventilador(x, rng, sr):
+        x = x.copy(); i = int(6 * sr); x[i:] += rng.normal(0, 0.03, len(x) - i); return x
+    casos = {"ruido 0,004": dict(ruido=0.004), "ruido 0,02 (sala ruidosa)": dict(ruido=0.02), "zumbido 50 Hz": dict(ruido=0.004, zumbido=0.012),
+             "crescendo lento": dict(ruido=0.003, extra=crescendo)}
+    for nombre, kw in casos.items():
+        ev, _ = simular_golpes(pg, senal_golpes(14, [], "palma", semilla=5, **kw)); igual(len(ev), 0, "falsos positivos con " + nombre)
+    ev, _ = simular_golpes(pg, senal_golpes(14, [], "palma", 0.004, semilla=6, extra=ventilador))
+    verificar(len(ev) <= 1, "ventilador que arranca: %d eventos (se tolera 1, el del arranque)" % len(ev))
+    verificar(all(e[0] > 6000 - 20 for e in ev), "el ventilador no debería disparar antes de arrancar")
+    # ninguna detección durante la calibración (aunque haya golpes): se ignoran
+    ev, info = simular_golpes(pg, senal_golpes(8, [1000, 2000, 5000, 5600], "palma", 0.004, semilla=7)); verificar(all(e[0] > 3000 for e in ev), "emitió durante la calibración")
+    # refractario: dos golpes a 30 ms cuentan como uno; a 200 ms, como dos
+    ev, _ = simular_golpes(pg, senal_golpes(7, [3800, 3830, 4400, 4600], "click", 0.004, semilla=8)); igual(len(ev), 3, "doble a 30 ms = 1 · pares a 200 ms = 2")
+    # rasgueo de guitarra: 6 cuerdas en 50 ms = 1 golpe (el del inicio)
+    ev, _ = simular_golpes(pg, senal_golpes(7, [3800 + 10 * i for i in range(6)] + [5200], "tambor", 0.004, semilla=9)); igual(len(ev), 2, "rasgueo = 1 golpe")
+    verificar(abs(ev[0][0] - 3800) <= 6, "el rasgueo marca el inicio")
+    # intensidad aproximada: más fuerte -> más "fuerza"
+    fz = []
+    for a in (0.04, 0.1, 0.3, 0.8):
+        ev, _ = simular_golpes(pg, senal_golpes(6, [4000], "palma", 0.004, semilla=10, amps=[a])); verificar(len(ev) == 1, "amp %s no detectado" % a); fz.append(ev[0][1])
+    verificar(fz == sorted(fz) and fz[-1] > fz[0] + 0.3, "la fuerza no crece con la intensidad: %s" % fz)
+    # sala ruidosa: el umbral sube solo y los golpes siguen detectándose
+    hits = [3800 + 500 * k for k in range(10)]
+    ev, info = simular_golpes(pg, senal_golpes(10, hits, "palma", 0.02, semilla=11)); igual(len(ev), 10, "golpes en sala ruidosa"); verificar(info["umbral"] > 0.05, "el umbral no se adaptó al ruido: %s" % info)
+    # golpes muy suaves: con sensibilidad normal se pierden y con más sensibilidad se escuchan (límite documentado)
+    suaves = [3800 + 500 * k for k in range(6)]; xs = senal_golpes(8, suaves, "palma", 0.004, semilla=12, amps=[0.012] * 6)
+    n1 = len(simular_golpes(pg, xs)[0]); n2 = len(simular_golpes(pg, xs, sens=3)[0]); verificar(n2 > n1, "más sensibilidad no ayudó: %d → %d" % (n1, n2))
+    # silencio de la app: los golpes dentro de una ventana silenciada se descartan
+    hits = [3800 + 500 * k for k in range(8)]
+    ev, _ = simular_golpes(pg, senal_golpes(9, hits, "palma", 0.004, semilla=13), mudo=[[4750, 5400]]); igual(len(ev), 6, "golpes silenciados por la voz de la app")
+    ctx.close(); return "tiempo peor caso %.1f ms; 15 señales × 10 golpes; falsos positivos 0" % peor
+
+def con_microfono_falso(C, wav):
+    return Banco(C.pw, ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--use-file-for-fake-audio-capture=%s%%noloop" % wav])
+
+JS_ESCUCHAR = """()=>{ window.__ev=[]; Gioval.entrada.suscribir('golpe',e=>window.__ev.push([e.t,e.fuerza,e.fuente])); const G=Gioval.entrada.proveedores.golpes;
+  return G.iniciar({fuente:'mic'}).then(f=>G.calibrar().then(i=>[f,i])); }"""
+
+@prueba("golpes: micrófono falso de Chrome con audio de percusión (WAV): inicios en el tiempo justo, sin falsos positivos, silencio de la app")
+def t_golpes_microfono(C):
+    SALIDA.mkdir(exist_ok=True); resumen = []
+    ritmo = [0, 600, 1200, 1500, 1800, 2400, 2700, 3000, 3600, 4200]
+    h100 = [3800 + 600 * k for k in range(10)]
+    casos = [("palmas_100bpm", senal_golpes(3.8 + 6.4 + 0.8, h100, "palma", 0.004, semilla=21), h100, None),
+             ("cajon_ritmo", senal_golpes(3.8 + 4.2 + 0.8, [3800 + t for t in ritmo], "cajon", 0.004, semilla=22), [3800 + t for t in ritmo], None),
+             ("silencio_con_zumbido", senal_golpes(9, [], "palma", 0.005, semilla=23, zumbido=0.01), [], None),
+             ("palmas_con_voz_de_la_app", senal_golpes(3.8 + 6.4 + 0.8, h100, "palma", 0.004, semilla=24), h100, "mudo")]
+    for nombre, x, verdad, modo in casos:
+        wav = a_wav(x, SALIDA / (nombre + ".wav")); b = con_microfono_falso(C, wav); err = []
+        try:
+            ctx = b.contexto("360x700", permissions=["microphone"]); pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False)
+            f, info = pg.evaluate(JS_ESCUCHAR); igual(f, "mic", "fuente"); verificar(info and info["utilMs"] >= 2990, "calibración: %s" % info)
+            verificar(info["piso"] < 0.03, "piso de ruido: %s" % info)
+            if modo == "mudo":
+                pg.wait_for_function("window.__ev.length>=3", timeout=15000); pg.evaluate("muteUntil=performance.now()+1300")
+                pg.wait_for_timeout(5000)
+            else:
+                pg.wait_for_timeout(int(len(x) / 48 - 3000 + 600))
+            ev = pg.evaluate("window.__ev"); ts = [e[0] for e in ev]
+            if modo == "mudo":
+                igual(len(ev), 8, "con la app 'hablando' se pierden justo los 2 golpes silenciados")
+                gaps = [round(q - p) for p, q in zip(ts, ts[1:])]; verificar(sum(1 for g in gaps if 1750 <= g <= 1850) == 1, "hueco de 3 pulsos: %s" % gaps)
+            else:
+                igual(len(ev), len(verdad), nombre + ": cantidad de golpes")
+                for k in range(1, len(ev)): verificar(abs((ts[k] - ts[0]) - (verdad[k] - verdad[0])) <= 12, "%s: golpe %d fuera de tiempo (%.1f ms)" % (nombre, k, (ts[k] - ts[0]) - (verdad[k] - verdad[0])))
+            verificar(all(e[2] == "mic" for e in ev)); verificar(not err, str(err)); ctx.close()
+            resumen.append("%s=%d" % (nombre, len(ev)))
+        finally: b.cerrar()
+    return ", ".join(resumen)
+
+@prueba("golpes: Música y Ritmo comparten UN solo flujo de micrófono (un permiso) y se apaga cuando nadie lo usa")
+def t_golpes_flujo_compartido(C):
+    SALIDA.mkdir(exist_ok=True); wav = a_wav(senal_golpes(6, [], "palma", 0.004, semilla=31), SALIDA / "ruido.wav"); b = con_microfono_falso(C, wav); err = []
+    try:
+        ctx = b.contexto("360x700", permissions=["microphone"])
+        pg = abrir(ctx, C.url + "/index.html", errores=err, rapido=False, extra_init="window.__gum=0; (function(){ var o=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getUserMedia=function(c){ window.__gum++; return o(c); }; })();")
+        r = pg.evaluate("""async()=>{ const M=Gioval.entrada.proveedores.microfono, G=Gioval.entrada.proveedores.golpes; const out={};
+          await M.iniciar({}); await G.iniciar({fuente:'mic'}); out.llamadas=window.__gum; out.activos=[M.activo,G.activo,G.fuente];
+          G.detener(); await new Promise(r=>setTimeout(r,100)); out.tras_golpes=M.activo; M.detener(); return out; }""")
+        igual(r["llamadas"], 1, "getUserMedia debería pedirse una sola vez"); igual(r["activos"], [True, True, "mic"]); verificar(r["tras_golpes"], "Música debería seguir escuchando")
+        verificar(not err, str(err)); ctx.close()
+    finally: b.cerrar()
+
+@prueba("Ritmo: sesión completa por toque en 360x700 y 740x330 (dominio, desbloqueo, ayudas, errores sin castigo, informe)")
+def t_ritmo_sesion(C):
+    detalle = []
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, semilla=81, rapido=False, extra_init=ESC_TEST); instalar_speak(pg); entrar(pg, "Vale")
+        abrir_isla(pg, "Ritmo"); CAPTURAS.append(foto(pg, v + "_60_ritmo_menu"))
+        txt = pg.evaluate("document.getElementById('menuIslaItems').innerText"); verificar("Tocar con mi instrumento" in txt and "Sesión de hoy" in txt, txt)
+        tarjeta(pg, "Sesión de hoy"); esperar_fase(pg, "turno"); pg.wait_for_timeout(200)
+        igual(pg.evaluate("document.querySelector('.screen.active').id"), "rit", "pantalla")
+        CAPTURAS.append(foto(pg, v + "_61_ritmo_eco_tarjetas"))
+        verificar(jugar_ritmo(pg) == "fin"); cerrar_fin(pg)
+        for _ in range(3):
+            pg.evaluate("PACK=PACKS.find(p=>p.id==='ritmo')")
+            if pg.evaluate("SK('rit_pulso').mast"): break
+            abrir_isla(pg, "Ritmo"); tarjeta(pg, "Sesión de hoy"); verificar(jugar_ritmo(pg) == "fin"); cerrar_fin(pg)
+        verificar(pg.evaluate("SK('rit_pulso').mast"), "rit_pulso no quedó dominada")
+        desbloq = pg.evaluate("unlockedList().map(s=>s.id)"); verificar(all(x in desbloq for x in ("rit_eco2", "rit_tempo", "rit_base")), "desbloqueo: %s" % desbloq)
+        # una sesión con errores inyectados (golpe adelantado, faltante, de más): la app lo dice con amabilidad, reintenta y no castiga
+        pg.evaluate("window.__LOG.length=0"); abrir_isla(pg, "Ritmo"); tarjeta(pg, "Sesión de hoy")
+        verificar(jugar_ritmo(pg, errores=["adelantado", None, "falta", None, "extra", None]) == "fin", "la sesión con errores no terminó")
+        dicho = " | ".join(pg.evaluate("window.__LOG")); verificar("rápido" in dicho and ("Faltó" in dicho or "de más" in dicho), "no explicó los errores: " + dicho[:400])
+        verificar(not any(w in dicho.lower() for w in ("incorrecto", "perdiste", "fallaste", "mal ")), "texto con tono de castigo: " + dicho[:300])
+        cerrar_fin(pg)
+        reg = pg.evaluate("store.ritmo.Vale"); verificar(len(reg) >= 14 and all(k in reg[0] for k in ("t", "s", "d", "b", "n", "o", "x", "f", "bpm", "l", "c", "ok")), "registro de regularidad: %s" % reg[:1])
+        verificar(any(e["ok"] == 0 for e in reg), "no se registró ningún intento fallido (¿se inyectaron los errores?)")
+        rep = pg.evaluate("reportText()"); verificar("REGULARIDAD DEL RITMO" in rep and "Desvío medio general" in rep and "No juzga la técnica" in rep and "Evolución" in rep, rep[-900:])
+        verificar("ISLA RITMO" in rep and "Sentir el pulso" in rep, "el informe general no lista la isla: " + rep[:300])
+        pg.evaluate("goMenuIsla()"); pg.click(".island:has-text('Mis logros')"); pg.wait_for_timeout(250); CAPTURAS.append(foto(pg, v + "_62_ritmo_logros"))
+        verificar(not err, "%s: %s" % (v, err)); detalle.append("%s: %d mediciones" % (v, len(reg))); ctx.close()
+    return "; ".join(detalle)
+
+HABS = ["rit_pulso", "rit_eco2", "rit_tempo", "rit_base", "rit_eco3", "rit_eco4", "rit_silencio", "rit_solo", "rit_lee1", "rit_lee2", "rit_llamada", "rit_cancion", "rit_leemix", "rit_compone"]
+
+@prueba("Ritmo: las 14 habilidades se juegan completas (ayudas, silencios, tarjetas, canciones, llamada y respuesta, composición)")
+def t_ritmo_habilidades(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, semilla=91, rapido=False, extra_init=ESC_TEST); instalar_speak(pg); entrar(pg, "Vale")
+    igual(pg.evaluate("PACKS.find(p=>p.id==='ritmo').skills.map(s=>s.id)"), HABS, "habilidades")
+    pg.evaluate("window.__LOG.length=0"); casos = {"rit_eco3": ["adelantado", None], "rit_silencio": ["extra", None], "rit_lee2": ["falta", None], "rit_base": ["atrasado", None]}
+    for sid in HABS:
+        abrir_isla(pg, "Ritmo"); solo_habilidad(pg, sid); tarjeta(pg, "Sesión de hoy"); pg.evaluate("S.session.items.length=2")
+        opc = {"libre": [0]} if sid == "rit_llamada" else None
+        r = jugar_ritmo(pg, errores=casos.get(sid), opciones=opc, limite_s=90); verificar(r == "fin", "%s: terminó con %s" % (sid, r)); cerrar_fin(pg)
+        n = pg.evaluate("(store.ritmo.Vale||[]).filter(e=>e.s==='%s').length" % sid); verificar(n >= 1, "%s sin mediciones" % sid)
+    dicho = " | ".join(pg.evaluate("window.__LOG")).lower()
+    for frag in ("shh", "ti-ti", "yo toco un ritmo", "armá tu propio ritmo", "probá con más golpes", "este es el ritmo de una canción"):
+        verificar(frag in dicho, "falta el texto '%s' (¿se jugó esa actividad?)" % frag)
+    verificar(any(a in dicho for a in ("tortuga", "conejo", "guepardo")), "falta la frase del tempo (¿se jugó 'lento, medio y rápido'?)")
+    verificar(not err, str(err)); ctx.close(); return "14 habilidades"
+
+@prueba("Ritmo: composición de 4 pulsos, lectura con tarjetas y silencios en 360x700 y 740x330 (capturas)")
+def t_ritmo_pantallas(C):
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); err = []
+        pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, semilla=93, rapido=False, extra_init="window.__RITMO_ESCALA=2;"); instalar_speak(pg); entrar(pg, "Vale")
+        for sid, fase, tag, espera in (("rit_lee2", "turno", "lectura", 900), ("rit_compone", "componer", "componer", 400), ("rit_silencio", "turno", "silencio", 900)):
+            abrir_isla(pg, "Ritmo"); solo_habilidad(pg, sid); tarjeta(pg, "Sesión de hoy"); esperar_fase(pg, fase); pg.wait_for_timeout(espera)
+            CAPTURAS.append(foto(pg, "%s_64_ritmo_%s" % (v, tag)))
+            pg.evaluate("S.run++; resetFlow(); goMenuIsla()")
+        verificar(not err, "%s: %s" % (v, err)); ctx.close()
+
+@prueba("Ritmo: chequeo semanal sin ayuda (un solo intento) e informe con regularidad")
+def t_ritmo_chequeo(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, semilla=95, rapido=False, extra_init=ESC_TEST); instalar_speak(pg); entrar(pg, "Vale")
+    for _ in range(3):
+        abrir_isla(pg, "Ritmo"); pg.evaluate("PACK=PACKS.find(p=>p.id==='ritmo')")
+        if pg.evaluate("SK('rit_pulso').mast"): break
+        tarjeta(pg, "Sesión de hoy"); jugar_ritmo(pg); cerrar_fin(pg)
+    abrir_isla(pg, "Ritmo"); tarjeta(pg, "Chequeo semanal")
+    verificar(jugar_ritmo(pg, errores=[None, "adelantado"]) == "fin"); cerrar_fin(pg)
+    ck = pg.evaluate("store.checks.Vale"); verificar(len(ck) == 1 and ck[0]["p"] == "ritmo" and 0 <= ck[0]["ok"] < ck[0]["n"], str(ck))
+    reg = pg.evaluate("store.ritmo.Vale.filter(e=>e.c)"); verificar(len(reg) >= 1, "el chequeo no registró regularidad")
+    verificar("CHEQUEOS SIN AYUDA" in pg.evaluate("reportText()")); verificar(not err, str(err)); ctx.close()
+
+@prueba("Ritmo: la base que suena no se escucha a sí misma (el clic que entra por el micrófono se enmascara) y los golpes del niño siguen contando")
+def t_ritmo_mascara(C):
+    ctx = C.banco.contexto("360x700"); err = []
+    pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, semilla=97, rapido=False, extra_init=ESC_TEST); instalar_speak(pg); entrar(pg, "Vale")
+    abrir_isla(pg, "Ritmo"); solo_habilidad(pg, "rit_base")
+    pg.evaluate("(()=>{ const G=Gioval.entrada.proveedores.golpes; G.activo=true; G.fuente='mic'; window.__fugas={emitidas:0,filtradas:0}; })()")   # se simula 'micrófono encendido'
+    tarjeta(pg, "Sesión de hoy"); pg.evaluate("S.session.items.length=1")
+    JS = """(T)=>{ const G=Gioval.entrada.proveedores.golpes, L=60, d=T.beatMs;
+      const em=(t,f)=>{ setTimeout(()=>{ if(f==='fuga'){ if(G.silenciado(t)){ window.__fugas.filtradas++; return; } window.__fugas.emitidas++; } Gioval.entrada.emitir({tipo:'golpe',t:t,fuerza:.5,fuente:'mic'}); }, Math.max(0,t-performance.now()-3)); };
+      for(let i=0;i<12;i++) em(T.tS+i*d+L,'fuga');
+      T.esperados.forEach(e=>em(e+25,'nino')); }"""   # parlante: L=60 ms después de cada clic; niño: 25 ms después del pulso
+    visto = -1; t0 = time.time()
+    while time.time() - t0 < 60:
+        pg.wait_for_timeout(30)
+        if pg.evaluate("document.getElementById('finish').classList.contains('show')"): break
+        t = pg.evaluate("Gioval.ritmo.turno&&Gioval.ritmo.turno.id!==%d?Gioval.ritmo.turno:null" % visto)
+        if t: visto = t["id"]; pg.evaluate(JS, t)
+    verificar(pg.evaluate("document.getElementById('finish').classList.contains('show')"), "la sesión no terminó")
+    f = pg.evaluate("window.__fugas"); eco = pg.evaluate("Gioval.ritmo.eco")
+    verificar(eco is not None and 50 <= eco <= 70, "demora del parlante estimada en la cuenta: %s (real 60)" % eco)
+    verificar(f["filtradas"] >= 4, "no se enmascaró el clic de la base: %s" % f)
+    reg = pg.evaluate("store.ritmo.Vale"); verificar(reg and reg[0]["x"] == 0 and reg[0]["ok"] == 1, "los golpes del niño deberían contar y la base no sumar golpes de más: %s" % reg[:2])
+    verificar(not err, str(err)); ctx.close(); return "demora estimada %.0f ms; clics enmascarados %d" % (eco, f["filtradas"])
+
+@prueba("Ritmo: encender 'Tocar con mi instrumento' (micrófono falso): calibración de 3 s, detección y apagado al salir de la isla")
+def t_ritmo_mic_interfaz(C):
+    SALIDA.mkdir(exist_ok=True); err = []
+    x = senal_golpes(3.8 + 3.0, [3800 + 600 * k for k in range(4)], "palma", 0.004, semilla=41)
+    for v in ("360x700", "740x330"):
+        wav = a_wav(x, SALIDA / ("mic_interfaz_%s.wav" % v)); b = con_microfono_falso(C, wav)
+        try:
+            ctx = b.contexto(v, permissions=["microphone"])
+            pg = abrir(ctx, C.url + "/index.html", store=STORE_RITMO, errores=err, rapido=False); instalar_speak(pg); entrar(pg, "Vale"); abrir_isla(pg, "Ritmo")
+            pg.click(".island:has-text('Tocar con mi instrumento')"); pg.wait_for_selector("#rtCal.show", timeout=5000); pg.wait_for_timeout(1200)
+            CAPTURAS.append(foto(pg, v + "_65_ritmo_calibrando"))
+            verificar("Shhh" in pg.evaluate("document.getElementById('rtCalT').innerText"), "no muestra la calibración")
+            pg.wait_for_function("document.getElementById('rtCalT').innerText.includes('Listo')", timeout=8000)
+            igual(pg.evaluate("Gioval.entrada.proveedores.golpes.estado().calibrado"), True, "calibrado"); CAPTURAS.append(foto(pg, v + "_66_ritmo_listo"))
+            pg.wait_for_function("document.getElementById('rtCalT').innerText.includes('escuché')", timeout=9000)
+            pg.wait_for_function("!document.getElementById('rtCal').classList.contains('show')", timeout=4000)
+            verificar("Usar la pantalla" in pg.evaluate("document.getElementById('menuIslaItems').innerText"), "la tarjeta no cambió")
+            tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(500); verificar(pg.evaluate("document.getElementById('rit').classList.contains('micOn')"), "no muestra el modo micrófono")
+            CAPTURAS.append(foto(pg, v + "_67_ritmo_modo_microfono")); pg.evaluate("S.run++; resetFlow(); goMenuIsla()")
+            pg.evaluate("goMap()"); pg.wait_for_timeout(200); igual(pg.evaluate("Gioval.entrada.proveedores.golpes.activo"), False, "debería apagarse al salir de la isla")
+            ctx.close()
+        finally: b.cerrar()
+    verificar(not err, str(err))
 
 # ---------------------------------------------------------------- capturas varias
 @prueba("capturas: pantallas principales en Pixel 7, 360x700 y 740x330")
