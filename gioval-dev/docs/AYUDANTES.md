@@ -45,7 +45,7 @@ timers congelados), con la tarea en curso:
 |---|---|
 | App abierta, pantalla encendida | Suena a la hora y muestra "¡Se terminó el tiempo!". |
 | Pantalla oculta/bloqueada y los timers congelados | **No suena mientras sigue congelada.** Al volver a primer plano (`visibilitychange`) se recalcula con la hora real, suena en ese momento (una sola vez) y se muestra "Volviste a la app y ya había pasado el tiempo. Está bien: ¿pudiste terminar?". |
-| App cerrada o descartada por el sistema | La tarea en curso se guarda (`localStorage.gioval_ayudando`). Al reabrir y elegir de nuevo al niño, se retoma: en hora con la cuenta regresiva, o vencida con el mismo mensaje. Una tarea de más de 3 horas se descarta. |
+| App cerrada o descartada por el sistema | La tarea en curso se guarda (`localStorage.gioval_ayudando` (con el sufijo del espacio de datos, `Gioval.clave`)). Al reabrir y elegir de nuevo al niño, se retoma: en hora con la cuenta regresiva, o vencida con el mismo mensaje. Una tarea de más de 3 horas se descarta. |
 
 **Lo que no se puede probar en emulación** y hay que verificar a mano en el aparato: que el teléfono real suene con la
 pantalla apagada. En navegador no está garantizado; se resuelve con la app Android nativa (Capacitor `LocalNotifications`,
@@ -60,6 +60,7 @@ navegador permite mantener la pantalla encendida, el estado del permiso de aviso
 | `ui.js` `renderMenuIsla()` | `Gioval.tarjetasMenu`: lista de funciones `done => [tarjetas]` que se suman al menú de cualquier isla. |
 | `adultos.js` `renderParent()` | `Gioval.emit("panel")` al final, para que los módulos redibujen su sección. |
 | `index.html` | El botón del cartel de tope quedó dentro de `#capAcc` (fila de botones) para poder sumar otros. |
+| `css/app.css` | `#capBox` se puede desplazar si el contenido no entra (con otros idiomas o botones extra se cortaba). |
 
 Sin módulos que los usen, no hacen nada: el cartel, los menús y el panel se ven igual (lo comprueba la regresión visual).
 
@@ -71,10 +72,13 @@ Los ids de tarea son parte de lo guardado: no renombrarlos.
 
 ## Cómo editar las tareas
 
-Todo está en `gioval/js/datos/tareas.js`: agregar una tarea es agregar un objeto
-`{id, emoji, nombre, minutos, edadMin, supervision, pasos:[2 a 4 frases], aviso}`. La prueba automática exige:
+Todo está en `gioval/js/datos/tareas.js`: agregar una tarea es agregar una línea `tarea(id, emoji, minutos, edadMin, supervision)` y sus
+TEXTOS en la tabla de idioma, por clave: `ayudantes.tarea.<id>.nombre`, `.pasos` (lista de 2 a 4 frases, **en orden**, no variantes) y
+`.aviso` (una frase; si la tarea no lleva aviso, no se pone la clave). La prueba automática exige:
 supervisión válida, aviso no vacío si es "cerca" o "adulto", 2 a 4 pasos cortos, y que los **pasos** no nombren fuego, calor,
-filo, químicos, escaleras ni electricidad. Los textos de pantalla están en `TEXTOS` (arriba del archivo).
+filo, químicos, escaleras ni electricidad. **Idiomas:** todos los textos de Ayudantes (pantalla, voz, panel, tareas) son claves `ayudantes.*` en `Gioval.i18n.agregar("es-AR", ...)`
+y `agregar("en", ...)`, al principio de `tareas.js`, con frases completas y huecos con nombre (plurales con `{n, plural, ...}`). Otro idioma
+suma sus claves igual (ver `AGREGAR_IDIOMA.md`); lo que falte cae a es-AR. Pendiente: variantes es-419 / es-ES (hoy caen a es-AR, con voseo).
 
 ## Pruebas (`python3 gioval-dev/tests/correr.py ayudantes`)
 
