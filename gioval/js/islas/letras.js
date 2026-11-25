@@ -5,7 +5,7 @@
    Qué trae:
    - 20 tipos de actividad por toque (lname, lsound, lpic, lcount, lrhyme, lsyl, lbuild, lmissing, lcase, lsplit, lnombre,
      lrsyl, lrword, lrphrase, labc, lcomp, lorden, lcluster, lbien, lalfa) sobre el motor genérico de toques.
-   - Preguntas iniciales para adultos (una vez por niño) -> store.intake[KID].letras.
+   - Preguntas iniciales para adultos (una vez por niño) -> store.intake["letras|<jugador>"].
    - Juego de ubicación adaptativo (~5 min) con resumen que el adulto puede ajustar antes de aceptar.
    - Informe para adultos con evidencia (aciertos, tiempo, retención) y qué se saltó y por qué.
    El salto por dominio rápido vive en js/core/dominio.js (genérico, sin nombrar la isla). */
@@ -417,6 +417,8 @@ Object.keys(ACT).forEach(k => Object.defineProperty(ACT[k], "okMsgs", { get: () 
 
 /* ---------- Habilidades ---------- */
 const SKILLS = D.HABILIDADES.map(h => Object.defineProperty(Object.assign({}, h), "name", { get: () => t("letras.hab." + h.id), enumerable: true }));
+/* salto por dominio rápido (js/core/dominio.js): rt = umbral de tiempo de la habilidad; salta = solo la primera que se destraba (conservador) */
+SKILLS.forEach(s => { if (s.rtRapido) { const sig = SKILLS.find(x => x.req.includes(s.id) && x.saltable !== false); s.rapido = { rt: s.rtRapido, salta: sig ? [sig.id] : [] }; } });
 const bySkill = Object.fromEntries(SKILLS.map(s => [s.id, s]));
 const tramoDe = n => SKILLS.filter(s => s.nivel === n);
 const primeraDe = n => SKILLS.find(s => s.nivel === n) || SKILLS[SKILLS.length - 1];
@@ -435,8 +437,11 @@ SKILLS.filter(s => s.sonda).forEach(s => {
 });
 
 /* ============ PREGUNTAS PARA ADULTOS (intake) ============ */
-const intakeDe = k => { const i = store.intake && store.intake[k]; return (i && i.letras) || null; };
-function guardarIntake(k, obj) { store.intake = store.intake || {}; (store.intake[k] = store.intake[k] || {}).letras = obj; save(); }
+/* Las respuestas de Letras se guardan en store.intake["letras|<jugador>"]: Números guarda las suyas en store.intake[<jugador>] y
+   reemplaza ese objeto entero, así que no se puede compartir (ver el PR). */
+const claveIntake = k => "letras|" + k;
+const intakeDe = k => { const i = store.intake && store.intake[claveIntake(k)]; return (i && i.edad != null) ? i : null; };
+function guardarIntake(k, obj) { store.intake = store.intake || {}; store.intake[claveIntake(k)] = obj; save(); }
 const nivelDe = r => Math.max(D.INICIO.letras[r.letras] || 0, D.INICIO.lee[r.lee] || 0, D.INICIO.nombre[r.nombre] || 0);
 /* tramo desde donde arranca el JUEGO de ubicación: lo que dicen las respuestas; si no dicen nada, la edad */
 const arranqueUbic = r => { const n = nivelDe(r); return n > 0 ? n : (D.INICIO.edadParaUbicacion[r.edad] || 0); };
@@ -448,8 +453,11 @@ function aplicarInicio(ini, por, datos) {
   let n = 0;
   SKILLS.forEach(s => {
     const st = SK(s.id);
-    if (s.nivel < ini) { if (Gioval.dominio.marcarSaltada(s, por, datos)) n++; }
-    else if (st.mast && st.skip && st.skip.estado === "pendiente" && (st.skip.por === "ubicacion" || st.skip.por === "preguntas")) Gioval.dominio.revertir(s, "anulada");
+    if (s.nivel < ini) { if (Gioval.dominio.saltar(s.id, por, { motivo: { k: "letras.dominio.motivo_" + por, p: { fecha: Gioval.dominio.fecha(datos.ts), n: datos.n } } })) n++; }
+    else if (st.mast && st.skip && st.skip.estado === "pendiente" && (st.skip.por === "ubicacion" || st.skip.por === "preguntas")) {
+      /* el adulto cambió el punto de partida: vuelve a práctica sin dejar rastro */
+      st.mast = false; st.att = 0; st.score = .5; st.box = 0; st.due = 0; st.lvl = 0; st.rec = []; delete st.skip;
+    }
   });
   save(); return n;
 }
@@ -557,12 +565,12 @@ function informeTexto() {
   const pc = a => a.length ? Math.round(100 * a.filter(Boolean).length / a.length) + "% (n=" + a.length + ")" : "–";
   SKILLS.forEach(s => {
     const ev = log.filter(e => e.s === s.id && e.k !== "check"), st = SK(s.id); if (!ev.length && !st.mast && !st.skip) return;
-    L.push(tx("letras.informe.hab", { name: s.name, estado: st.skip && st.skip.estado === "pendiente" && !ev.length ? "saltada" : (st.mast ? "dom" : "prac"), edad: s.edad, tramo: s.nivel + 1 }));
+    L.push(tx("letras.informe.hab", { name: s.name, estado: Gioval.dominio.pendiente(st) && !ev.length ? "saltada" : (st.mast ? "dom" : "prac"), edad: s.edad, tramo: s.nivel + 1 }));
     if (ev.length) { const first = ev.map(e => e.f); L.push(tx("letras.informe.acc", { a: pc(first.slice(0, 5)), b: pc(first.slice(-5)) }), tx("letras.informe.ret", { r: pc(ev.filter(e => e.g >= 1).map(e => e.o)) })); } else L.push(I.sinDatosHab);
     Gioval.dominio.lineasInforme(s, st, ev).forEach(l => L.push(l));
   });
-  const m = Gioval.dominio.resumenSaltos(LETRAS_PACK());
-  if (m.n) L.push("", tx("letras.informe.resumenSaltos", { n: m.n, c: m.confirmadas, r: m.revertidas, p: m.pendientes }));
+  const sal = SKILLS.filter(s => SK(s.id).skip), cuenta = e => sal.filter(s => SK(s.id).skip.estado === e).length;
+  if (sal.length) L.push("", tx("letras.informe.resumenSaltos", { n: sal.length, c: cuenta("confirmada"), r: cuenta("revertida"), p: cuenta("pendiente") }));
   L.push("", I.chequeos); const ck = (store.checks[KID] || []).filter(c => c.p === "letras");
   if (!ck.length) L.push(I.sinChequeos); ck.slice(-12).forEach(c => L.push("   " + c.d + ": " + c.ok + "/" + c.n + " (" + Math.round(100 * c.ok / c.n) + "%)"));
   L.push("", I.comoLeerlo); return L.join("\n");
@@ -627,7 +635,7 @@ Gioval.islas.registrar({
   id: "letras", get name() { return TX.isla.nombre; }, emoji: "🔤", get sub() { return TX.isla.sub; }, skills: SKILLS, tap: true, plain: true,
   instrumento: null, entradas: ["toque"], actividades: Object.assign({}, ACT, ACTS_UBIC),
   dom: DOM, iniciar, tarjetas,
-  get outro() { return TX.isla.outro; }, get capTail() { return TX.isla.capTail; }, get notaInforme() { return t("dominio.nota"); }
+  get outro() { return TX.isla.outro; }, get capTail() { return TX.isla.capTail; }
 });
 /* para las pruebas y las herramientas de depuración */
 Gioval.letras = { WORDS, SKILLS, intakeDe, nivelDe, arranqueUbic, aplicarInicio, evaluarTramo, resultadoUbic, informeTexto, particiones };

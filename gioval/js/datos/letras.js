@@ -156,6 +156,10 @@ Gioval.i18n.agregar("es-AR", {
   "letras.informe.sin_datos_hab": "   (todavía sin práctica)",
   "letras.informe.como_leerlo": "Cómo leerlo: los aciertos son al PRIMER intento, sin contar ayudas. La retención mide si lo recuerda tras dormir y pasar días. El chequeo semanal se hace sin pistas. Las edades son orientativas y nunca limitan: cada chico avanza a su ritmo.",
 
+  /* ---- motivos de lo que se marca como sabido sin practicar (los muestra el informe del núcleo) ---- */
+  "letras.dominio.motivo_preguntas": "según las preguntas para adultos del {fecha}",
+  "letras.dominio.motivo_ubicacion": "según el juego de ubicación del {fecha} ({n} preguntas)",
+
   /* ---- actividades ---- */
   "letras.actividades.lname.ok": ["¡Te fijaste bien en la letra!", "¡Escuchar y mirar funcionó!", "¡Eso es! Fijarse en cada letra ayuda."],
   "letras.actividades.lname.pedir": ["Tocá la letra {nombre}.", "¿Dónde está la {nombre}?", "Buscá la {nombre}."],

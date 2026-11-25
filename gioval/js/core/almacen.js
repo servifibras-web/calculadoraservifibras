@@ -31,10 +31,8 @@ Gioval.almacen = (function () {
       } },
     { a: 2, nombre: "v1 → v2: idioma elegido por jugador (idioma: { Nombre: \"es-AR\" })",
       fn(s) { s.idioma = obj(s.idioma); return s; } },
-    /* v3 (Fase 1, Letras): preguntas iniciales para adultos, por jugador y por isla: intake: { Nombre: { letras: {...}, numeros: {...} } }.
-       RECONCILIAR: la rama numeros-edades hace la misma migración (misma intención, también como v3). Al juntar las ramas, dejar UNA sola. */
-    { a: 3, nombre: "v2 → v3: preguntas iniciales para adultos (intake por jugador e isla)",
-      fn(s) { s.intake = obj(s.intake); return s; } },
+    { a: 3, nombre: "v2 → v3: intake (preguntas iniciales al adulto y punto de partida por niño; lo usa la isla Números)",
+      fn(s) { s.intake = obj(s.intake); return s; } },   /* intake[niño] = { v, edad, resp, ubicacion?, inicio? }; lo escriben las islas que lo usan */
     /* v4 (próxima): { a: 4, nombre:"…", fn(s){ …; return s; } } */
   ];
   A.migraciones = MIGRACIONES;
@@ -86,7 +84,7 @@ Gioval.almacen = (function () {
         try { localStorage.getItem(LS_PRE) || localStorage.setItem(LS_PRE, origenTxt); } catch (e) {}
         await idbPut("respaldo", { id: "pre-migracion-v" + versionAntes + "-" + Date.now(), motivo: "antes de migrar de v" + versionAntes, ts: Date.now(), json: origenTxt });
         try { elegido = migrar(JSON.parse(origenTxt)); hechoMigracion = true; }
-        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {} }, JSON.parse(origenTxt)); }
+        catch (e) { A.errorMigracion = String(e && e.message || e); elegido = Object.assign({ profiles: [], stars: {}, sk: {}, days: {}, time: {}, log: {}, checks: {}, extra: {}, limit: {}, intake: {} }, JSON.parse(origenTxt)); }
       } else { elegido = migrar(elegido); }
       const base = JSON.parse(JSON.stringify(store)); /* defaults */
       reemplazar(Object.assign(base, elegido));

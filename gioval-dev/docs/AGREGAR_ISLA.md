@@ -47,24 +47,6 @@ contenido pedagógico. No hay paso de compilación.
   de un idioma a otro): ver `docs/AGREGAR_IDIOMA.md`. El nombre de cada habilidad sale de la tabla con un getter; su `id` no se traduce.
 - Voz: todo lo que se dice sale por `speak()` (audio grabado → voz del aparato en el idioma elegido → solo texto).
 
-### Salto por dominio rápido y puntos de partida (opcional, genérico)
-
-El motor trae `js/core/dominio.js`, que **no nombra ninguna isla**. Una isla se suma así:
-
-- En cada habilidad, `rtRapido: <milisegundos>`: el tiempo típico de respuesta de alguien que ya la tiene. Sin `rtRapido` esa
-  habilidad nunca provoca un salto (Música y Números no lo declaran).
-- El motor de toques mide `rt` (desde que termina la voz hasta el acierto al **primer intento**) y lo guarda en `store.log` (`r`).
-- Al dominarse una habilidad (evento `dominada`), si hubo >= 6 intentos, >= 90 % al primer intento (últimos 10), >= 5 tiempos y la
-  **mediana** de `rt` <= `rtRapido`, se marca como sabida la primera habilidad siguiente que se destraba (`saltable:false` la excluye).
-  Una saltada no dispara otra (no hay cadenas).
-- Lo saltado queda como `st.skip = { t, por, datos, estado:"pendiente" }` y se **re-evalúa en el chequeo semanal sin ayuda**: el
-  chequeo la prioriza (hasta 2 ítems por habilidad); si no acierta ninguno vuelve a práctica (`revertida`), si acierta queda `confirmada`.
-- Una isla también puede marcar habilidades como sabidas por su cuenta (preguntas iniciales, juego de ubicación) con
-  `Gioval.dominio.marcarSaltada(skill, "<por>", datos)`; la frase del informe sale de las claves `dominio.por_<por>` y
-  `dominio.motivo_<por>` (agregarlas a la tabla de la isla si es un motivo nuevo). Se guardan **datos**, no frases, para que el informe se lea en el idioma de quien lo abre.
-- Las preguntas para adultos se guardan en `store.intake[Jugador].<isla>` (el almacén v3 lo crea).
-- El informe para adultos suma solo el tiempo típico y los saltos de cada habilidad; el informe propio de la isla puede llamar a `Gioval.dominio.lineasInforme`.
-
 ### Isla sin sesiones (como Misiones)
 
 Si la isla no tiene habilidades ni sesión diaria, declara `skills:[]` y, en vez de las tarjetas de siempre, `menuPropio()`
@@ -183,3 +165,9 @@ El mismo ejemplo se prueba en inglés. Para probar la isla real: sumar al `corre
   falta, escribir una migración (ver `almacen.js`, `migraciones`).
 - Las habilidades de una isla se guardan en `store.sk["Perfil|id"]`; el registro de práctica en `store.log`; los chequeos
   en `store.checks` con `p: "<id de la isla>"`. No hace falta tocar el esquema para una isla nueva.
+
+## Opcional: dominio rápido, saltos y punto de partida
+
+Una isla puede declarar `rapido:{rt,salta}` en sus habilidades (salto por dominio rápido con reevaluación semanal), un
+`informeInicio(kid)` para sumar líneas al informe y guardar datos propios por niño en `store.intake[niño]` (almacén v2).
+Mirá `gioval-dev/docs/NUMEROS_EDADES.md` y la cabecera de `gioval/js/core/dominio.js`.

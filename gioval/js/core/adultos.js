@@ -8,28 +8,31 @@ function reportText(){
   lines.push(t("informe.titulo",{nombre:KID.toLocaleUpperCase(loc)}), Gioval.i18n.fecha(new Date()),
     t("informe.dias",{dias:ds.length,min:mins}), "");
   const pc=a=>a.length?Math.round(100*a.filter(Boolean).length/a.length)+"% (n="+a.length+")":"–";
+  PACKS.forEach(p=>{ if(p.informeInicio){ const l=p.informeInicio(KID); if(l&&l.length) lines.push(...l,""); } });   /* punto de partida u otros datos propios de la isla */
   let lastPk=null;
   Gioval.islas.habilidades().forEach(s=>{
-    const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast&&!st.skip) return;
+    const ev=log.filter(e=>e.s===s.id&&e.k!=="check"), st=SK(s.id); if(!ev.length&&!st.mast) return;
     const pk=PACKS.find(p=>p.skills.includes(s)); if(pk&&pk!==lastPk){ lines.push(pk.emoji+" "+pk.name.toLocaleUpperCase(loc)); lastPk=pk; }
     const first=ev.map(e=>e.f), ret=ev.filter(e=>e.g>=1).map(e=>e.o);
-    lines.push(t("informe.hab",{nombre:s.name,estado:st.mast?"dominado":"practica"}));
+    lines.push(Gioval.dominio.pendiente(st)?t("informe.hab_saltada",{nombre:s.name}):t("informe.hab",{nombre:s.name,estado:st.mast?"dominado":"practica"}));
     lines.push(t("informe.primeros",{a:pc(first.slice(0,5)),b:pc(first.slice(-5))}));
     lines.push(t("informe.retencion",{r:pc(ret)}));
-    if(Gioval.dominio) Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l)); /* tiempo de respuesta y saltos */
+    Gioval.dominio.lineasInforme(s,st,ev).forEach(l=>lines.push(l));
   });
+  const sal=Gioval.dominio.lineasSaltos(PACKS); if(sal.length) lines.push("",...sal);
   const ck=store.checks[KID]||[];
   lines.push("", t("informe.chequeos"));
   if(!ck.length) lines.push(t("informe.sin_chequeos"));
   ck.slice(-12).forEach(c=>{ const pk=PACKS.find(x=>x.id===c.p); lines.push(t("informe.chequeo_linea",{fecha:c.d,isla:pk?pk.name:"",ok:c.ok,n:c.n,pct:Math.round(100*c.ok/c.n)})); });
   lines.push("", t("informe.pie",{notas:Gioval.islas.notasInforme()}));
+  if(log.some(e=>typeof e.rt==="number")) lines.push(t("informe.pie_tiempo"));
   return lines.join("\n");
 }
 function renderParent(){
   const ds=store.days[KID]||[];
   const used=Math.round((store.time[KID+"|"+today()]||0)/60);
   let h=KID?t("adultos.resumen",{nombre:KID,dias:ds.length,usados:used,limite:store.limit[KID]||15})+"<br>":"";
-  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) h+=t("adultos.hab_linea",{emoji:(PACKS.find(p=>p.skills.includes(s))||{}).emoji||"",nombre:s.name,estado:st.mast?"dominado":"practica",pct:Math.round(st.score*100),n:st.att,nivel:st.lvl})+"<br>"; });
+  Gioval.islas.habilidades().forEach(s=>{ if(!KID) return; const st=SK(s.id); if(st.att||st.mast) h+=t(Gioval.dominio.pendiente(st)?"adultos.hab_linea_saltada":"adultos.hab_linea",{emoji:(PACKS.find(p=>p.skills.includes(s))||{}).emoji||"",nombre:s.name,estado:st.mast?"dominado":"practica",pct:Math.round(st.score*100),n:st.att,nivel:st.lvl})+"<br>"; });
   $("parentSum").innerHTML=h||"";
   if(KID) $("limSel").value=String(store.limit[KID]||15);
   renderRespaldo(); renderIdioma();
