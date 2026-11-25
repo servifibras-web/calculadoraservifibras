@@ -5,17 +5,29 @@
      umbral()            -> sensibilidad (RMS mínimo, 0.001–0.03)
      nivel(rms)          -> para mostrar el volumen en el panel (opcional)
      alDetectar(midi)    -> para mostrar la nota detectada (opcional)
-     alEncender()/alApagar()/alError(e) -> avisos a la interfaz (opcional) */
+     alEncender()/alApagar()/alError(e) -> avisos a la interfaz (opcional)
+   El permiso y el flujo del micrófono se comparten con otros proveedores (golpes.js): M.flujo() abre el flujo una sola vez
+   (cuenta cuántos lo usan) y M.soltar() lo cierra cuando ya no lo usa nadie. */
 Gioval.entrada.registrarProveedor((function () {
   const M = { id: "microfono", tipos: ["nota"], activo: false, opts: {}, yin: null, freqToMidi: null };
-  let analyser = null, micStream = null, timer = null, slow = 0, pending = false, votes = [], pendStart = 0, lastOnset = 0, onsetRms = 0;
+  let analyser = null, micStream = null, refs = 0, propio = false, timer = null, slow = 0, pending = false, votes = [], pendStart = 0, lastOnset = 0, onsetRms = 0;
   M.disponible = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  /* flujo compartido: lo abre la primera vez y cuenta quién lo usa (así golpes.js no pide el permiso dos veces) */
+  M.flujo = async function () {
+    ensureCtx();
+    if (!micStream) micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    refs++; return micStream;
+  };
+  M.soltar = function () {
+    refs = Math.max(0, refs - 1);
+    if (!refs && micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  };
   M.iniciar = async function (opts) {
     M.opts = opts || {};
     try {
       ensureCtx();
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-      const src = ctx.createMediaStreamSource(micStream);
+      const flujo = await M.flujo(); propio = true;
+      const src = ctx.createMediaStreamSource(flujo);
       analyser = ctx.createAnalyser(); analyser.fftSize = 4096; analyser.smoothingTimeConstant = 0;
       src.connect(analyser);
       M.activo = true; M.opts.alEncender && M.opts.alEncender();
@@ -26,7 +38,7 @@ Gioval.entrada.registrarProveedor((function () {
   };
   M.detener = function () {
     M.activo = false; clearInterval(timer); M.opts.alApagar && M.opts.alApagar();
-    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    if (propio) { propio = false; M.soltar(); }
   };
   // YIN: detecta la frecuencia fundamental de una nota suelta
   function yin(buf, sr) {
