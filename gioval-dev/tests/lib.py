@@ -202,3 +202,10 @@ def snapshot(pg):
     return pg.evaluate("""(()=>{ var sk={}; Object.keys(store.sk).sort().forEach(function(k){ var v=store.sk[k]; sk[k]=[v.mast,v.att,+v.score.toFixed(6),v.box,v.lvl,JSON.stringify(v.rec)]; });
       var log={}; Object.keys(store.log).forEach(function(k){ log[k]=store.log[k].map(function(e){ return [e.s,e.o,e.f,e.k].join(); }); });
       return {sk:sk, log:log, days:store.days, stars:store.stars, checks:store.checks, profiles:store.profiles, limit:store.limit}; })()""")
+
+
+def llegar_al_tope(pg, isla="Números"):
+    """Empieza una sesión y fuerza el tiempo diario al último segundo: espera el cartel de tope diario (capBox)."""
+    abrir_isla(pg, isla); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(300)
+    pg.evaluate("store.time[KID+'|'+today()]=capBase()-1")
+    pg.wait_for_selector("#capBox.show", timeout=6000)
