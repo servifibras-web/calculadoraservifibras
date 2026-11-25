@@ -67,6 +67,7 @@ function renderMenuIsla(){
   const cards=PACK.menuPropio?PACK.menuPropio():[
     {em:"▶️",t:t("menu.sesion"),s:done?t("menu.manana"):sessionPreview(),on:!done,go:()=>startSession()},
     ...(PACK.tarjetas?PACK.tarjetas(done):[]),
+    ...(Gioval.tarjetasMenu||[]).flatMap(f=>f(done)||[]), /* gancho genérico: módulos opcionales suman tarjetas a todos los menús */
     {em:"🌟",t:t("menu.logros"),s:t("menu.logros_sub"),on:true,go:()=>{ show("logros"); renderLogros(); }},
     {em:"🧪",t:t("menu.chequeo"),s:done&&ci.ok?t("menu.manana"):ci.sub,on:ci.ok&&!done,go:()=>startCheck()},
   ];

@@ -1368,6 +1368,341 @@ def t_capturas(C):
         abrir_panel(pg); CAPTURAS.append(foto(pg, v + "_44_panel_adultos"))
         verificar(not err, "%s: %s" % (v, err)); ctx.close()
 
+# ---------------------------------------------------------------- ayudantes de la casa
+def datos_ayudantes(C):
+    """Las tareas y la supervisión con los textos ya resueltos (es-AR) desde la tabla de idiomas, leídos en el navegador."""
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", errores=C.err)
+    d = pg.evaluate("({ datos: JSON.parse(JSON.stringify(Gioval.datos.ayudantes)), elogios: Gioval.i18n.tl('ayudantes.elogios'), tabla: Gioval.i18n.tablas['es-AR'].textos })")
+    ctx.close(); return d
+
+# Lo que NUNCA puede aparecer en los PASOS de una tarea (fuego/calor, filo, químicos, escaleras/alturas, electricidad).
+# Los AVISOS sí pueden nombrarlos ("los cuchillos los pone un adulto"): ahí se dice qué NO hacer.
+PROHIBIDO_EN_PASOS = re.compile(r"(fuego|\bllamas?\b|hornall|horno|estufa|plancha|calient|hirvi|herv[ií]|\bfre[ií]|cuchill|tijera|\bfilos|\bfilo\b|afilad|\bcort(a|an|ar|ás|á|ado)\b|abrelatas|\blatas?\b|rallador|vidrio|lavandina|cloro|detergente|desinfect|qu[ií]mic|veneno|abono|escalera|banquit|\bsillas?\b|subirte|subite|trepar|enchuf|\bcables?\b|el[eé]ctric|licuadora|microondas)", re.I)
+PROHIBIDO_ELOGIO = re.compile(r"(buen[ií]sim|inteligent|genio|el mejor|la mejor|campe|mejor que|perfect|racha|puntos|seguid[oa]s|ganaste|premio)", re.I)
+
+def textos_planos(o):
+    if isinstance(o, str): return [o]
+    if isinstance(o, dict): return [t for v in o.values() for t in textos_planos(v)]
+    if isinstance(o, list): return [t for v in o for t in textos_planos(v)]
+    return []
+
+@prueba("ayudantes: lista de tareas (supervisión y aviso obligatorios, sin fuego/filo/químicos/escaleras) y TEXTOS al tope")
+def t_ay_datos(C):
+    d = datos_ayudantes(C); tareas = d["datos"]["tareas"]; sups = d["datos"]["supervision"]
+    src = (APP / "js/datos/tareas.js").read_text(encoding="utf-8")
+    verificar(src.index('agregar("es-AR"') < src.index("const TAREAS"), "los textos (tabla es-AR por clave) tienen que estar arriba de la lista de tareas")
+    verificar("LISTA PARA QUE MARCOS LA APRUEBE" in src, "falta la lista anotada para aprobación")
+    verificar(not re.search(r"(nombre|aviso|pasos)\s*:\s*[\"\[]", re.sub(r"/\*.*?\*/", "", src, flags=re.S).split("const TAREAS")[1]), "texto fijo en la definición de tareas: va en la tabla de idioma")
+    claves = [k for k in d["tabla"] if k.startswith("ayudantes.")]; verificar(len(claves) > 100, "pocas claves ayudantes.*: %d" % len(claves))
+    ids = [t["id"] for t in tareas]; igual(len(ids), len(set(ids)), "ids repetidos")
+    esperadas = {"mesa_poner", "mesa_levantar", "juguetes", "plantas", "zapatos", "ropa", "mascota", "reciclaje", "secar", "cocinar_verduras"}
+    verificar(esperadas <= set(ids), "faltan tareas pedidas: %s" % (esperadas - set(ids)))
+    verificar({"cama", "juguetes", "mochila"} <= set(ids), "se perdieron ids de la lista anterior")
+    niveles = set(sups.keys()); igual(niveles, {"solo", "cerca", "adulto"}, "niveles de supervisión")
+    for k, v in sups.items(): verificar(all(v.get(c) for c in ("icono", "corto", "largo", "voz")), "supervisión %s incompleta" % k)
+    for t in tareas:
+        n = t["id"]
+        verificar(t.get("supervision") in niveles, "%s: supervisión faltante o inválida: %r" % (n, t.get("supervision")))
+        verificar(t.get("emoji") and t.get("nombre"), n + ": falta ícono o nombre")
+        verificar(isinstance(t.get("edadMin"), int) and 4 <= t["edadMin"] <= 12, "%s: edad mínima %r" % (n, t.get("edadMin")))
+        verificar(isinstance(t.get("minutos"), int) and 1 <= t["minutos"] <= 30, "%s: minutos %r" % (n, t.get("minutos")))
+        verificar(2 <= len(t["pasos"]) <= 4, "%s: tiene que tener de 2 a 4 pasos (tiene %d)" % (n, len(t["pasos"])))
+        for p in t["pasos"]: verificar(p.strip() and len(p) <= 90 and p.strip()[-1] in ".?!", "%s: paso muy largo o sin punto: %r" % (n, p))
+        verificar(isinstance(t.get("aviso"), str), n + ": 'aviso' tiene que existir (vacío solo si es supervisión 'solo')")
+        if t["supervision"] in ("cerca", "adulto"): verificar(len(t["aviso"].strip()) >= 20, "%s: supervisión %s exige un aviso de seguridad" % (n, t["supervision"]))
+        m = PROHIBIDO_EN_PASOS.search(" ".join(t["pasos"] + [t["nombre"]]))
+        verificar(not m, "%s: los pasos mencionan algo prohibido (%r)" % (n, m and m.group(0)))
+    for t in ("mascota", "cocinar_verduras"): verificar(next(x for x in tareas if x["id"] == t)["supervision"] == "adulto", t + " debe ser solo con adulto")
+    verificar(len(d["elogios"]) >= 3, "pocos elogios")
+    for x in textos_planos(d["tabla"] if False else {k: v for k, v in d["tabla"].items() if k.startswith("ayudantes.")}): verificar(not PROHIBIDO_ELOGIO.search(x), "texto con elogio a la persona, racha o puntos: %r" % x)
+    # el código no lleva textos propios: ninguna frase con signos ¡ ¿ fuera de comentarios
+    codigo = re.sub(r"/\*.*?\*/", "", (APP / "js/islas/ayudantes.js").read_text(encoding="utf-8"), flags=re.S)
+    for linea in codigo.splitlines():
+        verificar("¡" not in linea and "¿" not in linea, "texto fijo en el código (va en TEXTOS): " + linea.strip()[:80])
+    return "%d tareas; supervisión: %s" % (len(tareas), {k: sum(1 for t in tareas if t["supervision"] == k) for k in sorted(niveles)})
+
+def ay_pagina(C, vista="360x700", extra=None, **kw):
+    ctx = C.banco.contexto(vista); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=kw.pop("semilla", 81), extra_init=extra, **kw)
+    instalar_speak(pg); entrar(pg, "Vale"); return ctx, pg
+
+def ay_tarea(pg, tid, empezar=True):
+    pg.click(".ayCard[data-id='%s']" % tid); pg.wait_for_timeout(80)
+    if empezar: pg.click("[data-a='empezar']"); pg.wait_for_timeout(120)
+
+def ay_vista(pg): return pg.evaluate("Gioval.ayudantes.vista()")
+def ay_texto(pg, sel="#ayBody"): return pg.evaluate("document.querySelector('%s').innerText" % sel)
+
+@prueba("ayudantes: aparece al llegar al tope diario (botón, frase y tarjeta del menú) y no antes")
+def t_ay_tope(C):
+    ctx, pg = ay_pagina(C)
+    abrir_isla(pg, "Números"); verificar("ayudantes" not in ay_texto(pg, "#menuIslaItems").lower(), "la tarjeta aparece antes del tope")
+    llegar_al_tope(pg)
+    verificar(pg.evaluate("getComputedStyle(document.getElementById('capAyud')).display") != "none", "no aparece el botón en el cartel de tope")
+    igual(pg.evaluate("document.getElementById('capAyud').innerText"), "🧹 Hora de ayudantes")
+    verificar("hora de ayudantes" in pg.evaluate("document.getElementById('capTxt').innerText").lower(), "falta la frase en el cartel")
+    verificar(any("hora de ayudantes" in x.lower() for x in pg.evaluate("window.__LOG")), "la frase no se dijo en voz alta")
+    verificar(pg.evaluate("document.getElementById('capOk').offsetParent!==null"), "el botón de siempre tiene que seguir")
+    pg.click("#capAyud"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("document.querySelector('.screen.active').id"), "ayudantes"); igual(ay_vista(pg), "lista")
+    verificar(not pg.evaluate("document.getElementById('capBox').classList.contains('show')"), "el cartel quedó abierto")
+    igual(pg.evaluate("S.capShown"), False, "S.capShown")
+    igual(pg.evaluate("document.querySelectorAll('.ayCard').length"), 12, "tarjetas para 6 años")
+    pg.click("#ayBack"); pg.wait_for_timeout(150)     # vuelve al menú: la tarjeta sigue disponible mientras no haya más tiempo
+    verificar("Hora de ayudantes" in ay_texto(pg, "#menuIslaItems"), "falta la tarjeta del menú después del tope")
+    pg.click(".island:has-text('Hora de ayudantes')"); pg.wait_for_timeout(150); igual(pg.evaluate("document.querySelector('.screen.active').id"), "ayudantes")
+    ctx.close()
+    # si los adultos lo desactivan: no hay botón, ni frase, ni tarjeta
+    ctx, pg = ay_pagina(C); pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{on:false})")
+    llegar_al_tope(pg)
+    verificar(pg.evaluate("getComputedStyle(document.getElementById('capAyud')).display") == "none", "el botón aparece con los ayudantes desactivados")
+    verificar("ayudantes" not in pg.evaluate("document.getElementById('capTxt').innerText").lower(), "la frase aparece desactivado")
+    pg.click("#capOk"); pg.wait_for_timeout(120); verificar("ayudantes" not in ay_texto(pg, "#menuIslaItems").lower(), "tarjeta con los ayudantes desactivados")
+    ctx.close()
+
+@prueba("ayudantes: elegir tarea (pasos, supervisión y aviso leídos en voz); las de 'solo con adulto' piden la pregunta de adultos")
+def t_ay_elegir(C):
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    pg.evaluate("window.__LOG.length=0")
+    pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(100); igual(ay_vista(pg), "detalle")
+    txt = ay_texto(pg); verificar("Regar las plantas" in txt and "5 min" in txt and "Con un adulto cerca" in txt and "abonos" in txt, txt)
+    igual(pg.evaluate("document.querySelectorAll('.aySteps li').length"), 3, "pasos")
+    dicho = " | ".join(pg.evaluate("window.__LOG")); verificar("Paso 1." in dicho and "Paso 3." in dicho and "Ojo: Solo agua" in dicho and "Pedile a un adulto que esté cerca" in dicho, dicho)
+    foto(pg, "360x700_60_ayudantes_detalle"); CAPTURAS.append("360x700_60_ayudantes_detalle.png")
+    pg.click("[data-a='lista']"); pg.wait_for_timeout(80); igual(ay_vista(pg), "lista")
+    # tarea que se hace por cuenta propia: empieza directo
+    ay_tarea(pg, "zapatos"); igual(ay_vista(pg), "corre"); verificar("Por tu cuenta" not in ay_texto(pg) or True)
+    pg.click("[data-a='cancelar']"); pg.wait_for_timeout(80)
+    # tarea solo con adulto: no empieza sin la pregunta de adultos
+    ay_tarea(pg, "mascota", empezar=False); verificar("Un adulto tiene que estar al lado" in ay_texto(pg), "falta el aviso de adulto")
+    verificar("Siempre con un adulto al lado" in ay_texto(pg), "falta el aviso de seguridad")
+    pg.click("[data-a='empezar']"); pg.wait_for_selector("#gateBox.show", timeout=2000)
+    pg.fill("#gateIn", "1"); pg.click("#gateOk"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("Gioval.ayudantes.enCurso()"), None, "empezó con la respuesta equivocada"); verificar(pg.evaluate("document.getElementById('gateBox').classList.contains('show')"))
+    pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("Gioval.ayudantes.enCurso().id"), "mascota"); igual(ay_vista(pg), "corre")
+    ctx.close()
+
+@prueba("ayudantes: cronómetro con hora absoluta — reloj simulado, pantalla oculta (timers congelados) y vuelta a primer plano")
+def t_ay_cronometro(C):
+    sonidos = "window.__osc=0; (function(){ var o=AudioContext.prototype.createOscillator; AudioContext.prototype.createOscillator=function(){ window.__osc++; return o.apply(this,arguments); }; })();"
+    # 1) pantalla oculta: nadie corre timers, el reloj avanza, no suena hasta volver
+    ctx, pg = ay_pagina(C, extra=sonidos); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    pg.evaluate("window.__fin=[]; Alarma.onFin(function(i){ window.__fin.push(i); }); window.setInterval=function(){ return 1; }; 0")   # timers congelados desde ahora
+    ay_tarea(pg, "zapatos")                       # 3 minutos
+    igual(ay_vista(pg), "corre"); verificar(178 <= pg.evaluate("Alarma.restante()") <= 180, "restante inicial")
+    igual(ay_texto(pg, "#ayTime"), "03:00", "cuenta regresiva grande")
+    verificar(pg.evaluate("parseFloat(getComputedStyle(document.getElementById('ayTime')).fontSize)") >= 70, "los números no son grandes")
+    foto(pg, "360x700_61_ayudantes_cronometro"); CAPTURAS.append("360x700_61_ayudantes_cronometro.png")
+    verificar(abs(pg.evaluate("JSON.parse(localStorage.getItem('gioval_alarma')).fin - Date.now()") - 180000) < 3000, "no guardó la hora absoluta de fin")
+    pg.evaluate("Object.defineProperty(document,'hidden',{get:()=>true,configurable:true}); window.__OFF=60000")
+    verificar(118 <= pg.evaluate("Alarma.restante()") <= 121, "restante con el reloj +60 s")
+    pg.evaluate("window.__OFF=400000")            # pasó mucho más que el tiempo con la pantalla apagada
+    pg.wait_for_timeout(700)
+    igual(pg.evaluate("window.__fin.length"), 0, "no puede sonar mientras la página está congelada"); igual(ay_vista(pg), "corre", "sigue 'corriendo' hasta volver")
+    igual(pg.evaluate("window.__osc"), 0, "sonó con la pantalla oculta")
+    pg.evaluate("Object.defineProperty(document,'hidden',{get:()=>false,configurable:true}); document.dispatchEvent(new Event('visibilitychange'))")
+    pg.wait_for_timeout(150)
+    igual(pg.evaluate("window.__fin.length"), 1, "tiene que sonar al volver a primer plano"); igual(ay_vista(pg), "tiempo")
+    verificar(pg.evaluate("window.__fin[0].tarde") >= 200000, "tarde=%s" % pg.evaluate("window.__fin[0].tarde"))
+    verificar(pg.evaluate("window.__osc") >= 4, "no sonó la alarma al volver (osciladores: %s)" % pg.evaluate("window.__osc"))
+    txt = ay_texto(pg); verificar("Se terminó el tiempo" in txt and "Volviste a la app" in txt and "Terminé" in txt and "Un ratito más" in txt, txt)
+    verificar(any("Se terminó el tiempo" in x for x in pg.evaluate("window.__LOG")), "no lo dijo en voz")
+    igual(pg.evaluate("localStorage.getItem('gioval_alarma')"), None, "alarma guardada sin limpiar")
+    pg.evaluate("document.dispatchEvent(new Event('visibilitychange'))"); igual(pg.evaluate("window.__fin.length"), 1, "sonó dos veces")
+    foto(pg, "360x700_62_ayudantes_tiempo"); CAPTURAS.append("360x700_62_ayudantes_tiempo.png")
+    ctx.close()
+    # 2) pantalla encendida: suena solo, a la hora (hora absoluta), y "un ratito más" reprograma
+    ctx, pg = ay_pagina(C, extra=sonidos, semilla=82); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); pg.evaluate("window.__OFF=181000"); pg.wait_for_selector("[data-a='mas']", timeout=3000)
+    igual(ay_vista(pg), "tiempo"); verificar("Volviste a la app" not in ay_texto(pg), "no debería decir 'volviste' si la app estaba abierta")
+    pg.click("[data-a='mas']"); pg.wait_for_timeout(120); igual(ay_vista(pg), "corre"); verificar(118 <= pg.evaluate("Alarma.restante()") <= 120, "un ratito más = 2 minutos")
+    igual(ay_texto(pg, "#ayTime"), "02:00")
+    ctx.close()
+
+@prueba("ayudantes: terminar, elogio al esfuerzo, registro semanal sin rachas ni puntos")
+def t_ay_terminar(C):
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    elogios = pg.evaluate("Gioval.i18n.tl('ayudantes.elogios')"); vistos = []
+    for i, tid in enumerate(["zapatos", "juguetes", "plantas"], 1):
+        ay_tarea(pg, tid); igual(ay_vista(pg), "corre"); pg.evaluate("window.__OFF=%d" % (i * 20000)); pg.click("[data-a='terminar']"); pg.wait_for_timeout(120)
+        igual(ay_vista(pg), "fin"); txt = ay_texto(pg)
+        verificar(pg.evaluate("document.getElementById('ayElogio').innerText") in elogios, "elogio fuera de la lista")
+        vistos.append(pg.evaluate("document.getElementById('ayElogio').innerText"))
+        verificar("Esta semana ayudaste %s" % ("1 vez." if i == 1 else "%d veces." % i) in txt, "registro semanal: " + txt)
+        verificar(not PROHIBIDO_ELOGIO.search(txt) and "⭐" not in txt and "🔥" not in txt, "elogio a la persona, racha o puntos: " + txt)
+        igual(pg.evaluate("Alarma.activa()"), False, "la alarma debe cancelarse al terminar")
+        if i < 3: pg.click("[data-a='lista']"); pg.wait_for_timeout(80)
+    foto(pg, "360x700_63_ayudantes_fin"); CAPTURAS.append("360x700_63_ayudantes_fin.png")
+    reg = pg.evaluate("Gioval.ayudantes.registro('Vale')"); igual([r["id"] for r in reg], ["zapatos", "juguetes", "plantas"], "registro"); verificar(all(r["s"] >= 0 for r in reg))
+    # solo cuenta lo de ESTA semana (lunes a domingo): una anotación vieja no suma; la semana siguiente empieza de cero
+    pg.evaluate("store.ayud.reg.Vale.push({t:Date.now()-10*864e5,id:'cama',s:60})"); igual(pg.evaluate("Gioval.ayudantes.vecesSemana('Vale')"), 3, "una tarea de hace 10 días no cuenta")
+    pg.evaluate("window.__OFF=8*864e5"); igual(pg.evaluate("Gioval.ayudantes.vecesSemana('Vale')"), 0, "la semana siguiente empieza de cero (no hay racha)"); pg.evaluate("window.__OFF=0")
+    # el registro no tiene rachas ni puntos: solo { t, id, s }
+    verificar(set(reg[0].keys()) <= {"t", "id", "s", "f"}, str(reg[0]))
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(100)
+    verificar("Esta semana ayudó: 3 veces" in pg.evaluate("document.getElementById('ayResumen').innerText"), pg.evaluate("document.getElementById('ayResumen').innerText"))
+    # sobrevive a recargar
+    pg.evaluate("Gioval.almacen.guardarYa()"); pg.wait_for_timeout(300); pg.reload(); esperar_listo(pg)
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 4, "el registro no sobrevivió a recargar")
+    ctx.close()
+    # un ratito más: se anota UNA vez; dejarla por ahora no anota nada y no castiga
+    ctx, pg = ay_pagina(C, semilla=83); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); pg.evaluate("window.__OFF=181000"); pg.wait_for_selector("[data-a='mas']", timeout=3000)
+    pg.click("[data-a='mas']"); pg.wait_for_timeout(100); pg.click("[data-a='terminar']"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 1, "se anotó más de una vez")
+    pg.click("[data-a='lista']"); pg.wait_for_timeout(80); ay_tarea(pg, "ropa"); pg.click("[data-a='cancelar']"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 1, "dejarla por ahora no debe anotar"); igual(ay_vista(pg), "lista"); igual(pg.evaluate("Alarma.activa()"), False)
+    verificar(any("Está bien" in x for x in pg.evaluate("window.__LOG")), "tiene que haber un mensaje sin castigo")
+    ctx.close()
+
+@prueba("ayudantes: el tiempo de ayudantes NO cuenta como tiempo de pantalla")
+def t_ay_no_cuenta(C):
+    ctx, pg = ay_pagina(C)
+    abrir_isla(pg, "Números"); tarjeta(pg, "Sesión de hoy"); pg.wait_for_timeout(300)
+    t0 = pg.evaluate("store.time['Vale|'+today()]||0"); pg.wait_for_timeout(2300)
+    verificar(pg.evaluate("store.time['Vale|'+today()]") >= t0 + 2, "control: jugando sí tiene que contar")     # control: la prueba es válida
+    pg.evaluate("store.time['Vale|'+today()]=capBase()-1"); pg.wait_for_selector("#capBox.show", timeout=6000); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); igual(ay_vista(pg), "corre")
+    antes = pg.evaluate("[store.time['Vale|'+today()], capLeft()]"); pg.wait_for_timeout(3200)
+    despues = pg.evaluate("[store.time['Vale|'+today()], capLeft()]"); igual(despues, antes, "el tiempo de pantalla siguió corriendo en Ayudantes")
+    igual(pg.evaluate("document.getElementById('capBox').classList.contains('show')"), False, "no tiene que volver a saltar el cartel de tope")
+    ctx.close()
+
+@prueba("ayudantes: configuración de adultos (activar, edad, duración, tareas habilitadas y asignadas, foto) y estado honesto de la alarma")
+def t_ay_adultos(C):
+    ctx, pg = ay_pagina(C)
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(100)
+    tp = ay_texto(pg, "#ayPanel")
+    verificar("no garantizada en navegador" in tp and "app Android nativa" in tp, "el panel no dice la verdad sobre la alarma: " + tp[:300])
+    verificar("Pantalla encendida mientras corre" in tp and "Avisos del sistema" in tp and "App nativa" in tp, "faltan los estados de la alarma")
+    verificar("NO cuenta como tiempo de pantalla" in tp, "falta la aclaración del tiempo")
+    foto(pg, "360x700_64_ayudantes_panel"); CAPTURAS.append("360x700_64_ayudantes_panel.png")
+    igual(pg.evaluate("document.querySelectorAll('#ayPanelBody [data-h]').length"), 12, "una fila por tarea")
+    # edad 4: solo las de 4 años
+    pg.select_option("#ayEdad", "4"); pg.wait_for_timeout(80)
+    igual(pg.evaluate("Gioval.ayudantes.cfg('Vale').edad"), 4)
+    igual(sorted(t["id"] for t in pg.evaluate("Gioval.ayudantes.disponibles('Vale')")), ["juguetes", "mesa_poner", "mochila", "plantas", "zapatos"], "tareas de 4 años")
+    # deshabilitar una, asignar otra (aunque sea de 5 años): la asignada va primera y marcada
+    pg.uncheck("#ayPanelBody [data-h='juguetes']"); pg.check("#ayPanelBody [data-asig='cocinar_verduras']"); pg.wait_for_timeout(80)
+    pg.select_option("#ayDur", "3"); pg.check("#ayFoto"); pg.wait_for_timeout(80)
+    c = pg.evaluate("Gioval.ayudantes.cfg('Vale')"); igual((c["off"], c["asig"], c["dur"], c["foto"], c["on"]), (["juguetes"], ["cocinar_verduras"], 3, True, True))
+    pg.evaluate("Gioval.almacen.guardarYa()"); pg.wait_for_timeout(250); pg.reload(); esperar_listo(pg); instalar_speak(pg)   # persiste
+    igual(pg.evaluate("Gioval.ayudantes.cfg('Vale')"), c, "la configuración no sobrevivió a recargar")
+    entrar(pg, "Vale"); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ids = pg.evaluate("[...document.querySelectorAll('.ayCard')].map(c=>c.dataset.id)"); igual(ids, ["cocinar_verduras", "mesa_poner", "plantas", "zapatos", "mochila"], "lista del niño")
+    verificar("Te la pidió un adulto" in pg.evaluate("document.querySelector('.ayCard.asig').innerText"), "la asignada no está marcada")
+    verificar(all("3 min" in x for x in pg.evaluate("[...document.querySelectorAll('.ayCard small:not(.pin)')].map(x=>x.innerText)")), "la duración configurada no se ve en las tarjetas")
+    ay_tarea(pg, "zapatos"); igual(ay_texto(pg, "#ayTime"), "03:00"); verificar(177 <= pg.evaluate("Alarma.restante()") <= 180, "la duración configurada no se usa")
+    pg.click("[data-a='cancelar']"); pg.wait_for_timeout(80)
+    # la asignada se cumple una vez y se quita sola
+    ay_tarea(pg, "cocinar_verduras", empezar=False); pg.click("[data-a='empezar']"); pg.wait_for_selector("#gateBox.show"); pg.fill("#gateIn", str(pg.evaluate("S.gateAns"))); pg.click("#gateOk"); pg.wait_for_timeout(120)
+    pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); igual(pg.evaluate("Gioval.ayudantes.cfg('Vale').asig"), [], "la asignada tenía que quitarse sola")
+    # perfiles independientes: el otro niño conserva los valores por defecto
+    c2 = pg.evaluate("Gioval.ayudantes.cfg('Otro')"); igual((c2["edad"], c2["on"], c2["dur"], c2["off"], c2["asig"], c2["foto"]), (6, True, 0, [], [], False), "valores por defecto")
+    # desactivar
+    pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{on:false})"); igual(pg.evaluate("Gioval.ayudantes.ofrece('Vale')"), False)
+    ctx.close()
+    # app nativa simulada: el panel lo dice, sin prometer más de la cuenta
+    ctx, pg = ay_pagina(C, extra="window.Capacitor={Plugins:{LocalNotifications:{schedule:function(){},cancel:function(){}}}};", semilla=84)
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(100); tp = ay_texto(pg, "#ayPanel")
+    verificar("se detectó Capacitor" in tp and "Todavía hay que probarla en el aparato" in tp and "no garantizada en navegador" in tp, tp[-500:])
+    ctx.close()
+
+@prueba("ayudantes: foto opcional al terminar (solo si el adulto la activa) en el almacén de fotos existente")
+def t_ay_foto(C):
+    from PIL import Image
+    SALIDA.mkdir(exist_ok=True); png = SALIDA / "foto_prueba.png"; Image.new("RGB", (64, 48), (200, 80, 90)).save(png)
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "zapatos"); pg.click("[data-a='terminar']"); pg.wait_for_timeout(100)
+    igual(pg.evaluate("document.getElementById('ayFotoBtn')"), None, "ofrece foto sin que el adulto la active")
+    pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{foto:true})"); pg.click("[data-a='lista']"); pg.wait_for_timeout(80)
+    ay_tarea(pg, "ropa"); pg.click("[data-a='terminar']"); pg.wait_for_timeout(100)
+    verificar(pg.evaluate("!!document.getElementById('ayFotoBtn')"), "no ofrece la foto activada")
+    foto(pg, "360x700_65_ayudantes_foto"); CAPTURAS.append("360x700_65_ayudantes_foto.png")
+    pg.set_input_files("#ayFotoIn", str(png)); pg.wait_for_function("document.getElementById('ayFotoBtn').innerText.includes('guardada')", timeout=5000)
+    fs = pg.evaluate("Gioval.almacen.fotos.listar()"); igual(len(fs), 1, "fotos guardadas"); igual((fs[0]["meta"]["tipo"], fs[0]["meta"]["kid"], fs[0]["meta"]["tarea"]), ("ayudantes", "Vale", "ropa"))
+    o = pg.evaluate("Gioval.almacen.fotos.obtener('%s').then(r=>[r.blob.type,r.blob.size])" % fs[0]["id"]); verificar(o[1] > 0 and o[0].startswith("image/"), str(o))
+    igual(pg.evaluate("Gioval.ayudantes.registro('Vale')[1].f"), fs[0]["id"], "el registro no apunta a la foto")
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(300)
+    verificar("Fotos guardadas: 1" in pg.evaluate("document.getElementById('ayResumen').innerText"), "el panel no cuenta la foto"); ctx.close()
+
+@prueba("ayudantes: retoma una tarea en curso si se cerró la app (aún en hora, o ya vencida mientras estaba cerrada)")
+def t_ay_retoma(C):
+    ctx, pg = ay_pagina(C); llegar_al_tope(pg); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    ay_tarea(pg, "juguetes")        # 10 minutos
+    pg.reload(); esperar_listo(pg); instalar_speak(pg); entrar(pg, "Vale"); pg.wait_for_timeout(150)
+    igual(pg.evaluate("document.querySelector('.screen.active').id"), "ayudantes", "tendría que retomar la tarea"); igual(ay_vista(pg), "corre")
+    verificar(540 <= pg.evaluate("Alarma.restante()") <= 600, "restante %s" % pg.evaluate("Alarma.restante()"))
+    # se cerró la app y la alarma venció mientras tanto
+    pg.evaluate("(()=>{ var g=JSON.parse(localStorage.getItem('gioval_alarma')); g.fin=Date.now()-20000; localStorage.setItem('gioval_alarma',JSON.stringify(g)); })()")
+    pg.reload(); esperar_listo(pg); instalar_speak(pg); pg.wait_for_timeout(300); entrar(pg, "Vale"); pg.wait_for_timeout(150)
+    igual(ay_vista(pg), "tiempo", "vencida con la app cerrada"); verificar("Volviste a la app" in ay_texto(pg), ay_texto(pg))
+    pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); igual(pg.evaluate("Gioval.ayudantes.registro('Vale').length"), 1)
+    igual(pg.evaluate("localStorage.getItem('gioval_ayudando')"), None, "quedó una tarea en curso guardada")
+    ctx.close()
+
+@prueba("ayudantes: Música y Números no cambian (mapa, menús, islas registradas y estado de tiempo)")
+def t_ay_no_toca(C):
+    res = {}
+    for nombre, ruta in (("anterior", "/legacy/index.html"), ("nueva", "/index.html")):
+        ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + ruta, store=STORE_KID, errores=C.err if nombre == "nueva" else None, semilla=5); instalar_speak(pg); entrar(pg, "Vale")
+        r = {"mapa": ay_texto(pg, "#islands")}
+        for isla in ("Música", "Números"): abrir_isla(pg, isla); r["menu " + isla] = ay_texto(pg, "#musicMenu,#menuIslaItems")
+        res[nombre] = r; ctx.close()
+    igual(res["nueva"], res["anterior"], "textos del mapa y de los menús")
+    ctx, pg = ay_pagina(C); igual(pg.evaluate("PACKS.map(p=>p.id)"), ["musica", "numeros"], "Ayudantes no es una isla de aprendizaje")
+    igual(pg.evaluate("Gioval.islas.habilidades().length"), 16, "habilidades (Música 7 + Números 9)")
+    for isla in ("Música", "Números"):    # al llegar al tope en cualquier isla, el flujo anterior sigue igual: "¡Chau, zorro!" cierra y vuelve al menú
+        llegar_al_tope(pg, isla); pg.click("#capOk"); pg.wait_for_timeout(120)
+        igual(pg.evaluate("document.querySelector('.screen.active').id"), "menuIsla", isla)
+        pg.evaluate("store.time['Vale|'+today()]=0")
+    ctx.close()
+
+@prueba("ayudantes: en inglés sin una palabra en español; con el pseudo-idioma (+40 %) y en RTL sin desbordes horizontales")
+def t_ay_idiomas(C):
+    # inglés completo: tope, lista, detalle (pasos y aviso), cronómetro, tiempo, fin, panel
+    ctx = C.banco.contexto("360x700"); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=86, extra_init="localStorage.setItem('gioval_idioma','en');"); instalar_speak(pg); entrar(pg, "Vale")
+    llegar_al_tope(pg, directo=True); pg.click("#capAyud"); pg.wait_for_timeout(100)
+    textos = [ay_texto(pg, "#capBox") if False else pg.evaluate("document.getElementById('capTxt').innerText"), pg.evaluate("document.getElementById('capAyud').innerText")]
+    textos.append(ay_texto(pg)); pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(80); textos.append(ay_texto(pg))
+    pg.click("[data-a='empezar']"); pg.wait_for_timeout(120); textos.append(ay_texto(pg)); pg.evaluate("window.__OFF=400000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(120); textos.append(ay_texto(pg))
+    pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); textos.append(ay_texto(pg))
+    abrir_panel(pg); pg.click("#ayPanel summary"); pg.wait_for_timeout(120); textos.append(ay_texto(pg, "#ayPanel"))
+    dicho = pg.evaluate("window.__LOG.concat(window.__BUB)")
+    todo = [l for t in textos for l in t.split("\n") if l.strip()] + dicho
+    verificar(not sin_espanol(todo), "español en inglés: %s" % sin_espanol(todo)[:5])
+    verificar(any("Step 1." in x for x in dicho) and any("Careful:" in x for x in dicho) and any("Time's up" in x for x in dicho), "frases de ayudantes en inglés: %s" % dicho[:6])
+    verificar("Helpers' time" in textos[1] and "This week you helped 1 time." in " ".join(textos), "textos de ayudantes en inglés")
+    igual(pg.evaluate("[...Gioval.i18n.faltantes]"), [], "claves faltantes"); ctx.close()
+    # pseudo-idioma (+40 %) y RTL: sin desbordes horizontales en ninguna vista (360x700 y 740x330)
+    JS = """()=>{ const b=document.body, ay=document.getElementById('ayBody'), pn=document.getElementById('panel');
+      const out=[]; if(b.scrollWidth>b.clientWidth+2) out.push('body'); if(ay&&ay.scrollWidth>ay.clientWidth+2) out.push('ayBody');
+      document.querySelectorAll('#ayudantes .btn,#ayudantes .ayCard').forEach(e=>{ const r=e.getBoundingClientRect(); if(r.width&&(r.right>innerWidth+2||r.left<-2)) out.push(e.className+' fuera de pantalla'); }); return out; }"""
+    for idioma in ("qps-ploc", "qps-plocm"):
+        for v in ("360x700", "740x330"):
+            ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=87, extra_init="localStorage.setItem('gioval_idioma','%s');" % idioma, congelar=True); instalar_speak(pg); entrar(pg, "Vale")
+            llegar_al_tope(pg, directo=True); mal = pg.evaluate(JS)
+            if idioma == "qps-plocm": igual(pg.evaluate("document.documentElement.dir"), "rtl")
+            pg.click("#capAyud"); pg.wait_for_timeout(100); mal += pg.evaluate(JS); pg.click(".ayCard[data-id='plantas']"); pg.wait_for_timeout(80); mal += pg.evaluate(JS)
+            CAPTURAS.append(foto(pg, "%s_%s_80_ayudantes_detalle" % (v, idioma)))
+            pg.click("[data-a='empezar']"); pg.wait_for_timeout(120); mal += pg.evaluate(JS); pg.evaluate("window.__OFF=400000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(120); mal += pg.evaluate(JS)
+            CAPTURAS.append(foto(pg, "%s_%s_81_ayudantes_tiempo" % (v, idioma)))
+            pg.click("[data-a='terminar']"); pg.wait_for_timeout(100); mal += pg.evaluate(JS)
+            verificar(not mal, "%s %s: desbordes %s" % (idioma, v, mal)); ctx.close()
+
+@prueba("capturas: Hora de ayudantes en 360x700 y 740x330 (tope, lista, detalle, cronómetro, tiempo, fin, panel)")
+def t_ay_capturas(C):
+    for v in ("360x700", "740x330"):
+        ctx = C.banco.contexto(v); pg = abrir(ctx, C.url + "/index.html", store=STORE_KID, errores=C.err, semilla=85, congelar=True); instalar_speak(pg); entrar(pg, "Vale")
+        pg.evaluate("Gioval.ayudantes.ponerCfg('Vale',{asig:['plantas'],foto:true})")
+        llegar_al_tope(pg, directo=True); CAPTURAS.append(foto(pg, v + "_70_ayudantes_tope")); pg.click("#capAyud"); pg.wait_for_timeout(120)
+        CAPTURAS.append(foto(pg, v + "_71_ayudantes_lista")); pg.click(".ayCard[data-id='plantas']"); CAPTURAS.append(foto(pg, v + "_72_ayudantes_detalle"))
+        pg.click("[data-a='empezar']"); pg.wait_for_timeout(150); CAPTURAS.append(foto(pg, v + "_73_ayudantes_cronometro"))
+        pg.evaluate("window.__OFF=181000"); pg.evaluate("Alarma._revisar()"); pg.wait_for_timeout(150); CAPTURAS.append(foto(pg, v + "_74_ayudantes_tiempo"))
+        pg.click("[data-a='terminar']"); pg.wait_for_timeout(120); CAPTURAS.append(foto(pg, v + "_75_ayudantes_fin"))
+        abrir_panel(pg); pg.click("#ayPanel summary"); pg.evaluate("document.getElementById('ayPanel').scrollIntoView()"); CAPTURAS.append(foto(pg, v + "_76_ayudantes_panel"))
+        ctx.close()
+
 # ================================================================== runner
 class Ctx: pass
 

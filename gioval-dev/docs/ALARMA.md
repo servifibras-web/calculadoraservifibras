@@ -57,3 +57,8 @@ sin Capacitor funciona como PWA con la limitación de arriba. Todavía falta con
 
 **No se puede probar en emulación:** que el teléfono real suene con la pantalla apagada o con la app cerrada. Eso hay
 que verificarlo a mano en el aparato (PWA) y, más adelante, en el envoltorio nativo.
+
+## Quién la usa
+
+- **Ayudantes de la casa** (`js/islas/ayudantes.js`): cronómetro de cada tarea. Qué ve el niño al volver a primer plano y cómo
+  se retoma una tarea tras cerrar la app: ver `AYUDANTES.md`. Pruebas: `correr.py ayudantes`.

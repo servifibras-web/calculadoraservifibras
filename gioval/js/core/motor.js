@@ -184,7 +184,9 @@ async function endSession(run){
 function showCap(){
   S.run++; S.capShown=true; S.mode="idle"; S.onDone=null; try{speechSynthesis.cancel();}catch(e){}
   $("capBox").classList.add("show");
-  const min=(store.limit[KID]||15), tail=PACK.capTail||t("motor.tope.cola");
+  /* gancho genérico: un módulo opcional (p. ej. Ayudantes) puede sumar una frase (d.extra) y botones a #capAcc */
+  const d={kid:KID,pack:PACK,extra:""}; Gioval.emit("tope",d);
+  const min=(store.limit[KID]||15), tail=(PACK.capTail||t("motor.tope.cola"))+(d.extra?" "+d.extra:"");
   $("capTxt").textContent=t("motor.tope.texto",{n:min,cola:tail});
   speak(t("motor.tope.voz",{n:min,nombre:KID,cola:tail}));
 }
