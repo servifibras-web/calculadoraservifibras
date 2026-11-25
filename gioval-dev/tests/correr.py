@@ -1237,7 +1237,7 @@ def t_mis_idiomas(C):
             def ver(nombre):
                 pg.wait_for_timeout(120); r[nombre] = pg.evaluate(JS_DESBORDES)
                 if idioma != "es-AR": CAPTURAS.append(foto(pg, "%s_%s_mis_%s" % (v, idioma, nombre)))
-            pg.click("#islands .island >> nth=2"); pg.wait_for_timeout(120); ver("1_menu")
+            pg.click("#islands .island >> nth=3"); pg.wait_for_timeout(120); ver("1_menu")   # Misiones (después de Música, Números y Letras)
             pg.click("#menuIslaItems .island >> nth=1"); pg.wait_for_timeout(120); ver("2_lista")
             pg.click(".mis-card[data-id='exp_hielo']"); pg.wait_for_timeout(150); ver("3_aviso")
             mis_hasta(pg, "materiales"); ver("4_materiales"); mis_hasta(pg, "antes"); ver("5_prediccion")
