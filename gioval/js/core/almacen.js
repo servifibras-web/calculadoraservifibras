@@ -84,7 +84,11 @@ Gioval.almacen = (function () {
       } else { elegido = migrar(elegido); }
       const base = JSON.parse(JSON.stringify(store)); /* defaults */
       reemplazar(Object.assign(base, elegido));
-      if (!A.errorMigracion) { store.meta = Object.assign({ ultimoRespaldo: 0, guardado: 0, desde: 0 }, obj(store.meta)); if (hechoMigracion) await escribirAhora(); }
+      if (!A.errorMigracion) {
+        store.meta = Object.assign({ ultimoRespaldo: 0, guardado: 0, desde: 0 }, obj(store.meta));
+        if (hayProgreso() && !store.meta.desde) { store.meta.desde = Date.now(); hechoMigracion = true; } /* desde cuándo hay progreso: base del recordatorio de respaldo */
+        if (hechoMigracion) await escribirAhora();
+      }
       else await escribirAhora();
     })();
   };

@@ -15,8 +15,9 @@ ESTADO = {"version_override": None}   # el servidor puede servir otra js/version
 
 
 class Handler(SimpleHTTPRequestHandler):
+    raiz = None
     def __init__(self, *a, **k):
-        super().__init__(*a, directory=str(APP), **k)
+        super().__init__(*a, directory=str(self.raiz or APP), **k)
 
     def log_message(self, *a):
         pass
@@ -36,8 +37,10 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
 
-def servidor(puerto=0):
-    s = ThreadingHTTPServer(("127.0.0.1", puerto), Handler)
+def servidor(puerto=0, raiz=None):
+    """raiz: carpeta a servir (por defecto gioval/). Con otra raíz se prueban copias modificadas de la app."""
+    H = type("H", (Handler,), {"raiz": raiz}) if raiz else Handler
+    s = ThreadingHTTPServer(("127.0.0.1", puerto), H)
     threading.Thread(target=s.serve_forever, daemon=True).start()
     return s, "http://127.0.0.1:%d" % s.server_address[1]
 
@@ -84,7 +87,7 @@ def abrir(ctx, url, store=None, semilla=None, rapido=True, errores=None, reloj=T
     pg = ctx.new_page()
     if errores is not None:
         def _c(m):
-            if m.type in ("error", "warning") and "favicon" not in m.text and "404" not in m.text:
+            if m.type in ("error", "warning") and "favicon" not in m.text and "404" not in m.text and "blocked by Playwright" not in m.text and "navigator.vibrate" not in m.text and "AudioContext was not allowed" not in m.text:
                 errores.append("[consola %s] %s" % (m.type, m.text))
         pg.on("console", _c)
         pg.on("pageerror", lambda e: errores.append("[pageerror] " + str(e)))
@@ -153,18 +156,28 @@ def jugar(pg, cada_error=0, limite=200, perfecto=False):
             dec += 1
             if cada_error and dec % cada_error == 0 and not perfecto:
                 pg.dispatch_event(".key[data-m='%d']" % (60 if m != 60 else 62), "pointerdown")
+                pg.wait_for_timeout(420)   # la app ignora toques durante 300 ms después de un error (reloj real)
             else:
+                pg.evaluate("window.__ref=[S.ci,S.ni,S.mode,S.run]")
                 pg.dispatch_event(".key[data-m='%d']" % m, "pointerdown")
+                try:
+                    pg.wait_for_function("(function(){var r=window.__ref; return S.ci!==r[0]||S.ni!==r[1]||S.mode!==r[2]||S.run!==r[3];})()", timeout=2500, polling=15)
+                except Exception: pass
             n += 1; continue
         t = pg.evaluate(JS_TOQUES)
         if t:
             dec += 1
             ok = [i for i, v in enumerate(t["vals"]) if v == t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
             mal = [i for i, v in enumerate(t["vals"]) if v != t["w"] and t["ids"][i] not in t["used"] and v not in t["dead"]]
-            if cada_error and dec % cada_error == 0 and t["len"] == 1 and t["miss"] == 0 and mal and not perfecto:
-                pg.click(".opt[data-i='%d']" % mal[0], force=True)
-            elif ok:
-                pg.click(".opt[data-i='%d']" % ok[0], force=True)
+            clic = None
+            if cada_error and dec % cada_error == 0 and t["len"] == 1 and t["miss"] == 0 and mal and not perfecto: clic = mal[0]
+            elif ok: clic = ok[0]
+            if clic is not None:
+                pg.evaluate("(()=>{var T=S.tap; window.__ref=[T.it,T.pos,T.miss,T.used.size,T.dead.size]; })()")
+                pg.click(".opt[data-i='%d']" % clic, force=True)
+                try:   # esperar a que el juego procese el toque (determinismo)
+                    pg.wait_for_function("(function(){var T=S.tap,r=window.__ref; return !T||S.mode!=='play'||T.it!==r[0]||T.pos!==r[1]||T.miss!==r[2]||T.used.size!==r[3]||T.dead.size!==r[4];})()", timeout=2500, polling=15)
+                except Exception: pass
             n += 1
     return "limite"
 
